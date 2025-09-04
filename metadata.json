@@ -1,0 +1,5 @@
+{
+  "name": "Remédio na Hora",
+  "description": "Um aplicativo de despertador inteligente para ajudá-lo a lembrar de tomar seus medicamentos na hora certa. Configure lembretes, acompanhe seu progresso em um calendário e nunca mais perca uma dose.",
+  "requestFramePermissions": []
+}
