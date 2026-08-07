@@ -49,10 +49,18 @@ const App: React.FC = () => {
         fetchMedications();
     }, []);
     
-    const getNextAlarm = useCallback(() => {
+    const getNextAlarm = useCallback((): {
+        nextAlarmTime: Date | null;
+        nextAlarmReminder: { reminder: Reminder; time: string } | null;
+    } => {
         const now = new Date();
         let nextAlarmTime: Date | null = null;
         let nextAlarmReminder: { reminder: Reminder; time: string } | null = null;
+
+        // Compara sem deixar o TypeScript fazer narrowing indevido de
+        // `nextAlarmTime` (atribuído dentro de callbacks).
+        const isEarlier = (candidate: Date) =>
+            nextAlarmTime === null || candidate.getTime() < nextAlarmTime.getTime();
 
         reminders.forEach(reminder => {
             const startDate = new Date(reminder.startDate);
@@ -80,7 +88,7 @@ const App: React.FC = () => {
                         const historyKey = `${alarmDateTime.getFullYear()}-${String(alarmDateTime.getMonth() + 1).padStart(2, '0')}-${String(alarmDateTime.getDate()).padStart(2, '0')}`;
                         const dayHistory = reminder.history[historyKey] || {};
 
-                        if (alarmDateTime > now && !dayHistory[time] && (!nextAlarmTime || alarmDateTime < nextAlarmTime)) {
+                        if (alarmDateTime > now && !dayHistory[time] && isEarlier(alarmDateTime)) {
                             nextAlarmTime = alarmDateTime;
                             nextAlarmReminder = { reminder, time };
                         }

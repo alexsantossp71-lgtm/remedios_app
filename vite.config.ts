@@ -1,7 +1,16 @@
 import { defineConfig } from 'vite';
 
-// ATENÇÃO: Substitua '<NOME_DO_SEU_REPOSITORIO>' pelo nome exato do seu repositório no GitHub.
-// Exemplo: se a URL for github.com/seu-usuario/meu-app-remedios, o nome é 'meu-app-remedios'.
+// Base para GitHub Pages: nome do repositório.
+// Em desenvolvimento e em outros hosts o Vite serve o app normalmente.
 export default defineConfig({
   base: '/remedios_app/',
+  server: {
+    host: '0.0.0.0',
+    // Permite hosts de preview/proxy (útil em ambientes de sandbox/ide).
+    allowedHosts: true,
+  },
+  preview: {
+    host: '0.0.0.0',
+    allowedHosts: true,
+  },
 });
