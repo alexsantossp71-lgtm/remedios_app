@@ -1,27 +1,23 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Organize seus medicamentos, acompanhe as doses e receba lembretes no horário certo." />
+    <meta name="theme-color" content="#0b766e" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Remédio na Hora" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <title>Remédio na Hora</title>
-    <link rel="manifest" href="manifest.webmanifest" />
-    <meta name="theme-color" content="#007aff" />
-    <script src="https://cdn.tailwindcss.com"></script>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.17.0",
-    "vite": "https://aistudiocdn.com/vite@^7.1.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.2"
-  }
-}
-</script>
-</head>
-  <body class="bg-slate-100 dark:bg-slate-900">
+  </head>
+  <body>
     <div id="root"></div>
-    <script type="module" src="src/index.tsx"></script>
+    <noscript>Você precisa ativar o JavaScript para usar o Remédio na Hora.</noscript>
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

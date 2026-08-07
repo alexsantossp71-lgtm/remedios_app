@@ -1,70 +1,101 @@
+import type { Reminder } from '../types';
+import { formatShortDate } from '../utils/date';
+import { Icon } from './Icon';
 
-import React from 'react';
-import { Reminder } from '../types';
-import { TrashIcon, PillIcon, ClockIcon, CalendarIcon } from '../constants';
-
-interface Props {
-    reminders: Reminder[];
-    onDelete: (id: string) => void;
+interface ReminderListProps {
+  reminders: Reminder[];
+  onAdd: () => void;
+  onEdit: (reminder: Reminder) => void;
+  onDelete: (reminder: Reminder) => void;
+  onToggle: (reminder: Reminder) => void;
 }
 
-const ReminderList: React.FC<Props> = ({ reminders, onDelete }) => {
-    if (reminders.length === 0) {
-        return <div className="text-center py-10 text-brand-gray-500">
-            <PillIcon className="w-12 h-12 mx-auto mb-2"/>
-            <p>Nenhum lembrete adicionado.</p>
-            <p className="text-sm">Clique em "Adicionar" para começar.</p>
-        </div>;
-    }
+const formatFrequency = (reminder: Reminder): string =>
+  reminder.frequency.type === 'daily'
+    ? 'Todos os dias'
+    : `A cada ${reminder.frequency.days} dias`;
 
-    const formatFrequency = (reminder: Reminder) => {
-        if (reminder.frequency.type === 'daily') return "Todos os dias";
-        if (reminder.frequency.type === 'interval') return `A cada ${reminder.frequency.days} dias`;
-        return "";
-    };
+const formatDuration = (reminder: Reminder): string =>
+  reminder.duration.type === 'continuous'
+    ? 'Uso contínuo'
+    : `${reminder.duration.days} ${reminder.duration.days === 1 ? 'dia' : 'dias'}`;
 
-    const formatDuration = (reminder: Reminder) => {
-        if (reminder.duration.type === 'continuous') return "Uso contínuo";
-        if (reminder.duration.type === 'days') return `Por ${reminder.duration.days} dias`;
-        return "";
-    };
+export const ReminderList = ({ reminders, onAdd, onEdit, onDelete, onToggle }: ReminderListProps) => (
+  <section className="card reminders-card" aria-labelledby="reminders-title">
+    <div className="card-header">
+      <div>
+        <span className="eyebrow">Tratamentos</span>
+        <h2 id="reminders-title">Meus lembretes</h2>
+      </div>
+      <button type="button" className="button button--primary button--small" onClick={onAdd}>
+        <Icon name="plus" size={17} /> Adicionar
+      </button>
+    </div>
 
-    return (
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-            {reminders.map(reminder => (
-                <div key={reminder.id} className="bg-brand-gray-100 dark:bg-brand-gray-700 p-4 rounded-lg shadow-sm relative">
-                    <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0 pt-1">
-                            <PillIcon className="w-6 h-6 text-brand-blue" />
-                        </div>
-                        <div className="flex-1">
-                            <h4 className="font-bold text-lg text-brand-gray-900 dark:text-white">{reminder.medicationName}</h4>
-                            <div className="text-sm text-brand-gray-600 dark:text-brand-gray-300 mt-1 space-y-1">
-                                <div className="flex items-center">
-                                    <ClockIcon className="w-4 h-4 mr-2" />
-                                    <span>{reminder.times.join(', ')}</span>
-                                </div>
-                                <div className="flex items-center">
-                                    <CalendarIcon className="w-4 h-4 mr-2" />
-                                    <span>{formatFrequency(reminder)}</span>
-                                </div>
-                                <div className="flex items-center text-xs text-brand-gray-500 dark:text-brand-gray-400">
-                                    <span>{formatDuration(reminder)}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => onDelete(reminder.id)}
-                        className="absolute top-2 right-2 p-1 text-brand-gray-400 hover:text-brand-red dark:hover:text-brand-red transition-colors"
-                        aria-label={`Deletar lembrete para ${reminder.medicationName}`}
-                    >
-                        <TrashIcon className="w-5 h-5" />
-                    </button>
-                </div>
-            ))}
-        </div>
-    );
-};
+    {reminders.length === 0 ? (
+      <div className="empty-state">
+        <span className="empty-state__icon"><Icon name="pill" size={30} /></span>
+        <h3>Sua rotina começa aqui</h3>
+        <p>Adicione o primeiro medicamento para montar sua agenda.</p>
+        <button type="button" className="button button--primary" onClick={onAdd}>
+          <Icon name="plus" size={18} /> Criar primeiro lembrete
+        </button>
+      </div>
+    ) : (
+      <div className="reminder-list">
+        {reminders.map((reminder) => (
+          <article
+            className={`reminder-card ${reminder.enabled ? '' : 'reminder-card--paused'}`}
+            key={reminder.id}
+          >
+            <div className="reminder-card__top">
+              <span className="reminder-card__icon"><Icon name="pill" size={20} /></span>
+              <div className="reminder-card__title">
+                <h3>{reminder.medicationName}</h3>
+                <p>{reminder.dosage || 'Dose não informada'}</p>
+              </div>
+              <span className={`status-badge ${reminder.enabled ? 'status-badge--active' : 'status-badge--paused'}`}>
+                {reminder.enabled ? 'Ativo' : 'Pausado'}
+              </span>
+            </div>
 
-export default ReminderList;
+            <div className="reminder-times" aria-label="Horários">
+              {reminder.times.map((time) => <span key={time}>{time}</span>)}
+            </div>
+
+            <dl className="reminder-meta">
+              <div>
+                <dt><Icon name="refresh" size={15} /> Frequência</dt>
+                <dd>{formatFrequency(reminder)}</dd>
+              </div>
+              <div>
+                <dt><Icon name="calendar" size={15} /> Período</dt>
+                <dd>{formatDuration(reminder)} · desde {formatShortDate(reminder.startDate)}</dd>
+              </div>
+            </dl>
+
+            {reminder.instructions && <p className="reminder-note">“{reminder.instructions}”</p>}
+
+            <div className="reminder-card__actions">
+              <button type="button" className="text-button" onClick={() => onToggle(reminder)}>
+                <Icon name={reminder.enabled ? 'pause' : 'play'} size={16} />
+                {reminder.enabled ? 'Pausar' : 'Reativar'}
+              </button>
+              <button type="button" className="text-button" onClick={() => onEdit(reminder)}>
+                <Icon name="edit" size={16} /> Editar
+              </button>
+              <button
+                type="button"
+                className="text-button text-button--danger"
+                onClick={() => onDelete(reminder)}
+                aria-label={`Excluir lembrete de ${reminder.medicationName}`}
+              >
+                <Icon name="trash" size={16} /> Excluir
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    )}
+  </section>
+);

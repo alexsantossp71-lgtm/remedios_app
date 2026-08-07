@@ -1,132 +1,133 @@
+import { useState } from 'react';
+import { ReminderStatus, type Reminder } from '../types';
+import { formatMonth, parseLocalDate, toDateKey, todayKey } from '../utils/date';
+import { getDoseState, getDosesForDate } from '../utils/schedule';
+import { Icon } from './Icon';
 
-import React, { useState } from 'react';
-import { Reminder, ReminderStatus } from '../types';
-import { ChevronLeftIcon, ChevronRightIcon } from '../constants';
-
-interface Props {
-    reminders: Reminder[];
+interface CalendarProps {
+  reminders: Reminder[];
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
 }
 
-const Calendar: React.FC<Props> = ({ reminders }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
+export const Calendar = ({ reminders, selectedDate, onSelectDate }: CalendarProps) => {
+  const initialDate = parseLocalDate(selectedDate);
+  const [currentMonth, setCurrentMonth] = useState(
+    new Date(initialDate.getFullYear(), initialDate.getMonth(), 1, 12),
+  );
+  const now = new Date();
+  const currentTodayKey = todayKey();
+  const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-    const changeMonth = (amount: number) => {
-        setCurrentDate(prev => {
-            const newDate = new Date(prev);
-            newDate.setMonth(newDate.getMonth() + amount);
-            return newDate;
-        });
-    };
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const firstWeekday = new Date(year, month, 1, 12).getDay();
+  const daysInMonth = new Date(year, month + 1, 0, 12).getDate();
+  const cells: Array<Date | null> = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => new Date(year, month, index + 1, 12)),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
 
-    const getMonthData = () => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
+  const changeMonth = (amount: number): void => {
+    setCurrentMonth((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1, 12));
+  };
 
-        const firstDayOfMonth = new Date(year, month, 1);
-        const lastDayOfMonth = new Date(year, month + 1, 0);
+  const selectToday = (): void => {
+    const today = new Date();
+    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1, 12));
+    onSelectDate(toDateKey(today));
+  };
 
-        const daysInMonth = lastDayOfMonth.getDate();
-        const startDayOfWeek = firstDayOfMonth.getDay(); // 0 for Sunday
-
-        const monthData = [];
-        for (let i = 0; i < startDayOfWeek; i++) {
-            monthData.push(null);
-        }
-        for (let i = 1; i <= daysInMonth; i++) {
-            monthData.push(new Date(year, month, i));
-        }
-        return monthData;
-    };
-
-    const monthData = getMonthData();
-    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
-    const getStatusForDay = (day: Date) => {
-        if (!day) return [];
-        const dayKey = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-        
-        const dayStatuses: { name: string, status: ReminderStatus | 'pending' }[] = [];
-
-        reminders.forEach(reminder => {
-            const startDate = new Date(reminder.startDate);
-            startDate.setHours(0, 0, 0, 0);
-
-            // Check if reminder is active for this day
-            if (day < startDate) return;
-
-            if (reminder.duration.type === 'days') {
-                const endDate = new Date(startDate);
-                endDate.setDate(endDate.getDate() + reminder.duration.days);
-                if (day >= endDate) return;
-            }
-
-            const diffDays = Math.floor((day.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-
-            if (reminder.frequency.type === 'daily' || (reminder.frequency.type === 'interval' && diffDays % reminder.frequency.days === 0)) {
-                const dayHistory = reminder.history[dayKey] || {};
-                reminder.times.forEach(time => {
-                    const status = dayHistory[time] || 'pending';
-                    dayStatuses.push({ name: reminder.medicationName, status: status });
-                });
-            }
-        });
-
-        return dayStatuses;
-    };
-    
-    const isToday = (day: Date) => {
-        if (!day) return false;
-        const today = new Date();
-        return day.getDate() === today.getDate() && day.getMonth() === today.getMonth() && day.getFullYear() === today.getFullYear();
-    };
-
-    const renderStatusDots = (day: Date) => {
-        const statuses = getStatusForDay(day);
-        if (statuses.length === 0) return null;
-
-        const takenCount = statuses.filter(s => s.status === ReminderStatus.TAKEN).length;
-        const skippedCount = statuses.filter(s => s.status === ReminderStatus.SKIPPED).length;
-        const pendingCount = statuses.filter(s => s.status === 'pending').length;
-
-        return (
-            <div className="flex justify-center space-x-1 mt-1">
-                {takenCount > 0 && <div className="w-2 h-2 bg-brand-green rounded-full" title={`${takenCount} dose(s) tomada(s)`}></div>}
-                {skippedCount > 0 && <div className="w-2 h-2 bg-brand-red rounded-full" title={`${skippedCount} dose(s) ignorada(s)`}></div>}
-                {pendingCount > 0 && <div className="w-2 h-2 bg-brand-yellow rounded-full" title={`${pendingCount} dose(s) pendente(s)`}></div>}
-            </div>
-        );
-    };
-
-    return (
+  return (
+    <section className="card calendar-card" aria-labelledby="calendar-title">
+      <div className="card-header calendar-header">
         <div>
-            <div className="flex justify-between items-center mb-4">
-                <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-brand-gray-200 dark:hover:bg-brand-gray-700">
-                    <ChevronLeftIcon className="w-6 h-6" />
-                </button>
-                <h3 className="text-lg font-semibold capitalize">
-                    {currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
-                </h3>
-                <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-brand-gray-200 dark:hover:bg-brand-gray-700">
-                    <ChevronRightIcon className="w-6 h-6" />
-                </button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center">
-                {weekdays.map(day => (
-                    <div key={day} className="font-medium text-sm text-brand-gray-500 dark:text-brand-gray-400 py-2">{day}</div>
-                ))}
-                {monthData.map((day, index) => (
-                    <div key={index} className={`py-2 rounded-lg ${day ? '' : 'bg-transparent'}`}>
-                        {day && (
-                            <div className={`mx-auto w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? 'bg-brand-blue text-white' : ''}`}>
-                                {day.getDate()}
-                            </div>
-                        )}
-                        {day && renderStatusDots(day)}
-                    </div>
-                ))}
-            </div>
+          <span className="eyebrow">Visão mensal</span>
+          <h2 id="calendar-title">Calendário de doses</h2>
         </div>
-    );
-};
+        <button type="button" className="button button--ghost button--small" onClick={selectToday}>
+          Hoje
+        </button>
+      </div>
 
-export default Calendar;
+      <div className="calendar-navigation">
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => changeMonth(-1)}
+          aria-label="Mês anterior"
+        >
+          <Icon name="chevron-left" />
+        </button>
+        <h3 aria-live="polite">{formatMonth(currentMonth)}</h3>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => changeMonth(1)}
+          aria-label="Próximo mês"
+        >
+          <Icon name="chevron-right" />
+        </button>
+      </div>
+
+      <div className="calendar-grid" role="grid" aria-label={formatMonth(currentMonth)}>
+        {weekdays.map((weekday) => (
+          <div className="calendar-weekday" role="columnheader" key={weekday}>{weekday}</div>
+        ))}
+
+        {cells.map((day, index) => {
+          if (!day) return <div className="calendar-cell calendar-cell--empty" key={`empty-${index}`} />;
+
+          const dateKey = toDateKey(day);
+          const doses = getDosesForDate(reminders, dateKey);
+          const states = doses.map((dose) =>
+            getDoseState(dose, reminders.find((reminder) => reminder.id === dose.reminderId), now),
+          );
+          const hasTaken = states.includes(ReminderStatus.TAKEN);
+          const hasSkippedOrMissed = states.some(
+            (state) => state === ReminderStatus.SKIPPED || state === 'missed',
+          );
+          const hasPending = states.some((state) => state === 'upcoming' || state === 'due');
+          const label = new Intl.DateTimeFormat('pt-BR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          }).format(day);
+
+          return (
+            <button
+              type="button"
+              role="gridcell"
+              key={dateKey}
+              className={[
+                'calendar-cell',
+                selectedDate === dateKey ? 'calendar-cell--selected' : '',
+                currentTodayKey === dateKey ? 'calendar-cell--today' : '',
+                doses.length > 0 ? 'calendar-cell--has-doses' : '',
+              ].filter(Boolean).join(' ')}
+              onClick={() => onSelectDate(dateKey)}
+              aria-label={`${label}${doses.length ? `, ${doses.length} dose${doses.length > 1 ? 's' : ''}` : ', sem doses'}`}
+              aria-selected={selectedDate === dateKey}
+            >
+              <span className="calendar-day-number">{day.getDate()}</span>
+              {doses.length > 0 && (
+                <span className="calendar-dots" aria-hidden="true">
+                  {hasTaken && <span className="calendar-dot calendar-dot--taken" />}
+                  {hasSkippedOrMissed && <span className="calendar-dot calendar-dot--missed" />}
+                  {hasPending && <span className="calendar-dot calendar-dot--pending" />}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="calendar-legend" aria-label="Legenda do calendário">
+        <span><i className="legend-dot legend-dot--taken" /> Tomada</span>
+        <span><i className="legend-dot legend-dot--pending" /> Pendente</span>
+        <span><i className="legend-dot legend-dot--missed" /> Ignorada ou atrasada</span>
+      </div>
+    </section>
+  );
+};
