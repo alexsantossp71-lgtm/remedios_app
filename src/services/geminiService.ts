@@ -47,7 +47,11 @@ export const getMedications = async (): Promise<Medication[]> => {
       },
     });
 
-    const jsonText = response.text.trim();
+    const jsonText = response.text?.trim();
+    if (!jsonText) {
+      throw new Error("A API Gemini retornou uma resposta vazia.");
+    }
+
     const parsed = JSON.parse(jsonText);
     
     if (parsed.medicamentos && Array.isArray(parsed.medicamentos)) {

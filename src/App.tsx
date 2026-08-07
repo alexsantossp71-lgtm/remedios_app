@@ -49,7 +49,10 @@ const App: React.FC = () => {
         fetchMedications();
     }, []);
     
-    const getNextAlarm = useCallback(() => {
+    const getNextAlarm = useCallback((): {
+        nextAlarmTime: Date | null;
+        nextAlarmReminder: { reminder: Reminder; time: string } | null;
+    } => {
         const now = new Date();
         let nextAlarmTime: Date | null = null;
         let nextAlarmReminder: { reminder: Reminder; time: string } | null = null;

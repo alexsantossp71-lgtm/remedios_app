@@ -4,4 +4,8 @@ import { defineConfig } from 'vite';
 // Exemplo: se a URL for github.com/seu-usuario/meu-app-remedios, o nome é 'meu-app-remedios'.
 export default defineConfig({
   base: '/remedios_app/',
+  server: {
+    host: '0.0.0.0',
+    allowedHosts: true,
+  },
 });
