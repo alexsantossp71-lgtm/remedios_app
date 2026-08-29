@@ -37,10 +37,38 @@ npm run preview    # serve o build localmente
 
 ## Deploy no GitHub Pages
 
-O `base` do Vite está configurado como `/remedios_app/` em `vite.config.ts`.
-Altere esse valor caso o repositório tenha outro nome. O workflow em
-`.github/workflows` publica automaticamente a pasta `dist/`.
+O deploy é feito pelo workflow `.github/workflows/deploy.yml` (GitHub Actions):
+um push em `main` compila o app e publica com `actions/upload-pages-artifact`
++ `actions/deploy-pages` — o método oficial, que não depende de uma branch
+`gh-pages` nem de `CNAME`.
+
+O `base` do Vite está configurado como `/remedios_app/` em `vite.config.ts`
+(deve ser o nome do repositório). A URL final é
+`https://<usuario>.github.io/remedios_app/`. Ajuste o `base` se o
+repositório for renomeado.
+
+Configuração única no repositório:
+
+1. **Settings → Pages → Build and deployment → Source: `GitHub Actions`**
+   (com o Source em "Deploy from a branch" apontando para `main`, o site
+   publica o código-fonte em vez do `dist/` — a causa do site quebrado).
+2. *(Opcional)* **Settings → Secrets and variables → Actions → New repository
+   secret** `VITE_API_KEY`, com sua chave Gemini, para habilitar as sugestões
+   de medicamentos no app publicado. Sem o secret, o app usa a lista padrão.
+
+Testar sem publicar: **Actions → Deploy to GitHub Pages → Run workflow**
+marcando a opção "Apenas compilar". Em PRs o workflow só faz build + typecheck.
+
+### Publicar direto da máquina (alternativa manual)
+
+```bash
+npm run deploy   # gera dist/ e publica na branch gh-pages
+```
+
+Esse caminho só tem efeito se o Source do Pages estiver como
+"Deploy from a branch" apontando para `gh-pages` / `/ root`.
 
 > Observação: os alarmes disparam enquanto o aplicativo estiver aberto no
 > navegador (tecnologia de `setTimeout`). Para notificações em background
 > seria necessário um backend de push notifications.
+

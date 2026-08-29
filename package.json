@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d dist"
+    "typecheck": "tsc --noEmit",
+    "deploy": "vite build && gh-pages -d dist"
   },
+  "packageManager": "pnpm@10.34.5",
   "devDependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
