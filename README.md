@@ -16,31 +16,36 @@ salvos no `localStorage` do navegador.
 
 ## Como rodar localmente
 
-**Pré-requisito:** Node.js 18+.
+**Pré-requisitos:** Node.js 18+ e pnpm (o lockfile do projeto é o `pnpm-lock.yaml`).
 
 ```bash
-npm install
-cp .env.example .env.local   # preencha VITE_API_KEY com sua chave Gemini
-npm run dev
+pnpm install
+cp .env.example .env.local   # preencha VITE_API_KEY com sua chave Gemini (opcional)
+pnpm dev
 ```
 
 A chave `VITE_API_KEY` é opcional para usar o app: sem ela a lista de
-medicamentos sugerida usa o fallback embutido. Obtenha uma chave em
+medicamentos sugerida usa a lista local embutida. Obtenha uma chave em
 https://aistudio.google.com/apikey.
+
+Importante: a chave é embutida no bundle JavaScript em tempo de build e
+fica visível para qualquer visitante do site publicado. Para uso pessoal
+isso é aceitável; para um público maior, prefira um proxy serverless.
 
 ## Build de produção
 
 ```bash
-npm run build      # gera a pasta dist/
-npm run preview    # serve o build localmente
+pnpm build      # gera a pasta dist/
+pnpm preview    # serve o build localmente
 ```
 
 ## Deploy no GitHub Pages
 
 O deploy é feito pelo workflow `.github/workflows/deploy.yml` (GitHub Actions):
-um push em `main` compila o app e publica com `actions/upload-pages-artifact`
-+ `actions/deploy-pages` — o método oficial, que não depende de uma branch
-`gh-pages` nem de `CNAME`.
+um push em `main` roda typecheck, compila o app e publica com
+`actions/upload-pages-artifact` + `actions/deploy-pages` — o método oficial,
+que não depende de uma branch `gh-pages` nem de `CNAME`. Em pull requests,
+o workflow roda apenas build + typecheck.
 
 O `base` do Vite está configurado como `/remedios_app/` em `vite.config.ts`
 (deve ser o nome do repositório). A URL final é
@@ -50,23 +55,14 @@ repositório for renomeado.
 Configuração única no repositório:
 
 1. **Settings → Pages → Build and deployment → Source: `GitHub Actions`**
-   (com o Source em "Deploy from a branch" apontando para `main`, o site
-   publica o código-fonte em vez do `dist/` — a causa do site quebrado).
+   (com o Source em "Deploy from a branch" o site publica código-fonte em
+   vez do `dist/` — a causa do site quebrado).
 2. *(Opcional)* **Settings → Secrets and variables → Actions → New repository
    secret** `VITE_API_KEY`, com sua chave Gemini, para habilitar as sugestões
-   de medicamentos no app publicado. Sem o secret, o app usa a lista padrão.
+   de medicamentos no app publicado. Sem o secret, o app usa a lista local.
 
-Testar sem publicar: **Actions → Deploy to GitHub Pages → Run workflow**
-marcando a opção "Apenas compilar". Em PRs o workflow só faz build + typecheck.
-
-### Publicar direto da máquina (alternativa manual)
-
-```bash
-npm run deploy   # gera dist/ e publica na branch gh-pages
-```
-
-Esse caminho só tem efeito se o Source do Pages estiver como
-"Deploy from a branch" apontando para `gh-pages` / `/ root`.
+Testar sem publicar: abra um pull request — o workflow roda build +
+typecheck, mas não publica.
 
 > Observação: os alarmes disparam enquanto o aplicativo estiver aberto no
 > navegador (tecnologia de `setTimeout`). Para notificações em background
