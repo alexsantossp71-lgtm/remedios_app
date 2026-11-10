@@ -20,7 +20,9 @@ navegador.
   observações e lembrete de 1 hora ou 1 dia antes).
 - **Plano de saúde:** carteirinha com operadora, número copiável, titular,
   validade com selo de alerta (vence em breve / vencida), telefone do SAC e
-  observações de cobertura — funciona também para o cartão do SUS.
+  observações de cobertura — funciona também para o cartão do SUS. Foto da
+  carteirinha é lida pela API do Gemini (visão) e preenche os campos
+  automaticamente (requer `VITE_API_KEY`).
 - Formulários de cadastro com validação inline, máscaras automáticas de
   telefone e carteirinha, campos agrupados por seção e envio com Enter.
 - Modal de notificação com som de alarme, para doses e para consultas.

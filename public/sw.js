@@ -2,7 +2,7 @@
 // Funciona em qualquer base path (/, /remedios_app/, etc.) porque usa
 // registration.scope como prefixo, em vez de caminhos absolutos fixos.
 
-const CACHE_NAME = 'remedio-na-hora-cache-v5';
+const CACHE_NAME = 'remedio-na-hora-cache-v6';
 const APP_SHELL = ['./', './index.html'];
 
 self.addEventListener('install', (event) => {

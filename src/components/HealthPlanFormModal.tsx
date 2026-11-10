@@ -1,6 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { HealthPlan } from '../types';
+import { scanHealthCard, ScannedHealthCard, IS_API_CONFIGURED } from '../services/geminiService';
+import { fileToCompressedDataUrl } from '../utils/image';
+import { CameraIcon } from '../constants';
 import {
     FieldError,
     FormModalShell,
@@ -21,6 +24,10 @@ interface Props {
 }
 
 type Errors = Partial<Record<'operator' | 'planName' | 'cardNumber' | 'phone', string>>;
+type ScanStatus = 'idle' | 'scanning' | 'success' | 'error';
+
+const SCAN_ERROR_MESSAGE =
+    'Não foi possível ler a carteirinha automaticamente. Preencha os campos manualmente ou tente outra foto com melhor luz e enquadramento.';
 
 const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
     const [operator, setOperator] = useState(editing?.operator ?? '');
@@ -31,6 +38,12 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
     const [phone, setPhone] = useState(maskPhone(editing?.phone ?? ''));
     const [coverage, setCoverage] = useState(editing?.coverage ?? '');
     const [errors, setErrors] = useState<Errors>({});
+
+    // Scanner de carteirinha (foto -> OCR via Gemini -> preenche os campos)
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [photo, setPhoto] = useState<string | null>(null);
+    const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
+    const [scanError, setScanError] = useState<string | null>(null);
 
     const validate = (): Errors => {
         const next: Errors = {};
@@ -49,6 +62,57 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
 
     const clearError = (field: keyof Errors) =>
         setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
+
+    // ===== Scanner da carteirinha =====
+    const applyScan = (fields: Partial<ScannedHealthCard>) => {
+        if (fields.operator) setOperator(fields.operator);
+        if (fields.planName) setPlanName(fields.planName);
+        if (fields.cardNumber) setCardNumber(maskCardNumber(fields.cardNumber));
+        if (fields.holder) setHolder(fields.holder);
+        if (fields.validity) setValidity(fields.validity);
+    };
+
+    const runScan = async (dataUrl: string) => {
+        setScanStatus('scanning');
+        setScanError(null);
+        try {
+            const mimeMatch = /^data:([^;]+);/.exec(dataUrl);
+            const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+            const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+            const fields = await scanHealthCard(base64, mimeType);
+            applyScan(fields);
+            setScanStatus('success');
+        } catch {
+            setScanStatus('error');
+            setScanError(SCAN_ERROR_MESSAGE);
+        }
+    };
+
+    const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = ''; // permite reescolher a mesma foto
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setScanStatus('error');
+            setScanError('Escolha um arquivo de imagem (foto ou digitalização da carteirinha).');
+            return;
+        }
+        fileToCompressedDataUrl(file)
+            .then(dataUrl => {
+                setPhoto(dataUrl);
+                return runScan(dataUrl);
+            })
+            .catch(() => {
+                setScanStatus('error');
+                setScanError('Não foi possível abrir a imagem escolhida.');
+            });
+    };
+
+    const clearPhoto = () => {
+        setPhoto(null);
+        setScanStatus('idle');
+        setScanError(null);
+    };
 
     const handleSave = () => {
         const nextErrors = validate();
@@ -71,6 +135,64 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
             onClose={onClose}
             onSubmit={handleSave}
         >
+            {IS_API_CONFIGURED && (
+            <FormSection title="Foto da carteirinha (opcional)">
+                <input
+                    ref={fileInputRef}
+                    id="plan-photo"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoSelect}
+                    className="sr-only"
+                />
+                {!photo ? (
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={scanStatus === 'scanning'}
+                        className="w-full flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-4 text-brand-gray-500 dark:text-brand-gray-400 hover:border-brand-blue hover:text-brand-blue transition-colors disabled:opacity-60"
+                    >
+                        <CameraIcon className="w-6 h-6" />
+                        <span className="text-sm font-semibold">
+                            {scanStatus === 'scanning' ? 'Enviando foto...' : 'Escanear carteirinha com a câmera'}
+                        </span>
+                        <span className="text-xs">Tira foto (ou escolhe da galeria) e a IA preenche os campos</span>
+                    </button>
+                ) : (
+                    <div className="flex items-center gap-3">
+                        <img src={photo} alt="Foto da carteirinha" className="w-20 h-14 object-cover rounded-md border border-brand-gray-300 dark:border-brand-gray-600" />
+                        <div className="flex-1 text-sm">
+                            {scanStatus === 'scanning' && <p className="text-brand-blue font-semibold" role="status">Lendo a carteirinha com IA...</p>}
+                            {scanStatus === 'success' && <p className="text-green-700 dark:text-green-400 font-semibold" role="status">Campos preenchidos pela IA — confira antes de salvar.</p>}
+                            {scanStatus === 'error' && <p className="text-brand-red font-medium" role="alert">{scanError}</p>}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="text-xs font-semibold text-brand-blue hover:underline"
+                                disabled={scanStatus === 'scanning'}
+                            >
+                                Trocar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={clearPhoto}
+                                className="text-xs font-semibold text-brand-gray-400 hover:text-brand-red"
+                                disabled={scanStatus === 'scanning'}
+                            >
+                                Remover
+                            </button>
+                        </div>
+                    </div>
+                )}
+                <p className={helperClass}>
+                    A foto é enviada ao Google Gemini apenas para leitura dos dados. Nada é armazenado por terceiros pelo app.
+                </p>
+            </FormSection>
+            )}
+
             <FormSection title="Carteirinha">
                 <div>
                     <label htmlFor="plan-operator" className={labelClass}>Operadora *</label>
