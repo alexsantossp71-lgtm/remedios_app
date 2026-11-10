@@ -1,7 +1,15 @@
 
 import React, { useState } from 'react';
 import { Doctor } from '../types';
-import { XIcon } from '../constants';
+import {
+    FieldError,
+    FormModalShell,
+    FormSection,
+    inputClass,
+    labelClass,
+    maskPhone,
+    phoneDigits,
+} from './formFields';
 
 interface Props {
     onClose: () => void;
@@ -10,54 +18,65 @@ interface Props {
     editing?: Doctor | null;
 }
 
+type Errors = Partial<Record<'name' | 'phone', string>>;
+
 const DoctorFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
     const [name, setName] = useState(editing?.name ?? '');
     const [specialty, setSpecialty] = useState(editing?.specialty ?? '');
     const [crm, setCrm] = useState(editing?.crm ?? '');
-    const [phone, setPhone] = useState(editing?.phone ?? '');
+    const [phone, setPhone] = useState(maskPhone(editing?.phone ?? ''));
     const [clinic, setClinic] = useState(editing?.clinic ?? '');
+    const [errors, setErrors] = useState<Errors>({});
+
+    const validate = (): Errors => {
+        const next: Errors = {};
+        if (!name.trim()) next.name = 'Informe o nome do médico.';
+        const digits = phoneDigits(phone);
+        if (digits.length > 0 && digits.length < 10) {
+            next.phone = 'Informe DDD + número (10 ou 11 dígitos).';
+        }
+        return next;
+    };
+
+    const clearError = (field: keyof Errors) =>
+        setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
 
     const handleSave = () => {
-        if (!name.trim()) {
-            alert('Por favor, informe o nome do médico.');
-            return;
-        }
+        const nextErrors = validate();
+        setErrors(nextErrors);
+        if (Object.keys(nextErrors).length > 0) return;
         onSave({
             name: name.trim(),
             specialty: specialty.trim(),
             crm: crm.trim(),
-            phone: phone.trim(),
+            phone: phoneDigits(phone),
             clinic: clinic.trim(),
         });
     };
 
-    const inputClass = "mt-1 block w-full rounded-md border-brand-gray-300 shadow-sm focus:border-brand-blue focus:ring-brand-blue sm:text-sm dark:bg-brand-gray-700 dark:border-brand-gray-600";
-    const labelClass = "block text-sm font-medium text-brand-gray-700 dark:text-brand-gray-300";
-
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-            <div className="bg-white dark:bg-brand-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-brand-gray-400 hover:text-brand-gray-600 dark:hover:text-brand-gray-200" aria-label="Fechar">
-                    <XIcon className="w-6 h-6" />
-                </button>
-
-                <h3 className="text-lg font-medium leading-6 text-brand-gray-900 dark:text-white mb-4">
-                    {editing ? 'Editar médico' : 'Novo médico'}
-                </h3>
-
-                <div className="space-y-4">
-                    <div>
-                        <label htmlFor="doctor-name" className={labelClass}>Nome *</label>
-                        <input
-                            id="doctor-name"
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className={inputClass}
-                            placeholder="Ex.: Ana Ribeiro"
-                            autoFocus
-                        />
-                    </div>
+        <FormModalShell
+            title={editing ? 'Editar médico' : 'Novo médico'}
+            onClose={onClose}
+            onSubmit={handleSave}
+        >
+            <FormSection title="Identificação">
+                <div>
+                    <label htmlFor="doctor-name" className={labelClass}>Nome *</label>
+                    <input
+                        id="doctor-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => { setName(e.target.value); clearError('name'); }}
+                        className={inputClass(Boolean(errors.name))}
+                        aria-invalid={Boolean(errors.name)}
+                        aria-describedby={errors.name ? 'doctor-name-error' : undefined}
+                        placeholder="Ex.: Ana Ribeiro"
+                        autoFocus
+                    />
+                    <FieldError id="doctor-name-error" message={errors.name} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label htmlFor="doctor-specialty" className={labelClass}>Especialidade</label>
                         <input
@@ -65,7 +84,7 @@ const DoctorFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
                             type="text"
                             value={specialty}
                             onChange={(e) => setSpecialty(e.target.value)}
-                            className={inputClass}
+                            className={inputClass()}
                             placeholder="Ex.: Cardiologista"
                         />
                     </div>
@@ -76,40 +95,48 @@ const DoctorFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
                             type="text"
                             value={crm}
                             onChange={(e) => setCrm(e.target.value)}
-                            className={inputClass}
+                            className={inputClass()}
                             placeholder="Ex.: CRM-SP 123456"
                         />
                     </div>
-                    <div>
-                        <label htmlFor="doctor-phone" className={labelClass}>Telefone / WhatsApp</label>
-                        <input
-                            id="doctor-phone"
-                            type="tel"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className={inputClass}
-                            placeholder="Ex.: (11) 98888-7777"
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="doctor-clinic" className={labelClass}>Clínica / Endereço</label>
-                        <input
-                            id="doctor-clinic"
-                            type="text"
-                            value={clinic}
-                            onChange={(e) => setClinic(e.target.value)}
-                            className={inputClass}
-                            placeholder="Ex.: Clínica Bem Viver — Av. Paulista, 1000"
-                        />
-                    </div>
                 </div>
+            </FormSection>
 
-                <div className="mt-6 flex justify-end space-x-2">
-                    <button onClick={onClose} className="px-4 py-2 bg-brand-gray-200 dark:bg-brand-gray-600 rounded-md hover:bg-brand-gray-300">Cancelar</button>
-                    <button onClick={handleSave} className="px-4 py-2 bg-brand-green text-white rounded-md hover:bg-green-600">Salvar</button>
+            <FormSection title="Contato e local">
+                <div>
+                    <label htmlFor="doctor-phone" className={labelClass}>Telefone / WhatsApp</label>
+                    <input
+                        id="doctor-phone"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => { setPhone(maskPhone(e.target.value)); clearError('phone'); }}
+                        className={inputClass(Boolean(errors.phone))}
+                        aria-invalid={Boolean(errors.phone)}
+                        aria-describedby={errors.phone ? 'doctor-phone-error' : 'doctor-phone-help'}
+                        placeholder="Ex.: (11) 98888-7777"
+                        inputMode="tel"
+                    />
+                    {errors.phone ? (
+                        <FieldError id="doctor-phone-error" message={errors.phone} />
+                    ) : (
+                        <p id="doctor-phone-help" className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mt-1">
+                            Usado nos botões "Ligar" e "WhatsApp".
+                        </p>
+                    )}
                 </div>
-            </div>
-        </div>
+                <div>
+                    <label htmlFor="doctor-clinic" className={labelClass}>Clínica / Endereço</label>
+                    <input
+                        id="doctor-clinic"
+                        type="text"
+                        value={clinic}
+                        onChange={(e) => setClinic(e.target.value)}
+                        className={inputClass()}
+                        placeholder="Ex.: Clínica Bem Viver — Av. Paulista, 1000"
+                    />
+                </div>
+            </FormSection>
+        </FormModalShell>
     );
 };
 
