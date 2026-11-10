@@ -3,15 +3,21 @@
 Aplicativo (PWA) de lembretes de medicamentos feito com React + Vite + TypeScript.
 
 Configure lembretes com horários, duração e frequência, acompanhe as doses em um
-calendário e receba um alarme sonoro quando estiver na hora. Os dados ficam
-salvos no `localStorage` do navegador.
+calendário e receba um alarme sonoro quando estiver na hora. Na aba **Minha
+Saúde** você também cadastra seus médicos e consultas, com lembrete de 1 hora
+ou 1 dia antes. Os dados ficam salvos no `localStorage` do navegador.
 
 ## Funcionalidades
 
 - Cadastro de lembretes em 3 passos (remédio, frequência, horários).
-- Sugestões de medicamentos via API do Google Gemini (com lista padrão de fallback).
-- Calendário mensal com status das doses (tomada, ignorada, pendente).
-- Modal de notificação com som de alarme.
+- Sugestões de medicamentos via API do Google Gemini (com lista offline de
+  30 medicamentos comuns quando a chave não está configurada ou há falha de rede).
+- Calendário mensal com status das doses (tomada, ignorada, pendente) e
+  marcação das consultas agendadas.
+- **Minha Saúde:** cadastro de médicos (especialidade, CRM, telefone com
+  botões de ligar e WhatsApp, clínica) e consultas (data/hora, local, motivo,
+  observações e lembrete de 1 hora ou 1 dia antes).
+- Modal de notificação com som de alarme, para doses e para consultas.
 - Modo escuro automático e PWA instalável (service worker + manifest).
 
 ## Como rodar localmente
