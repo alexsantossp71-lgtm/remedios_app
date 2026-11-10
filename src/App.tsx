@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Reminder, ReminderStatus, Medication, Doctor, Appointment } from './types';
 import { getMedications } from './services/geminiService';
+import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isReminderArray, loadJson, saveJson } from './storage';
 import { parseLocalDateTime } from './utils/datetime';
 import AddReminderModal from './components/AddReminderModal';
@@ -96,8 +97,8 @@ const App: React.FC = () => {
                 setMedications(meds);
             } catch (error) {
                 console.error("Failed to fetch medications:", error);
-                setMedsError("Não foi possível carregar a lista de medicamentos. Verifique sua chave de API e conexão.");
-                setMedications([{ name: 'Dipirona' }, { name: 'Paracetamol' }, { name: 'Ibuprofeno' }, { name: 'Amoxicilina' }]); // Fallback
+                setMedsError("Lista online indisponível — usando lista offline de medicamentos comuns.");
+                setMedications(FALLBACK_MEDICATIONS);
             } finally {
                 setIsLoadingMeds(false);
             }

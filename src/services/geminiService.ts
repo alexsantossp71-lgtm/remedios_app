@@ -1,24 +1,41 @@
 // Fix: Add reference to vite/client to provide types for import.meta.env
 /// <reference types="vite/client" />
 
-import { GoogleGenAI, Type } from "@google/genai";
+import type { GoogleGenAI } from "@google/genai";
 import { Medication } from "../types";
 
 // Vite expõe variáveis de ambiente no objeto `import.meta.env`
 const API_KEY = import.meta.env.VITE_API_KEY;
 
 if (!API_KEY) {
-  console.error("VITE_API_KEY environment variable not set.");
+  console.warn("VITE_API_KEY não configurada — o autocomplete de medicamentos usará a lista offline.");
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
+// O SDK (~100 kB gzip) é carregado sob demanda, só quando a API é usada.
+// O `import type` acima é apagado no build e não traz o SDK para o bundle.
+let clientPromise: Promise<GoogleGenAI> | null = null;
+
+function getClient(): Promise<GoogleGenAI> {
+  if (!API_KEY) {
+    return Promise.reject(new Error("API_KEY not configured."));
+  }
+  if (!clientPromise) {
+    clientPromise = import("@google/genai").then(({ GoogleGenAI }) => new GoogleGenAI({ apiKey: API_KEY! }));
+  }
+  return clientPromise;
+}
 
 export const getMedications = async (): Promise<Medication[]> => {
   if (!API_KEY) {
       throw new Error("API_KEY not configured.");
   }
-  
+
   try {
+    // `Type` é um valor (enum) do SDK e precisa vir do import dinâmico também,
+    // senão o bundler incluiria o SDK inteiro no chunk inicial.
+    const { Type } = await import("@google/genai");
+    const ai = await getClient();
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: "Liste 50 dos medicamentos mais comuns e populares vendidos no Brasil. Forneça apenas os nomes comerciais ou genéricos.",
@@ -52,13 +69,17 @@ export const getMedications = async (): Promise<Medication[]> => {
         throw new Error("Resposta vazia da API Gemini.");
     }
     const parsed = JSON.parse(jsonText);
-    
+
     if (parsed.medicamentos && Array.isArray(parsed.medicamentos)) {
-        return parsed.medicamentos;
+        return parsed.medicamentos.filter((m: unknown) =>
+            typeof m === 'object' && m !== null && typeof (m as Medication).name === 'string'
+        );
     }
-    
+
     if(Array.isArray(parsed)){
-        return parsed;
+        return parsed.filter((m: unknown) =>
+            typeof m === 'object' && m !== null && typeof (m as Medication).name === 'string'
+        );
     }
 
     throw new Error("Formato de resposta inesperado da API.");
