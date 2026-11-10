@@ -1,12 +1,43 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Reminder, ReminderStatus, Medication } from './types';
+import { Reminder, ReminderStatus, Medication, Doctor, Appointment } from './types';
 import { getMedications } from './services/geminiService';
+import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isReminderArray, loadJson, saveJson } from './storage';
+import { parseLocalDateTime } from './utils/datetime';
 import AddReminderModal from './components/AddReminderModal';
 import Calendar from './components/Calendar';
 import ReminderList from './components/ReminderList';
 import NotificationModal from './components/NotificationModal';
-import { PlusIcon, PillIcon } from './constants';
+import DoctorsTab from './components/DoctorsTab';
+import DoctorFormModal from './components/DoctorFormModal';
+import AppointmentsTab from './components/AppointmentsTab';
+import AppointmentFormModal from './components/AppointmentFormModal';
+import AppointmentNotificationModal from './components/AppointmentNotificationModal';
+import { PlusIcon, PillIcon, StethoscopeIcon } from './constants';
+
+type MainTab = 'meds' | 'health';
+type HealthTab = 'doctors' | 'appointments';
+
+const subTabClass = (active: boolean): string =>
+    `px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+        active
+            ? 'bg-white dark:bg-brand-gray-500 text-brand-blue shadow-sm'
+            : 'text-brand-gray-500 dark:text-brand-gray-300 hover:text-brand-gray-700 dark:hover:text-brand-gray-100'
+    }`;
+
+const NavButton: React.FC<{ active: boolean; onClick: () => void; label: string; icon: React.ReactNode }> = ({ active, onClick, label, icon }) => (
+    <button
+        onClick={onClick}
+        className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+            active
+                ? 'bg-white dark:bg-brand-gray-600 text-brand-blue shadow'
+                : 'text-brand-gray-500 dark:text-brand-gray-400 hover:text-brand-gray-700 dark:hover:text-brand-gray-200'
+        }`}
+    >
+        {icon}
+        {label}
+    </button>
+);
 
 const ALARM_SOUND_B64 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTSEUAAAAMAEduaXgtbGFtZSAzLjk5LjUAAAAAAAAAAAAAAD43eAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/x/EQoA8ADhyQREAMU3bW3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//-";
 const App: React.FC = () => {
@@ -15,22 +46,48 @@ const App: React.FC = () => {
     const [isLoadingMeds, setIsLoadingMeds] = useState(true);
     const [medsError, setMedsError] = useState<string | null>(null);
 
+    // Cadastros de "Minha Saúde"
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+
+    // Navegação por abas
+    const [mainTab, setMainTab] = useState<MainTab>('meds');
+    const [healthTab, setHealthTab] = useState<HealthTab>('appointments');
+
     const [isAddModalOpen, setAddModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ reminder: Reminder; time: string } | null>(null);
+    const [doctorModal, setDoctorModal] = useState<{ open: boolean; editing: Doctor | null }>({ open: false, editing: null });
+    const [appointmentModal, setAppointmentModal] = useState<{ open: boolean; editing: Appointment | null }>({ open: false, editing: null });
+    const [appointmentNotification, setAppointmentNotification] = useState<{ appointment: Appointment; offsetMinutes: number } | null>(null);
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const timeoutRef = useRef<number | null>(null);
+    const appointmentTimeoutRef = useRef<number | null>(null);
 
+    // Carrega os dados do localStorage com validação: conteúdos corrompidos
+    // são ignorados com aviso no console em vez de quebrar o app.
     useEffect(() => {
-        const storedReminders = localStorage.getItem('medicationReminders');
-        if (storedReminders) {
-            setReminders(JSON.parse(storedReminders));
-        }
+        const storedReminders = loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray);
+        if (storedReminders) setReminders(storedReminders);
+
+        const storedDoctors = loadJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray);
+        if (storedDoctors) setDoctors(storedDoctors);
+
+        const storedAppointments = loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray);
+        if (storedAppointments) setAppointments(storedAppointments);
     }, []);
 
     useEffect(() => {
-        localStorage.setItem('medicationReminders', JSON.stringify(reminders));
+        saveJson(STORAGE_KEYS.reminders, reminders);
     }, [reminders]);
+
+    useEffect(() => {
+        saveJson(STORAGE_KEYS.doctors, doctors);
+    }, [doctors]);
+
+    useEffect(() => {
+        saveJson(STORAGE_KEYS.appointments, appointments);
+    }, [appointments]);
 
     useEffect(() => {
         const fetchMedications = async () => {
@@ -131,6 +188,58 @@ const App: React.FC = () => {
         };
     }, [reminders, scheduleNextAlarm]);
 
+    // ===== Alarmes de consulta (mesmo mecanismo de setTimeout dos remédios) =====
+    const getNextAppointmentAlarm = useCallback((): { time: Date; appointment: Appointment; offset: number } | null => {
+        const now = Date.now();
+        const candidates = appointments.flatMap(appointment => {
+            if (appointment.reminderOffset <= 0) return [];
+            if (appointment.notifiedOffsets.includes(appointment.reminderOffset)) return [];
+            const apptTime = parseLocalDateTime(appointment.dateTime);
+            if (!apptTime || apptTime.getTime() <= now) return [];
+
+            const triggerMs = apptTime.getTime() - appointment.reminderOffset * 60_000;
+            // Se o horário do lembrete passou com o app fechado, dispara assim que
+            // abrir — mas apenas quando a consulta foi criada ANTES desse horário
+            // (criar uma consulta para amanhã não deve tocar alarme agora).
+            const createdMs = appointment.createdAt ? new Date(appointment.createdAt).getTime() : 0;
+            const dueMs = triggerMs <= now && createdMs > 0 && createdMs <= triggerMs ? now : triggerMs;
+            if (dueMs < now) return [];
+
+            return [{ time: new Date(dueMs), appointment, offset: appointment.reminderOffset }];
+        });
+
+        if (candidates.length === 0) return null;
+        candidates.sort((a, b) => a.time.getTime() - b.time.getTime());
+        return candidates[0];
+    }, [appointments]);
+
+    const scheduleNextAppointmentAlarm = useCallback(() => {
+        if (appointmentTimeoutRef.current) {
+            clearTimeout(appointmentTimeoutRef.current);
+        }
+
+        const next = getNextAppointmentAlarm();
+        if (!next) return;
+
+        const delay = Math.max(0, next.time.getTime() - Date.now());
+        appointmentTimeoutRef.current = window.setTimeout(() => {
+            setAppointmentNotification({ appointment: next.appointment, offsetMinutes: next.offset });
+            if (audioRef.current) {
+                audioRef.current.play().catch(e => console.error("Error playing sound:", e));
+            }
+            scheduleNextAppointmentAlarm();
+        }, delay);
+    }, [getNextAppointmentAlarm]);
+
+    useEffect(() => {
+        scheduleNextAppointmentAlarm();
+        return () => {
+            if (appointmentTimeoutRef.current) {
+                clearTimeout(appointmentTimeoutRef.current);
+            }
+        };
+    }, [appointments, scheduleNextAppointmentAlarm]);
+
     const handleAddReminder = (newReminder: Omit<Reminder, 'id' | 'history'>) => {
         setReminders(prev => [...prev, { ...newReminder, id: Date.now().toString(), history: {} }]);
         setAddModalOpen(false);
@@ -138,6 +247,13 @@ const App: React.FC = () => {
 
     const handleDeleteReminder = (id: string) => {
         setReminders(prev => prev.filter(r => r.id !== id));
+    };
+
+    const stopAlarm = () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
     };
 
     const handleNotificationAction = (reminderId: string, time: string, status: ReminderStatus) => {
@@ -154,12 +270,68 @@ const App: React.FC = () => {
             }
             return r;
         }));
-        if(audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
+        stopAlarm();
         setNotification(null);
     };
+
+    // ===== Médicos =====
+    const handleSaveDoctor = (data: Omit<Doctor, 'id'>) => {
+        const editingId = doctorModal.editing?.id;
+        if (editingId) {
+            setDoctors(prev => prev.map(d => (d.id === editingId ? { ...d, ...data } : d)));
+        } else {
+            setDoctors(prev => [...prev, { ...data, id: generateId() }]);
+        }
+        setDoctorModal({ open: false, editing: null });
+    };
+
+    const handleDeleteDoctor = (id: string) => {
+        const linked = appointments.filter(a => a.doctorId === id).length;
+        const message = linked > 0
+            ? `Excluir este médico? ${linked} consulta(s) agendada(s) com ele será(ão) mantida(s), mas perderão o vínculo.`
+            : 'Excluir este médico?';
+        if (!window.confirm(message)) return;
+        setDoctors(prev => prev.filter(d => d.id !== id));
+        // As consultas mantêm o nome (snapshot) e apenas perdem o vínculo.
+        setAppointments(prev => prev.map(a => (a.doctorId === id ? { ...a, doctorId: '' } : a)));
+    };
+
+    // ===== Consultas =====
+    const handleSaveAppointment = (data: Omit<Appointment, 'id' | 'notifiedOffsets'>) => {
+        const editingId = appointmentModal.editing?.id;
+        if (editingId) {
+            setAppointments(prev => prev.map(a => {
+                if (a.id !== editingId) return a;
+                // Lembrete alterado: permite que o novo horário de aviso dispare de novo.
+                const notifiedOffsets = a.reminderOffset === data.reminderOffset ? a.notifiedOffsets : [];
+                return { ...a, ...data, notifiedOffsets };
+            }));
+        } else {
+            setAppointments(prev => [
+                ...prev,
+                { ...data, id: generateId(), notifiedOffsets: [], createdAt: new Date().toISOString() },
+            ]);
+        }
+        setAppointmentModal({ open: false, editing: null });
+    };
+
+    const handleDeleteAppointment = (id: string) => {
+        setAppointments(prev => prev.filter(a => a.id !== id));
+    };
+
+    const handleAppointmentNotificationDismiss = (appointmentId: string, offsetMinutes: number) => {
+        setAppointments(prev => prev.map(a => (
+            a.id === appointmentId && !a.notifiedOffsets.includes(offsetMinutes)
+                ? { ...a, notifiedOffsets: [...a.notifiedOffsets, offsetMinutes] }
+                : a
+        )));
+        stopAlarm();
+        setAppointmentNotification(null);
+    };
+
+    const notificationDoctor = appointmentNotification
+        ? doctors.find(d => d.id === appointmentNotification.appointment.doctorId)
+        : undefined;
 
     return (
         <div className="min-h-screen bg-brand-gray-100 text-brand-gray-800 dark:bg-brand-gray-900 dark:text-brand-gray-200 font-sans">
@@ -172,12 +344,20 @@ const App: React.FC = () => {
                 </div>
             </header>
 
+            <nav className="container mx-auto px-4 pt-4 md:px-6 md:pt-6">
+                <div className="grid grid-cols-2 gap-1 max-w-md mx-auto bg-brand-gray-200 dark:bg-brand-gray-700 rounded-xl p-1">
+                    <NavButton active={mainTab === 'meds'} onClick={() => setMainTab('meds')} label="Remédios" icon={<PillIcon className="w-5 h-5" />} />
+                    <NavButton active={mainTab === 'health'} onClick={() => setMainTab('health')} label="Minha Saúde" icon={<StethoscopeIcon className="w-5 h-5" />} />
+                </div>
+            </nav>
+
+            {mainTab === 'meds' && (
             <main className="container mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold">Calendário de Doses</h2>
                     </div>
-                    <Calendar reminders={reminders} />
+                    <Calendar reminders={reminders} appointments={appointments} />
                 </div>
                 
                 <div className="lg:col-span-1 bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg">
@@ -195,6 +375,42 @@ const App: React.FC = () => {
                     <ReminderList reminders={reminders} onDelete={handleDeleteReminder} />
                 </div>
             </main>
+            )}
+
+            {mainTab === 'health' && (
+                <main className="container mx-auto p-4 md:p-6">
+                    <div className="bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg max-w-3xl mx-auto">
+                        <div className="flex justify-between items-center flex-wrap gap-3 mb-5">
+                            <div className="inline-flex bg-brand-gray-100 dark:bg-brand-gray-700 rounded-lg p-1">
+                                <button onClick={() => setHealthTab('appointments')} className={subTabClass(healthTab === 'appointments')}>Consultas</button>
+                                <button onClick={() => setHealthTab('doctors')} className={subTabClass(healthTab === 'doctors')}>Médicos</button>
+                            </div>
+                            <button
+                                onClick={() => (healthTab === 'doctors' ? setDoctorModal({ open: true, editing: null }) : setAppointmentModal({ open: true, editing: null }))}
+                                className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
+                                aria-label={healthTab === 'doctors' ? 'Adicionar novo médico' : 'Adicionar nova consulta'}
+                            >
+                                <PlusIcon className="w-5 h-5 mr-2" />
+                                {healthTab === 'doctors' ? 'Novo médico' : 'Nova consulta'}
+                            </button>
+                        </div>
+                        {healthTab === 'doctors' ? (
+                            <DoctorsTab
+                                doctors={doctors}
+                                onEdit={doctor => setDoctorModal({ open: true, editing: doctor })}
+                                onDelete={handleDeleteDoctor}
+                            />
+                        ) : (
+                            <AppointmentsTab
+                                appointments={appointments}
+                                doctors={doctors}
+                                onEdit={appointment => setAppointmentModal({ open: true, editing: appointment })}
+                                onDelete={handleDeleteAppointment}
+                            />
+                        )}
+                    </div>
+                </main>
+            )}
             
             {isAddModalOpen && (
                 <AddReminderModal
@@ -211,6 +427,32 @@ const App: React.FC = () => {
                     reminder={notification.reminder}
                     time={notification.time}
                     onAction={handleNotificationAction}
+                />
+            )}
+
+            {doctorModal.open && (
+                <DoctorFormModal
+                    onClose={() => setDoctorModal({ open: false, editing: null })}
+                    onSave={handleSaveDoctor}
+                    editing={doctorModal.editing}
+                />
+            )}
+
+            {appointmentModal.open && (
+                <AppointmentFormModal
+                    onClose={() => setAppointmentModal({ open: false, editing: null })}
+                    onSave={handleSaveAppointment}
+                    doctors={doctors}
+                    editing={appointmentModal.editing}
+                />
+            )}
+
+            {appointmentNotification && (
+                <AppointmentNotificationModal
+                    appointment={appointmentNotification.appointment}
+                    offsetMinutes={appointmentNotification.offsetMinutes}
+                    doctorPhone={notificationDoctor?.phone}
+                    onDismiss={handleAppointmentNotificationDismiss}
                 />
             )}
             <audio ref={audioRef} src={ALARM_SOUND_B64} loop />

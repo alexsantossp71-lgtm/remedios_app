@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
-import { Reminder, ReminderStatus } from '../types';
+import { Appointment, Reminder, ReminderStatus } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon } from '../constants';
+import { formatTimeBR, toDateKey } from '../utils/datetime';
 
 interface Props {
     reminders: Reminder[];
+    appointments: Appointment[];
 }
 
-const Calendar: React.FC<Props> = ({ reminders }) => {
+const Calendar: React.FC<Props> = ({ reminders, appointments }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const changeMonth = (amount: number) => {
@@ -74,6 +76,12 @@ const Calendar: React.FC<Props> = ({ reminders }) => {
         return dayStatuses;
     };
     
+    const getAppointmentsForDay = (day: Date) => {
+        if (!day) return [];
+        const dayKey = toDateKey(day);
+        return appointments.filter(appointment => appointment.dateTime.startsWith(dayKey));
+    };
+
     const isToday = (day: Date) => {
         if (!day) return false;
         const today = new Date();
@@ -82,7 +90,9 @@ const Calendar: React.FC<Props> = ({ reminders }) => {
 
     const renderStatusDots = (day: Date) => {
         const statuses = getStatusForDay(day);
-        if (statuses.length === 0) return null;
+        const appointmentDots = renderAppointmentDots(day);
+        // Dias sem doses de remédio ainda exibem o ponto das consultas.
+        if (statuses.length === 0) return appointmentDots;
 
         const takenCount = statuses.filter(s => s.status === ReminderStatus.TAKEN).length;
         const skippedCount = statuses.filter(s => s.status === ReminderStatus.SKIPPED).length;
@@ -93,7 +103,19 @@ const Calendar: React.FC<Props> = ({ reminders }) => {
                 {takenCount > 0 && <div className="w-2 h-2 bg-brand-green rounded-full" title={`${takenCount} dose(s) tomada(s)`}></div>}
                 {skippedCount > 0 && <div className="w-2 h-2 bg-brand-red rounded-full" title={`${skippedCount} dose(s) ignorada(s)`}></div>}
                 {pendingCount > 0 && <div className="w-2 h-2 bg-brand-yellow rounded-full" title={`${pendingCount} dose(s) pendente(s)`}></div>}
+                {appointmentDots}
             </div>
+        );
+    };
+
+    const renderAppointmentDots = (day: Date) => {
+        const dayAppointments = getAppointmentsForDay(day);
+        if (dayAppointments.length === 0) return null;
+        const title = dayAppointments
+            .map(a => `Consulta: ${a.doctorName} às ${formatTimeBR(a.dateTime)}`)
+            .join(' · ');
+        return (
+            <div className="w-2 h-2 bg-brand-blue rounded-full" title={title}></div>
         );
     };
 
