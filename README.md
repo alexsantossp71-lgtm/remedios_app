@@ -4,8 +4,9 @@ Aplicativo (PWA) de lembretes de medicamentos feito com React + Vite + TypeScrip
 
 Configure lembretes com horários, duração e frequência, acompanhe as doses em um
 calendário e receba um alarme sonoro quando estiver na hora. Na aba **Minha
-Saúde** você também cadastra seus médicos e consultas, com lembrete de 1 hora
-ou 1 dia antes. Os dados ficam salvos no `localStorage` do navegador.
+Saúde** você também cadastra seus médicos, consultas e plano de saúde, com
+lembrete de 1 hora ou 1 dia antes. Os dados ficam salvos no `localStorage` do
+navegador.
 
 ## Funcionalidades
 
@@ -17,6 +18,11 @@ ou 1 dia antes. Os dados ficam salvos no `localStorage` do navegador.
 - **Minha Saúde:** cadastro de médicos (especialidade, CRM, telefone com
   botões de ligar e WhatsApp, clínica) e consultas (data/hora, local, motivo,
   observações e lembrete de 1 hora ou 1 dia antes).
+- **Plano de saúde:** carteirinha com operadora, número copiável, titular,
+  validade com selo de alerta (vence em breve / vencida), telefone do SAC e
+  observações de cobertura — funciona também para o cartão do SUS.
+- Formulários de cadastro com validação inline, máscaras automáticas de
+  telefone e carteirinha, campos agrupados por seção e envio com Enter.
 - Modal de notificação com som de alarme, para doses e para consultas.
 - Modo escuro automático e PWA instalável (service worker + manifest).
 

@@ -14,6 +14,15 @@ export const parseLocalDateTime = (iso: string): Date | null => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
+/** Converte 'YYYY-MM-DD' em Date LOCAL (meia-noite local). new Date('YYYY-MM-DD')
+ * interpreta como UTC e desloca um dia em fusos negativos (ex.: America/Sao_Paulo). */
+export const parseLocalDate = (iso: string): Date | null => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!match) return null;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
 /** 'YYYY-MM-DD' no fuso local (diferente de toISOString(), que é UTC). */
 export const toDateKey = (date: Date): string =>
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -26,7 +35,7 @@ export const toDateTimeInputValue = (date: Date): string =>
     `${toDateKey(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
 export const formatDateBR = (iso: string): string => {
-    const date = parseLocalDateTime(iso);
+    const date = parseLocalDateTime(iso) ?? parseLocalDate(iso);
     return date ? dateFmt.format(date) : iso;
 };
 

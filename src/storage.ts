@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
     reminders: 'medicationReminders',
     doctors: 'healthDoctors',
     appointments: 'healthAppointments',
+    plans: 'healthPlans',
 } as const;
 
 /** ID único; usa crypto.randomUUID quando disponível (contexto seguro). */
@@ -51,6 +52,15 @@ export const isAppointmentArray: Validator = (value) =>
         typeof a.id === 'string' &&
         typeof a.doctorName === 'string' &&
         typeof a.dateTime === 'string'
+    );
+
+export const isHealthPlanArray: Validator = (value) =>
+    Array.isArray(value) &&
+    value.every((p) =>
+        isRecord(p) &&
+        typeof p.id === 'string' &&
+        typeof p.operator === 'string' &&
+        typeof p.planName === 'string'
     );
 
 /**

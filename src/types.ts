@@ -33,6 +33,18 @@ export interface Doctor {
     clinic: string;
 }
 
+/** Carteirinha de plano de saúde (ou cartão do SUS) do usuário. */
+export interface HealthPlan {
+    id: string;
+    operator: string; // Operadora: Unimed, Bradesco Saúde, "SUS"...
+    planName: string; // Nome do plano contratado
+    cardNumber: string; // Número da carteirinha (somente dígitos, agrupados de 4)
+    holder: string; // Nome do titular
+    validity: string; // 'YYYY-MM-DD' (validade da carteirinha; '' quando não informada)
+    phone: string; // Telefone / SAC da operadora
+    coverage: string; // Cobertura e observações
+}
+
 /** Minutos antes da consulta em que o lembrete dispara. */
 export type AppointmentReminderOffset = 0 | 60 | 1440;
 
