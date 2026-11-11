@@ -5,7 +5,10 @@ import { getMedications, AiError } from './services/nvidiaService';
 import { useAiSettings } from './services/settings';
 import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isReminderArray, loadJson, saveJson } from './storage';
-import { parseLocalDateTime } from './utils/datetime';
+import { formatDateTimeBR, parseLocalDate, parseLocalDateTime, toDateKey } from './utils/datetime';
+import { showSystemNotification, vibrateAlarm } from './utils/notify';
+import MissedDosesModal, { MissedDose } from './components/MissedDosesModal';
+import NotificationsBanner from './components/NotificationsBanner';
 import AddReminderModal from './components/AddReminderModal';
 import Calendar from './components/Calendar';
 import ReminderList from './components/ReminderList';
@@ -71,14 +74,63 @@ const App: React.FC = () => {
     const [examModal, setExamModal] = useState<{ open: boolean; editing: Exam | null }>({ open: false, editing: null });
     const [appointmentNotification, setAppointmentNotification] = useState<{ appointment: Appointment; offsetMinutes: number } | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
+    // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
+    const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(null);
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const timeoutRef = useRef<number | null>(null);
     const appointmentTimeoutRef = useRef<number | null>(null);
+    const remindersRef = useRef<Reminder[]>([]);
+
+    useEffect(() => {
+        remindersRef.current = reminders;
+    }, [reminders]);
 
     // Configurações de IA: re-renderiza (e rebusca a lista de medicamentos)
     // quando a chave/modelos são alterados nas Configurações.
     const aiSettings = useAiSettings();
+
+    /**
+     * Doses de HOJE que já passaram do horário sem resposta — aconteceu o
+     * alarme com o app fechado/em segundo plano. Ignora doses futuras,
+     * respondidas, de tratamentos encerrados ou anteriores à criação do
+     * lembrete (criar um lembrete às 9h não marca a dose das 8h como perdida).
+     */
+    const findMissedDoses = useCallback((list: Reminder[]): MissedDose[] => {
+        const now = new Date();
+        const dayKey = toDateKey(now);
+        const missed: MissedDose[] = [];
+
+        list.forEach(reminder => {
+            const startDate = parseLocalDate(reminder.startDate);
+            if (!startDate || startDate.getTime() > now.getTime()) return;
+
+            if (reminder.duration.type === 'days') {
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + reminder.duration.days);
+                if (now > endDate) return;
+            }
+
+            const todayMidnight = new Date();
+            todayMidnight.setHours(0, 0, 0, 0);
+            const diffDays = Math.floor((todayMidnight.getTime() - startDate.getTime()) / 86_400_000);
+            if (reminder.frequency.type === 'interval' && diffDays % reminder.frequency.days !== 0) return;
+
+            const createdMs = reminder.createdAt ? Date.parse(reminder.createdAt) : 0;
+            reminder.times.forEach(time => {
+                const [hour, minute] = time.split(':').map(Number);
+                const doseDate = new Date();
+                doseDate.setHours(hour, minute, 0, 0);
+                if (doseDate.getTime() >= now.getTime()) return; // ainda não chegou
+                if (reminder.history[dayKey]?.[time]) return; // já respondida
+                if (createdMs > doseDate.getTime()) return; // lembrete criado depois da dose
+                missed.push({ reminder, time });
+            });
+        });
+
+        missed.sort((a, b) => a.time.localeCompare(b.time));
+        return missed;
+    }, []);
 
     // Carrega os dados do localStorage com validação: conteúdos corrompidos
     // são ignorados com aviso no console em vez de quebrar o app.
@@ -97,7 +149,10 @@ const App: React.FC = () => {
 
         const storedExams = loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray);
         if (storedExams) setExams(storedExams);
-    }, []);
+
+        // Doses de hoje que passaram enquanto o app estava fechado.
+        setMissedDoses(findMissedDoses(storedReminders ?? []));
+    }, [findMissedDoses]);
 
     useEffect(() => {
         saveJson(STORAGE_KEYS.reminders, reminders);
@@ -153,8 +208,10 @@ const App: React.FC = () => {
             nextAlarmTime === null || candidate.getTime() < nextAlarmTime.getTime();
 
         reminders.forEach(reminder => {
-            const startDate = new Date(reminder.startDate);
-            startDate.setHours(0, 0, 0, 0);
+            // parseLocalDate: 'YYYY-MM-DD' é data LOCAL; new Date() interpretaria
+            // como UTC e deslocaria um dia em fusos negativos (America/Sao_Paulo).
+            const startDate = parseLocalDate(reminder.startDate);
+            if (!startDate) return;
 
             // Check if reminder is currently active
             if (reminder.duration.type === 'days') {
@@ -203,6 +260,16 @@ const App: React.FC = () => {
             if (timeToAlarm > 0) {
                  timeoutRef.current = window.setTimeout(() => {
                     setNotification(nextAlarmReminder);
+                    // Aviso do sistema quando a página está em segundo plano
+                    // (tela apagada / aba oculta); em primeiro plano o modal já avisa.
+                    if (document.hidden) {
+                        showSystemNotification(
+                            'Hora do remédio',
+                            `${nextAlarmReminder.reminder.medicationName} — dose das ${nextAlarmReminder.time}`,
+                            `remedio-${nextAlarmReminder.reminder.id}-${nextAlarmReminder.time}`
+                        );
+                        vibrateAlarm();
+                    }
                     if(audioRef.current) {
                         audioRef.current.play().catch(e => console.error("Error playing sound:", e));
                     }
@@ -257,6 +324,15 @@ const App: React.FC = () => {
         const delay = Math.max(0, next.time.getTime() - Date.now());
         appointmentTimeoutRef.current = window.setTimeout(() => {
             setAppointmentNotification({ appointment: next.appointment, offsetMinutes: next.offset });
+            // Aviso do sistema para consultas também (segundo plano).
+            if (document.hidden) {
+                showSystemNotification(
+                    'Lembrete de consulta',
+                    `${next.appointment.doctorName} — ${formatDateTimeBR(next.appointment.dateTime)}${next.appointment.location ? ` (${next.appointment.location})` : ''}`,
+                    `consulta-${next.appointment.id}-${next.offset}`
+                );
+                vibrateAlarm();
+            }
             if (audioRef.current) {
                 audioRef.current.play().catch(e => console.error("Error playing sound:", e));
             }
@@ -273,8 +349,30 @@ const App: React.FC = () => {
         };
     }, [appointments, scheduleNextAppointmentAlarm]);
 
-    const handleAddReminder = (newReminder: Omit<Reminder, 'id' | 'history'>) => {
-        setReminders(prev => [...prev, { ...newReminder, id: Date.now().toString(), history: {} }]);
+    // Mantém a lista de doses atrasadas em sincronia com o histórico
+    // (ex.: marcar "Tomei" no modal remove a dose da lista na hora).
+    useEffect(() => {
+        setMissedDoses(prev => (prev === null ? null : findMissedDoses(reminders)));
+    }, [reminders, findMissedDoses]);
+
+    // Ao voltar para o app (aba retomada, celular desbloqueado), reavalia
+    // alarmes que não puderam tocar e doses que passaram em segundo plano.
+    useEffect(() => {
+        const onVisible = () => {
+            if (document.visibilityState !== 'visible') return;
+            setMissedDoses(findMissedDoses(remindersRef.current));
+            scheduleNextAlarm();
+            scheduleNextAppointmentAlarm();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => document.removeEventListener('visibilitychange', onVisible);
+    }, [findMissedDoses, scheduleNextAlarm, scheduleNextAppointmentAlarm]);
+
+    const handleAddReminder = (newReminder: Omit<Reminder, 'id' | 'history' | 'createdAt'>) => {
+        setReminders(prev => [
+            ...prev,
+            { ...newReminder, id: generateId(), history: {}, createdAt: new Date().toISOString() },
+        ]);
         setAddModalOpen(false);
     };
 
@@ -409,11 +507,11 @@ const App: React.FC = () => {
                     <button
                         onClick={() => setSettingsOpen(true)}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-brand-gray-500 dark:text-brand-gray-300 hover:text-brand-blue hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
-                        aria-label="Configurações de IA (API NVIDIA)"
-                        title="Configurações de IA (API NVIDIA)"
+                        aria-label="Configurações (IA, notificações e backup)"
+                        title="Configurações (IA, notificações e backup)"
                     >
                         <GearIcon className="w-5 h-5" />
-                        IA
+                        Ajustes
                     </button>
                 </div>
             </header>
@@ -424,6 +522,8 @@ const App: React.FC = () => {
                     <NavButton active={mainTab === 'health'} onClick={() => setMainTab('health')} label="Minha Saúde" icon={<StethoscopeIcon className="w-5 h-5" />} />
                 </div>
             </nav>
+
+            {mainTab === 'meds' && <NotificationsBanner />}
 
             {mainTab === 'meds' && (
             <main className="container mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -515,6 +615,14 @@ const App: React.FC = () => {
                 />
             )}
             
+            {missedDoses && missedDoses.length > 0 && !notification && !appointmentNotification && (
+                <MissedDosesModal
+                    doses={missedDoses}
+                    onMark={handleNotificationAction}
+                    onClose={() => setMissedDoses([])}
+                />
+            )}
+
             {notification && (
                 <NotificationModal
                     reminder={notification.reminder}

@@ -22,6 +22,9 @@ export interface Reminder {
     };
     times: string[]; // HH:MM
     history: Record<string, Record<string, ReminderStatus>>; // { 'YYYY-MM-DD': { 'HH:MM': status } }
+    /** Momento da criação (ISO). Doses de hoje anteriores à criação não são
+     * consideradas "atrasadas" (o lembrete nem existia naquele horário). */
+    createdAt?: string;
 }
 
 export interface Doctor {

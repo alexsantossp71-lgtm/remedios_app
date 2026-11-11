@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Reminder, Medication } from '../types';
 import { XIcon, PillIcon, CalendarIcon, ClockIcon, TrashIcon } from '../constants';
+import { toDateInputValue } from '../utils/datetime';
 
 interface Props {
     onClose: () => void;
@@ -14,7 +15,8 @@ interface Props {
 const AddReminderModal: React.FC<Props> = ({ onClose, onAdd, medications, isLoadingMeds, medsError }) => {
     const [step, setStep] = useState(1);
     const [medicationName, setMedicationName] = useState('');
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    // Data de hoje no fuso LOCAL (toISOString() é UTC e sugeriria ontem entre 21h e meia-noite).
+    const [startDate, setStartDate] = useState(() => toDateInputValue(new Date()));
     
     const [durationType, setDurationType] = useState<'continuous' | 'days'>('days');
     const [durationDays, setDurationDays] = useState(7);

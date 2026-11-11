@@ -32,6 +32,14 @@ com lembrete de 1 hora ou 1 dia antes das consultas. Os dados ficam salvos no
 - Formulários de cadastro com validação inline, máscaras automáticas de
   telefone e carteirinha, campos agrupados por seção e envio com Enter.
 - Modal de notificação com som de alarme, para doses e para consultas.
+- **Notificações do sistema** (opcionais): com a permissão ativada, a dose e a
+  consulta são avisadas mesmo com o app em segundo plano (aba oculta ou tela
+  apagada). Ao reabrir o app, doses de hoje que passaram do horário sem
+  resposta aparecem no modal "Doses atrasadas" com botões Tomei / Pular.
+- **Backup dos dados**: exportação e importação de arquivo JSON nas
+  Configurações (lembretes com histórico, médicos, consultas, planos e
+  exames) — a chave da IA não é incluída. Protege contra limpeza do
+  navegador e facilita trocar de aparelho.
 - Modo escuro automático e PWA instalável (service worker + manifest).
 
 ## Como rodar localmente
@@ -51,7 +59,7 @@ compatível com o formato OpenAI. Para ativar:
 
 1. Crie uma conta em build.nvidia.com e gere uma chave (botão **Get API Key**,
    começa com `nvapi-`).
-2. No app, toque no botão **IA** no topo e cole a chave.
+2. No app, toque no botão **Ajustes** no topo e cole a chave.
 3. Opcionalmente ajuste os modelos:
    - **Visão (OCR):** `meta/llama-3.2-90b-vision-instruct` (padrão);
    - **Texto (medicamentos):** `meta/llama-3.3-70b-instruct` (padrão).

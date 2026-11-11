@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Appointment, Exam, Reminder, ReminderStatus } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon } from '../constants';
-import { formatTimeBR, toDateKey } from '../utils/datetime';
+import { formatTimeBR, parseLocalDate, toDateKey } from '../utils/datetime';
 
 interface Props {
     reminders: Reminder[];
@@ -51,8 +51,10 @@ const Calendar: React.FC<Props> = ({ reminders, appointments, exams }) => {
         const dayStatuses: { name: string, status: ReminderStatus | 'pending' }[] = [];
 
         reminders.forEach(reminder => {
-            const startDate = new Date(reminder.startDate);
-            startDate.setHours(0, 0, 0, 0);
+            // parseLocalDate: 'YYYY-MM-DD' é data LOCAL; new Date() interpretaria
+            // como UTC e deslocaria um dia em fusos negativos (America/Sao_Paulo).
+            const startDate = parseLocalDate(reminder.startDate);
+            if (!startDate) return;
 
             // Check if reminder is active for this day
             if (day < startDate) return;
