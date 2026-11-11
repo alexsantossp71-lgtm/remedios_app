@@ -30,6 +30,7 @@ import PrescriptionImportModal from './components/PrescriptionImportModal';
 import InteractionsModal from './components/InteractionsModal';
 import BulaModal from './components/BulaModal';
 import ConsultationSummaryModal from './components/ConsultationSummaryModal';
+import ScheduleAdvisorModal from './components/ScheduleAdvisorModal';
 import LabFormModal from './components/LabFormModal';
 import LabResultsTab from './components/LabResultsTab';
 import type { ReminderDraft } from './utils/prescription';
@@ -99,6 +100,8 @@ const App: React.FC = () => {
     const [bulaReminder, setBulaReminder] = useState<Reminder | null>(null);
     // Recursos de IA (Camada 2): resumo para consulta e insights de adesão.
     const [consultationOpen, setConsultationOpen] = useState(false);
+    // Recurso de IA (Camada 3): agendamento inteligente (redistribui horários).
+    const [scheduleOpen, setScheduleOpen] = useState(false);
     // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
     const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(
         () => findMissedDoses(loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
@@ -149,9 +152,9 @@ const App: React.FC = () => {
                 setMedications(meds);
             } catch (error) {
                 console.error("Failed to fetch medications:", error);
-                const missingKey = error instanceof AiError && error.message.includes('Configure a chave');
+                const missingKey = error instanceof AiError && error.message.includes('Configure a IA');
                 setMedsError(missingKey
-                    ? "Lista de medicamentos offline em uso. Para a lista completa, configure sua chave da API NVIDIA no botão \"IA\" no topo."
+                    ? "Lista de medicamentos offline em uso. Para a lista completa, configure a IA no botão \"Ajustes\" no topo (proxy ou chave da API NVIDIA)."
                     : "Lista online indisponível — usando lista offline de medicamentos comuns.");
                 setMedications(FALLBACK_MEDICATIONS);
             } finally {
@@ -160,7 +163,7 @@ const App: React.FC = () => {
         };
 
         fetchMedications();
-    }, [aiSettings.nvidiaApiKey, aiSettings.textModel]);
+    }, [aiSettings.nvidiaApiKey, aiSettings.proxyUrl, aiSettings.textModel]);
     
     const getNextAlarm = useCallback((): {
         nextAlarmTime: Date | null;
@@ -441,6 +444,13 @@ const App: React.FC = () => {
         setPrescriptionOpen(false);
     };
 
+    // ===== Agendamento inteligente (IA): aplica os novos horários escolhidos =====
+    const handleApplySchedule = (updates: Array<{ id: string; times: string[] }>) => {
+        if (!updates.length) return;
+        const byId = new Map(updates.map(update => [update.id, update.times]));
+        setReminders(prev => prev.map(r => (byId.has(r.id) ? { ...r, times: byId.get(r.id)! } : r)));
+    };
+
     const stopAlarm = () => {
         if (audioRef.current) {
             audioRef.current.pause();
@@ -676,6 +686,15 @@ const App: React.FC = () => {
                             Resumo para a consulta
                         </button>
                     )}
+                    {reminders.length > 0 && (
+                        <button
+                            onClick={() => setScheduleOpen(true)}
+                            className="mt-2 w-full flex items-center justify-center gap-2 text-sm font-semibold text-brand-blue border border-brand-gray-300 dark:border-brand-gray-600 rounded-lg py-2 hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
+                            title="A IA redistribui os horários das doses respeitando jejum e intervalos"
+                        >
+                            Otimizar horários (IA)
+                        </button>
+                    )}
                     <AdherenceCard reminders={reminders} />
                 </div>
             </main>
@@ -837,6 +856,15 @@ const App: React.FC = () => {
                     exams={exams}
                     appointments={appointments}
                     onClose={() => setConsultationOpen(false)}
+                />
+            )}
+
+            {scheduleOpen && (
+                <ScheduleAdvisorModal
+                    reminders={reminders}
+                    onApply={handleApplySchedule}
+                    onClose={() => setScheduleOpen(false)}
+                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 

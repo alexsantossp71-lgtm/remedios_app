@@ -1,7 +1,7 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { AiError, parsePrescriptionText, scanPrescription } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { fileToCompressedDataUrl } from '../utils/image';
 import { toDateInputValue } from '../utils/datetime';
 import { describeDraft, draftsFromPrescription, type PrescriptionEntry, type ReminderDraft } from '../utils/prescription';
@@ -25,7 +25,7 @@ type Status = 'idle' | 'loading' | 'error';
 /** Prévia dos medicamentos reconhecidos; o usuário marca quais viram lembretes. */
 const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport, onOpenSettings }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
 
     const [mode, setMode] = useState<Mode>('photo');
     const [status, setStatus] = useState<Status>('idle');
@@ -160,7 +160,7 @@ const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport, onOpenSet
                             onClick={() => onOpenSettings?.()}
                             className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
                         >
-                            Configurar chave da API (NVIDIA)
+                            Configurar IA (proxy ou chave)
                         </button>
                     </div>
                 ) : entries ? (

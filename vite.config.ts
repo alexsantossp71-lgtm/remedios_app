@@ -15,9 +15,9 @@ export default defineConfig({
     allowedHosts: true,
   },
   // Testes unitários (Vitest): funções puras (datetime, máscaras, adesão,
-  // extractJson) — ambiente Node sem DOM.
+  // extractJson) e os helpers do proxy (worker/) — ambiente Node sem DOM.
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'worker/**/*.test.ts'],
     environment: 'node',
   },
 });

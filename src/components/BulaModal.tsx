@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AiError, explainMedication, type MedicationGuide } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { getCachedGuide, guideCacheKey, storeGuide } from '../utils/bulaCache';
 import { Reminder } from '../types';
 import { InfoIcon, XIcon } from '../constants';
@@ -31,7 +31,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 /** Explicação do medicamento ("bula simplificada") com cache no localStorage. */
 const BulaModal: React.FC<Props> = ({ reminder, onClose, onOpenSettings }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
 
     // Cache verificado nos initializers: os estados iniciais já cobrem os
     // caminhos síncronos (em cache / sem chave / carregando) e o effect fica
@@ -98,14 +98,14 @@ const BulaModal: React.FC<Props> = ({ reminder, onClose, onOpenSettings }) => {
                     <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-6 px-3 text-center">
                         <InfoIcon className="w-6 h-6 mx-auto text-brand-gray-400" />
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
-                            A explicação usa a chave da API NVIDIA configurada neste dispositivo.
+                            A explicação usa a IA configurada neste dispositivo (proxy de IA ou chave da API NVIDIA).
                         </p>
                         <button
                             type="button"
                             onClick={() => onOpenSettings?.()}
                             className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
                         >
-                            Configurar chave da API (NVIDIA)
+                            Configurar IA (proxy ou chave)
                         </button>
                     </div>
                 )}

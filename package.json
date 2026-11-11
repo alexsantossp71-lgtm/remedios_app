@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src"
+    "lint": "eslint src worker"
   },
   "packageManager": "pnpm@10.34.5",
   "devDependencies": {

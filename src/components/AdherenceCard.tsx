@@ -10,7 +10,7 @@ import {
 } from '../utils/adherenceInsights';
 import { getCachedAnalysis, storeAnalysis } from '../utils/insightsCache';
 import { AiError, analyzeAdherenceInsights } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { ChartIcon, SparklesIcon, XIcon } from '../constants';
 import { useEscapeToClose } from './formFields';
 
@@ -53,7 +53,7 @@ const AdherenceInsightsSection: React.FC<{ report: AdherenceReport; fingerprint:
     fingerprint,
 }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
 
     // Initializers leem o cache do relatório ATUAL (o pai re-monta este
     // componente via key=fingerprint quando os dados mudam) — nada de
@@ -105,7 +105,7 @@ const AdherenceInsightsSection: React.FC<{ report: AdherenceReport; fingerprint:
         return (
             <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-3 px-3 text-center">
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400">
-                    A análise usa a chave da API NVIDIA configurada neste dispositivo.
+                    A análise usa a IA configurada neste dispositivo (proxy de IA ou chave da API NVIDIA).
                 </p>
                 <button
                     type="button"

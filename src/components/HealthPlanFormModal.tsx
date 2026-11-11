@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { HealthPlan } from '../types';
 import { AiError, scanHealthCard, ScannedHealthCard } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { fileToCompressedDataUrl } from '../utils/image';
 import { CameraIcon } from '../constants';
 import {
@@ -34,7 +34,7 @@ const SCAN_ERROR_MESSAGE =
 
 const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpenSettings }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
     const [operator, setOperator] = useState(editing?.operator ?? '');
     const [planName, setPlanName] = useState(editing?.planName ?? '');
     const [cardNumber, setCardNumber] = useState(maskCardNumber(editing?.cardNumber ?? ''));
@@ -215,7 +215,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpen
                             onClick={() => onOpenSettings?.()}
                             className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
                         >
-                            Configurar chave da API (NVIDIA)
+                            Configurar IA (proxy ou chave)
                         </button>
                     </div>
                 )}

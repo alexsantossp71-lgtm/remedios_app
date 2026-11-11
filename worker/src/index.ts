@@ -1,0 +1,179 @@
+
+// Proxy serverless (Cloudflare Worker) da API NVIDIA para o app "Remédio na
+// Hora". Deploy separado do GitHub Pages (que continua 100% estático):
+//
+//   npx wrangler secret put NVIDIA_API_KEY   # chave nvapi-... do dono do proxy
+//   npx wrangler deploy                      # na pasta worker/
+//
+// O app (GitHub Pages) chama https://<nome>.workers.dev/v1/chat/completions
+// sem chave por usuário; o proxy injeta o segredo no servidor. Proteções:
+// CORS por origem exata, allowlist de modelos, sem streaming, teto de corpo
+// e rate limit (janela por IP + teto diário por IP + teto global diário).
+
+import {
+    MAX_BODY_BYTES,
+    UPSTREAM_BASE,
+    constantTimeEquals,
+    isModelAllowed,
+    isOriginAllowed,
+    parseConfig,
+} from './config';
+import { RateLimits, clientIp } from './limiter';
+
+/** Variáveis ([vars]) e segredos (`wrangler secret put`) do Worker. */
+export interface WorkerEnv {
+    [key: string]: string | undefined;
+    NVIDIA_API_KEY?: string;
+    PROXY_TOKEN?: string;
+    ALLOWED_ORIGINS?: string;
+    ALLOWED_MODELS?: string;
+    RATE_LIMIT_WINDOW_MS?: string;
+    RATE_LIMIT_MAX?: string;
+    RATE_LIMIT_DAY_MAX?: string;
+}
+
+/** Os vars podem mudar entre deploys: recria os limitadores quando mudarem. */
+let cachedLimits: { key: string; limits: RateLimits } | null = null;
+function limitsFor(env: WorkerEnv): RateLimits {
+    const cfg = parseConfig(env);
+    const key = `${cfg.windowMs}|${cfg.windowMax}|${cfg.dayMax}`;
+    if (!cachedLimits || cachedLimits.key !== key) {
+        cachedLimits = { key, limits: new RateLimits(cfg) };
+    }
+    return cachedLimits.limits;
+}
+
+function corsHeaders(origin: string, extra?: Record<string, string>): Headers {
+    const headers = new Headers(extra);
+    if (origin) {
+        headers.set('Access-Control-Allow-Origin', origin);
+        headers.set('Vary', 'Origin');
+    }
+    return headers;
+}
+
+function jsonResponse(status: number, body: unknown, origin: string, extra?: Record<string, string>): Response {
+    const headers = corsHeaders(origin, { 'Content-Type': 'application/json', ...extra });
+    return new Response(JSON.stringify(body), { status, headers });
+}
+
+/** Repassa a resposta da NVIDIA ao navegador acrescentando os cabeçalhos CORS. */
+function passThrough(upstream: Response, origin: string): Response {
+    const headers = corsHeaders(origin);
+    const contentType = upstream.headers.get('Content-Type');
+    if (contentType) headers.set('Content-Type', contentType);
+    return new Response(upstream.body, { status: upstream.status, headers });
+}
+
+export default {
+    async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+        const cfg = parseConfig(env);
+        const origin = request.headers.get('Origin') ?? '';
+        const allowedOrigin = isOriginAllowed(origin, cfg.allowedOrigins) ? origin : '';
+
+        // Preflight CORS do navegador.
+        if (request.method === 'OPTIONS') {
+            return new Response(null, {
+                status: 204,
+                headers: corsHeaders(allowedOrigin, {
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Accept, x-proxy-token',
+                    'Access-Control-Max-Age': '86400',
+                }),
+            });
+        }
+
+        // Verificação de saúde do deploy (curl https://proxy/health).
+        if (new URL(request.url).pathname === '/health') {
+            return jsonResponse(200, { ok: true, hasKey: Boolean((env.NVIDIA_API_KEY ?? '').trim()) }, allowedOrigin);
+        }
+
+        if (!allowedOrigin) {
+            return jsonResponse(403, { error: { message: 'Origem não autorizada para usar este proxy.' } }, '');
+        }
+
+        if (!(env.NVIDIA_API_KEY ?? '').trim()) {
+            return jsonResponse(
+                500,
+                { error: { message: 'Proxy sem chave da NVIDIA configurada: rode `wrangler secret put NVIDIA_API_KEY`.' } },
+                allowedOrigin
+            );
+        }
+
+        // Token opcional (PROXY_TOKEN): se o segredo existe, o app precisa
+        // enviar o mesmo valor no cabeçalho x-proxy-token.
+        if (cfg.requiresToken) {
+            const token = (request.headers.get('x-proxy-token') ?? '').trim();
+            if (!constantTimeEquals(token, (env.PROXY_TOKEN ?? '').trim())) {
+                return jsonResponse(401, { error: { message: 'Token do proxy inválido ou ausente.' } }, allowedOrigin);
+            }
+        }
+
+        const verdict = limitsFor(env).hit(clientIp(request), Date.now());
+        if (!verdict.allowed) {
+            return jsonResponse(
+                429,
+                { error: { message: `Limite de uso do proxy atingido. Tente novamente em ~${verdict.retryAfterSec}s.` } },
+                allowedOrigin,
+                { 'Retry-After': String(verdict.retryAfterSec) }
+            );
+        }
+
+        const upstreamAuth = { Authorization: `Bearer ${(env.NVIDIA_API_KEY ?? '').trim()}` };
+        const pathname = new URL(request.url).pathname;
+
+        try {
+            if (pathname === '/v1/models' && request.method === 'GET') {
+                const upstream = await fetch(`${UPSTREAM_BASE}/models`, {
+                    headers: { ...upstreamAuth, Accept: 'application/json' },
+                });
+                return passThrough(upstream, allowedOrigin);
+            }
+
+            if (pathname === '/v1/chat/completions' && request.method === 'POST') {
+                const raw = await request.text();
+                if (raw.length > MAX_BODY_BYTES) {
+                    return jsonResponse(413, { error: { message: 'Corpo do pedido grande demais.' } }, allowedOrigin);
+                }
+                let parsed: { model?: unknown; stream?: unknown } = {};
+                try {
+                    parsed = JSON.parse(raw) as { model?: unknown; stream?: unknown };
+                } catch {
+                    return jsonResponse(400, { error: { message: 'Corpo não é um JSON válido.' } }, allowedOrigin);
+                }
+                if (parsed.stream === true) {
+                    return jsonResponse(
+                        400,
+                        { error: { message: 'Streaming não é suportado neste proxy (use stream: false).' } },
+                        allowedOrigin
+                    );
+                }
+                if (!isModelAllowed(typeof parsed.model === 'string' ? parsed.model : '', cfg.allowedModels)) {
+                    return jsonResponse(
+                        403,
+                        { error: { message: 'Modelo não permitido neste proxy. Ajuste ALLOWED_MODELS no wrangler.toml.' } },
+                        allowedOrigin
+                    );
+                }
+                const upstream = await fetch(`${UPSTREAM_BASE}/chat/completions`, {
+                    method: 'POST',
+                    headers: { ...upstreamAuth, 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: raw,
+                });
+                return passThrough(upstream, allowedOrigin);
+            }
+        } catch {
+            return jsonResponse(
+                502,
+                { error: { message: 'O proxy não conseguiu falar com a API da NVIDIA agora. Tente novamente.' } },
+                allowedOrigin
+            );
+        }
+
+        return jsonResponse(
+            404,
+            { error: { message: 'Rota não encontrada. Use /v1/chat/completions (POST), /v1/models (GET) ou /health.' } },
+            allowedOrigin
+        );
+    },
+};

@@ -1,11 +1,17 @@
 
 import { Medication, EXAM_CATEGORIES } from '../types';
-import { readAiSettings } from './settings';
+import { effectiveProxyUrl, readAiSettings, type AiSettings } from './settings';
 import { sanitizePrescriptionEntries, type PrescriptionEntry } from '../utils/prescription';
 import { sanitizeAdherenceAnalysis, type AdherenceAnalysis, type AdherenceReport } from '../utils/adherenceInsights';
 import { sanitizeConsultationQuestions } from '../utils/consultationSummary';
 import { sanitizeLabScan, type LabScanResult } from '../utils/labResults';
 import { sanitizeMedicationId, type MedicationIdResult } from '../utils/medicationCheck';
+import {
+    buildScheduleDataBlock,
+    sanitizeScheduleAdvice,
+    type ScheduleAdvice,
+    type ScheduleAdvisorMed,
+} from '../utils/scheduleAdvisor';
 
 // ===== Cliente da API NVIDIA (build.nvidia.com) =====
 // A API da NVIDIA segue o formato OpenAI: POST {base}/chat/completions com
@@ -16,7 +22,10 @@ const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
 
 /** Erro já com mensagem amigável para exibir direto na interface. */
-export class AiError extends Error {}
+export class AiError extends Error {
+    /** Status HTTP quando o erro veio de uma resposta (undefined em falha de rede). */
+    status?: number;
+}
 
 /**
  * Endpoint base da API. Pode ser sobrescrito gravando "nvidiaBaseUrl" no
@@ -47,62 +56,106 @@ interface ChatChoice {
     message?: { content?: unknown };
 }
 
-/** Chamada única de chat completions; devolve o texto da primeira resposta. */
+/** Mensagem quando não há proxy nem chave configurados. O App reconhece a
+ * frase "Configure a IA" para ajustar o aviso da lista de medicamentos. */
+const NO_CREDENTIALS_MESSAGE =
+    'Configure a IA nas Configurações (ícone Ajustes no topo): cole a URL do proxy de IA ou a sua chave da API NVIDIA.';
+
+/** Cabeçalhos do pedido direto (chave do usuário). */
+const directHeaders = (apiKey: string): Record<string, string> => ({
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+});
+
+/** Cabeçalhos do pedido via proxy (sem chave; token opcional do Worker). */
+const proxyHeaders = (settings: AiSettings): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    const token = settings.proxyToken.trim();
+    if (token) headers['x-proxy-token'] = token;
+    return headers;
+};
+
+/** Erro permite cair do proxy para a chave direta? Só rede/instabilidade. */
+const canFallbackToKey = (error: unknown): boolean =>
+    error instanceof AiError && (error.status === undefined || error.status >= 500);
+
+/**
+ * Chamada única de chat completions; devolve o texto da primeira resposta.
+ * Caminho preferencial: proxy configurado (sem chave por usuário). Se o proxy
+ * falhar por rede/5xx e existir uma chave própria, repete direto na NVIDIA.
+ */
 async function chatCompletion(
     messages: ChatMessage[],
     model: string,
     options?: { maxTokens?: number; temperature?: number }
 ): Promise<string> {
-    const apiKey = readAiSettings().nvidiaApiKey.trim();
-    if (!apiKey) {
-        throw new AiError('Configure a chave da API NVIDIA nas Configurações (ícone IA no topo) para usar os recursos de IA.');
+    const settings = readAiSettings();
+    const apiKey = settings.nvidiaApiKey.trim();
+    const proxy = effectiveProxyUrl(settings);
+    if (!apiKey && !proxy) {
+        throw new AiError(NO_CREDENTIALS_MESSAGE);
     }
 
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const attempt = async (url: string, headers: Record<string, string>, viaProxy: boolean): Promise<string> => {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    let response: Response;
-    try {
-        response = await fetch(`${baseUrl()}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-            },
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature: options?.temperature ?? 0.2,
-                max_tokens: options?.maxTokens ?? 1024,
-                stream: false,
-            }),
-            signal: controller.signal,
-        });
-    } catch {
-        throw new AiError('Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.');
-    } finally {
-        window.clearTimeout(timeout);
-    }
+        let response: Response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    model,
+                    messages,
+                    temperature: options?.temperature ?? 0.2,
+                    max_tokens: options?.maxTokens ?? 1024,
+                    stream: false,
+                }),
+                signal: controller.signal,
+            });
+        } catch {
+            throw new AiError(
+                viaProxy
+                    ? 'Não foi possível conectar ao proxy de IA. Verifique sua internet ou use sua chave da API NVIDIA nas Configurações.'
+                    : 'Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.'
+            );
+        } finally {
+            window.clearTimeout(timeout);
+        }
 
-    if (!response.ok) {
-        throw new AiError(await describeHttpError(response));
-    }
+        if (!response.ok) {
+            const error = new AiError(await describeHttpError(response, viaProxy));
+            error.status = response.status;
+            throw error;
+        }
 
-    const data = (await response.json().catch(() => null)) as { choices?: ChatChoice[] } | null;
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content === 'string' && content.trim()) return content;
-    if (Array.isArray(content)) {
-        const text = content
-            .map((part) => (typeof part === 'string' ? part : typeof (part as ChatContentPart)?.text === 'string' ? (part as ChatContentPart).text! : ''))
-            .join('');
-        if (text.trim()) return text;
+        const data = (await response.json().catch(() => null)) as { choices?: ChatChoice[] } | null;
+        const content = data?.choices?.[0]?.message?.content;
+        if (typeof content === 'string' && content.trim()) return content;
+        if (Array.isArray(content)) {
+            const text = content
+                .map((part) => (typeof part === 'string' ? part : typeof (part as ChatContentPart)?.text === 'string' ? (part as ChatContentPart).text! : ''))
+                .join('');
+            if (text.trim()) return text;
+        }
+        throw new AiError('A API da NVIDIA respondeu em um formato inesperado. Tente novamente.');
+    };
+
+    if (proxy) {
+        try {
+            return await attempt(`${proxy}/chat/completions`, proxyHeaders(settings), true);
+        } catch (error) {
+            if (!apiKey || !canFallbackToKey(error)) throw error;
+            // Cai para a chave direta abaixo (instabilidade momentânea do proxy).
+        }
     }
-    throw new AiError('A API da NVIDIA respondeu em um formato inesperado. Tente novamente.');
+    return attempt(`${baseUrl()}/chat/completions`, directHeaders(apiKey), false);
 }
 
-/** Traduz erros HTTP da API para mensagens claras em português. */
-async function describeHttpError(response: Response): Promise<string> {
+/** Traduz erros HTTP da API/proxy para mensagens claras em português. */
+async function describeHttpError(response: Response, viaProxy = false): Promise<string> {
     let detail = '';
     try {
         const body = await response.json();
@@ -112,13 +165,18 @@ async function describeHttpError(response: Response): Promise<string> {
         // corpo sem JSON: segue sem detalhe
     }
     if (response.status === 401 || response.status === 403) {
-        return 'Chave da API NVIDIA inválida ou sem permissão. Gere uma chave nova em build.nvidia.com ("Get API Key") e confirme nas Configurações.';
+        return viaProxy
+            ? 'O proxy de IA recusou o pedido (origem ou token não autorizado). Confira a URL/Token do proxy nas Configurações e o ALLOWED_ORIGINS do Worker.'
+            : 'Chave da API NVIDIA inválida ou sem permissão. Gere uma chave nova em build.nvidia.com ("Get API Key") e confirme nas Configurações.';
     }
     if (response.status === 404) {
         return `Modelo não disponível para sua conta. Verifique o nome do modelo nas Configurações. ${detail}`.trim();
     }
+    if (response.status === 413) {
+        return 'A foto/texto é grande demais para o proxy. Tente uma imagem menor.';
+    }
     if (response.status === 429) {
-        return 'Limite de uso da API NVIDIA atingido. Aguarde alguns instantes e tente novamente.';
+        return 'Limite de uso atingido (rate limit do proxy ou da API NVIDIA). Aguarde alguns instantes e tente novamente.';
     }
     return `A API da NVIDIA respondeu com erro ${response.status}. ${detail}`.trim();
 }
@@ -720,28 +778,66 @@ export const identifyMedication = async (
     return sanitizeMedicationId(extractJson(content));
 };
 
+// ===== Agendamento inteligente: redistribuição de horários (modelo de texto) =====
+
+const SCHEDULE_PROMPT = `Você é um farmacêutico que organiza a rotina de medicamentos de um paciente. Reorganize os horários das doses para melhorar a rotina, respeitando as regras de cada medicamento.
+
+Responda APENAS com um JSON válido, sem nenhum texto antes ou depois, neste formato:
+{"summary":"...","suggestions":[{"medicationId":"...","medicationName":"...","suggestedTimes":["07:30","21:30"],"reason":"...","warnings":["..."]}]}
+
+Regras:
+- Para cada medicamento, mantenha EXATAMENTE o mesmo número de doses por dia e respeite o intervalo mínimo entre doses (considere o intervalo atual como prescrito).
+- Respeite as instruções de uso: "em jejum" = 30 a 60 minutos antes do café da manhã; "com alimentos" = junto às refeições principais (café, almoço, jantar); instruções que citam horário ou evento fixo devem ser mantidas.
+- Prefira horários entre 06:00 e 22:30. Se houver dose depois das 23:00 e ela puder ser movida respeitando o intervalo, mova para mais cedo (ex.: dose das 23h vai para 21h30 para não atrapalhar o sono).
+- Espalhe os medicamentos ao longo do dia; evite 3 ou mais medicamentos no mesmo horário e separe medicamentos que pedem jejum dos que pedem alimento.
+- Inclua UM item por medicamento da lista (use o medicationId exato informado). Quando não houver mudança que valha a pena, devolva os mesmos horários e um reason explicando que a rotina já está boa.
+- NÃO mude doses, nomes, quantidade de doses por dia nem crie medicamentos novos. Não sugera reduzir, aumentar ou parar medicamentos — isso é decisão médica.
+- reason: 1-2 frases simples explicando a mudança (ex.: "Omeprazol 30 min antes do café; a dose das 23h passa para 21h30, respeitando o intervalo de 8h").
+- warnings: pontos que precisam de confirmação do médico/farmacêutico (ex.: "intervalo menor que o atual", "exigência de jejum confirmada apenas na bula"); lista vazia se não houver.
+- Português do Brasil, linguagem simples para paciente leigo.`;
+
+/** Sugere novos horários para os lembretes, respeitando jejum e intervalos. */
+export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promise<ScheduleAdvice> => {
+    if (!medications.length) {
+        throw new AiError('Cadastre lembretes com horários para a IA sugerir melhorias.');
+    }
+    const { textModel } = readAiSettings();
+    const content = await chatCompletion(
+        [{ role: 'user', content: `${SCHEDULE_PROMPT}\n\n${buildScheduleDataBlock(medications)}` }],
+        textModel,
+        { maxTokens: 1600, temperature: 0.2 }
+    );
+    return sanitizeScheduleAdvice(extractJson(content), medications);
+};
+
 // ===== Teste de conexão (tela de Configurações) =====
 
 /** Consulta a lista de modelos da conta e devolve um resumo do status. */
 export const testConnection = async (): Promise<string> => {
-    const { nvidiaApiKey, visionModel, textModel } = readAiSettings();
-    const apiKey = nvidiaApiKey.trim();
-    if (!apiKey) throw new AiError('Informe a chave da API antes de testar.');
+    const settings = readAiSettings();
+    const apiKey = settings.nvidiaApiKey.trim();
+    const proxy = effectiveProxyUrl(settings);
+    if (!apiKey && !proxy) throw new AiError('Informe a chave da API NVIDIA ou a URL do proxy antes de testar.');
 
+    const viaProxy = Boolean(proxy);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 20_000);
     let response: Response;
     try {
-        response = await fetch(`${baseUrl()}/models`, {
-            headers: { Authorization: `Bearer ${apiKey}` },
+        response = await fetch(viaProxy ? `${proxy}/models` : `${baseUrl()}/models`, {
+            headers: viaProxy ? proxyHeaders(settings) : directHeaders(apiKey),
             signal: controller.signal,
         });
     } catch {
-        throw new AiError('Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.');
+        throw new AiError(
+            viaProxy
+                ? 'Não foi possível conectar ao proxy de IA. Verifique sua internet e a URL do proxy nas Configurações.'
+                : 'Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.'
+        );
     } finally {
         window.clearTimeout(timeout);
     }
-    if (!response.ok) throw new AiError(await describeHttpError(response));
+    if (!response.ok) throw new AiError(await describeHttpError(response, viaProxy));
 
     const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
     const ids = Array.isArray(data?.data)
@@ -749,11 +845,12 @@ export const testConnection = async (): Promise<string> => {
         : [];
 
     const warnings: string[] = [];
-    if (ids.length && !ids.includes(visionModel)) warnings.push(`o modelo de visão "${visionModel}" não consta na sua conta`);
-    if (ids.length && !ids.includes(textModel)) warnings.push(`o modelo de texto "${textModel}" não consta na sua conta`);
+    if (ids.length && !ids.includes(settings.visionModel)) warnings.push(`o modelo de visão "${settings.visionModel}" não consta na sua conta`);
+    if (ids.length && !ids.includes(settings.textModel)) warnings.push(`o modelo de texto "${settings.textModel}" não consta na sua conta`);
 
-    if (warnings.length) return `Conectado à NVIDIA. Atenção: ${warnings.join(' e ')}.`;
+    const via = viaProxy ? 'no proxy de IA (NVIDIA)' : 'à NVIDIA';
+    if (warnings.length) return `Conectado ${via}. Atenção: ${warnings.join(' e ')}.`;
     return ids.length
-        ? `Conectado à NVIDIA! ${ids.length} modelos disponíveis para sua chave.`
-        : 'Conectado à NVIDIA!';
+        ? `Conectado ${via}! ${ids.length} modelos disponíveis.`
+        : `Conectado ${via}!`;
 };

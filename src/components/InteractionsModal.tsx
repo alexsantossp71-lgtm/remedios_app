@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AiError, analyzeInteractions, type InteractionReport } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { ShieldIcon, XIcon } from '../constants';
 import { useEscapeToClose } from './formFields';
 
@@ -26,7 +26,7 @@ const severityChip: Record<InteractionReport['interactions'][number]['severity']
 /** Análise educativa de interações/duplicidades; roda sozinha ao abrir. */
 const InteractionsModal: React.FC<Props> = ({ medications, onClose, onOpenSettings }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
 
     // Estados iniciais cobrem os caminhos síncronos (carregando / sem chave);
     // o effect cuida só da busca assíncrona, sem setState direto no corpo.
@@ -80,14 +80,14 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose, onOpenSettin
                     <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-6 px-3 text-center">
                         <ShieldIcon className="w-6 h-6 mx-auto text-brand-gray-400" />
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
-                            A análise usa a chave da API NVIDIA configurada neste dispositivo.
+                            A análise usa a IA configurada neste dispositivo (proxy de IA ou chave da API NVIDIA).
                         </p>
                         <button
                             type="button"
                             onClick={() => onOpenSettings?.()}
                             className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
                         >
-                            Configurar chave da API (NVIDIA)
+                            Configurar IA (proxy ou chave)
                         </button>
                     </div>
                 )}

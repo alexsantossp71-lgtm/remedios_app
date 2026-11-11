@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { Reminder, ReminderStatus } from '../types';
 import { AiError, identifyMedication } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { fileToCompressedDataUrl } from '../utils/image';
 import { guardianVerdict } from '../utils/medicationCheck';
 import { CheckCircleIcon, CameraIcon, ShieldIcon, XCircleIcon, BellIcon, XIcon } from '../constants';
@@ -27,7 +27,7 @@ const GuardianCheck: React.FC<{
     onOpenSettings?: () => void;
 }> = ({ reminder, onOpenSettings }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
     const [state, setState] = useState<GuardianState>({ kind: 'hidden' });
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,7 +121,7 @@ const GuardianCheck: React.FC<{
                 {!hasApiKey && (
                     <p className="mt-1 text-center text-xs">
                         <button type="button" onClick={() => onOpenSettings?.()} className="font-semibold text-brand-blue hover:underline">
-                            A conferência precisa da chave da NVIDIA — configurar
+                            A conferência precisa da IA configurada (proxy ou chave) — configurar
                         </button>
                     </p>
                 )}

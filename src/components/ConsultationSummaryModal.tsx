@@ -1,7 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { AiError, suggestConsultationQuestions } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { Appointment, Exam, Reminder } from '../types';
 import { computeAdherence } from '../utils/adherence';
 import { buildAdherenceReport, describeWindow } from '../utils/adherenceInsights';
@@ -28,7 +28,7 @@ interface Props {
  */
 const ConsultationSummaryModal: React.FC<Props> = ({ reminders, exams, appointments, onClose }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
 
     useEscapeToClose(onClose);
     const [copied, setCopied] = useState(false);

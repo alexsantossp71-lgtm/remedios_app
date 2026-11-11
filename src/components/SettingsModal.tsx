@@ -3,8 +3,10 @@ import React, { useRef, useState } from 'react';
 import { AiError, testConnection } from '../services/nvidiaService';
 import {
     AiSettings,
+    DEFAULT_PROXY_URL,
     DEFAULT_TEXT_MODEL,
     DEFAULT_VISION_MODEL,
+    normalizeProxyUrl,
     readAiSettings,
     saveAiSettings,
 } from '../services/settings';
@@ -41,6 +43,8 @@ const PERMISSION_LABELS: Record<NotificationSupport, string> = {
  */
 const SettingsModal: React.FC<Props> = ({ onClose }) => {
     const [apiKey, setApiKey] = useState(() => readAiSettings().nvidiaApiKey);
+    const [proxyUrl, setProxyUrl] = useState(() => readAiSettings().proxyUrl);
+    const [proxyToken, setProxyToken] = useState(() => readAiSettings().proxyToken);
     const [visionModel, setVisionModel] = useState(() => readAiSettings().visionModel);
     const [textModel, setTextModel] = useState(() => readAiSettings().textModel);
     const [showKey, setShowKey] = useState(false);
@@ -52,7 +56,10 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [backupMessage, setBackupMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
-    const current = (): AiSettings => ({ nvidiaApiKey: apiKey, visionModel, textModel });
+    const current = (): AiSettings => ({ nvidiaApiKey: apiKey, proxyUrl, proxyToken, visionModel, textModel });
+
+    // Proxy efetivo com o valor digitado (padrão do build quando vazio).
+    const effectiveProxy = normalizeProxyUrl(proxyUrl.trim() || DEFAULT_PROXY_URL);
 
     const handleTest = async () => {
         setTesting(true);
@@ -143,13 +150,13 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
                     <p className={helperClass}>
                         Gere sua chave em <span className="font-semibold">build.nvidia.com</span> (botão "Get API Key", começa com <code>nvapi-</code>).
                         Ela fica salva <span className="font-semibold">apenas neste dispositivo</span> e é enviada somente para a API da NVIDIA.
-                        Deixe vazia para desativar os recursos de IA.
+                        Alternativa sem chave por pessoa: configure o <span className="font-semibold">Proxy de IA</span> abaixo.
                     </p>
                 </div>
                 <button
                     type="button"
                     onClick={handleTest}
-                    disabled={testing || !apiKey.trim()}
+                    disabled={testing || (!apiKey.trim() && !effectiveProxy)}
                     className="w-full px-4 py-2 rounded-md text-sm font-semibold border border-brand-blue text-brand-blue hover:bg-blue-50 dark:hover:bg-brand-gray-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     {testing ? 'Testando conexão...' : 'Testar conexão'}
@@ -162,6 +169,46 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
                         {testResult.message}
                     </p>
                 )}
+            </FormSection>
+
+            <FormSection title="Proxy de IA (opcional)">
+                <div>
+                    <label htmlFor="settings-proxy-url" className={labelClass}>URL do proxy de IA</label>
+                    <input
+                        id="settings-proxy-url"
+                        type="url"
+                        value={proxyUrl}
+                        onChange={(e) => { setProxyUrl(e.target.value); setTestResult(null); }}
+                        className={inputClass()}
+                        placeholder="https://remedios-ai-proxy.sua-conta.workers.dev"
+                        autoComplete="off"
+                        spellCheck={false}
+                    />
+                    <p className={helperClass}>
+                        Se você hospedou o Worker do repositório (pasta <code>worker/</code>), cole a URL dele aqui:
+                        a IA funciona <span className="font-semibold">sem chave por pessoa</span>, com rate-limit no servidor.
+                        {DEFAULT_PROXY_URL
+                            ? ' Vazio = usa a URL padrão deste build.'
+                            : ' Vazio = desativado (a IA exige a chave da NVIDIA acima).'}
+                    </p>
+                </div>
+                <div>
+                    <label htmlFor="settings-proxy-token" className={labelClass}>Token do proxy (opcional)</label>
+                    <input
+                        id="settings-proxy-token"
+                        type="password"
+                        value={proxyToken}
+                        onChange={(e) => { setProxyToken(e.target.value); setTestResult(null); }}
+                        className={inputClass()}
+                        placeholder="só se o Worker define PROXY_TOKEN"
+                        autoComplete="off"
+                        spellCheck={false}
+                    />
+                    <p className={helperClass}>
+                        Preencha apenas quando o dono do proxy definiu o segredo PROXY_TOKEN. O valor fica salvo
+                        somente neste dispositivo.
+                    </p>
+                </div>
             </FormSection>
 
             <FormSection title="Modelos de IA">

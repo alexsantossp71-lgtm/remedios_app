@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { LabValue } from '../types';
 import { AiError, extractLabValues } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { compressDataUrl, fileToCompressedDataUrl } from '../utils/image';
 import { flagOf, parseNumericValue, parseReferenceText } from '../utils/labResults';
 import { toDateInputValue } from '../utils/datetime';
@@ -62,7 +62,7 @@ const flagBadge = (flag: LabValue['flag']): { label: string; className: string }
  */
 const LabFormModal: React.FC<Props> = ({ onClose, onSave }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
 
     const [date, setDate] = useState(() => toDateInputValue(new Date()));
     const [labName, setLabName] = useState('');
@@ -230,7 +230,7 @@ const LabFormModal: React.FC<Props> = ({ onClose, onSave }) => {
                     </section>
                 ) : (
                     <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4 rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 p-3">
-                        Sem chave de IA configurada: preencha os valores manualmente (a leitura por foto precisa da chave da NVIDIA nas Configurações).
+                        Sem IA configurada: preencha os valores manualmente (a leitura por foto precisa do proxy ou da chave da NVIDIA nas Configurações).
                     </p>
                 )}
 

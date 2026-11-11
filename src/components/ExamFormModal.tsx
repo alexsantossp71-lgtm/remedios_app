@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { AppointmentReminderOffset, Doctor, Exam, ExamStatus, EXAM_CATEGORIES } from '../types';
 import { AiError, scanExamRequest, ScannedExamRequest } from '../services/nvidiaService';
-import { useAiSettings } from '../services/settings';
+import { hasAiAccess, useAiSettings } from '../services/settings';
 import { compressDataUrl, fileToCompressedDataUrl } from '../utils/image';
 import { parseLocalDate, toDateInputValue } from '../utils/datetime';
 import { CameraIcon } from '../constants';
@@ -51,7 +51,7 @@ const dateLabelFor = (status: ExamStatus): string => {
 
 const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onOpenSettings }) => {
     const aiSettings = useAiSettings();
-    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
+    const hasApiKey = hasAiAccess(aiSettings);
 
     const [name, setName] = useState(editing?.name ?? '');
     const [category, setCategory] = useState(editing?.category ?? '');
@@ -253,7 +253,7 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
                             onClick={() => onOpenSettings?.()}
                             className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
                         >
-                            Configurar chave da API (NVIDIA)
+                            Configurar IA (proxy ou chave)
                         </button>
                     </div>
                 )}

@@ -18,6 +18,18 @@ com lembrete de 1 hora ou 1 dia antes das consultas. Os dados ficam salvos no
 - **Minha Saúde:** cadastro de médicos (especialidade, CRM, telefone com
   botões de ligar e WhatsApp, clínica) e consultas (data/hora, local, motivo,
   observações e lembrete de 1 hora ou 1 dia antes).
+- **IA (API NVIDIA):** importar receita por foto/texto e criar os lembretes de
+  uma vez, análise de interações e duplicidades, bula simplificada, insights de
+  adesão, resumo para a consulta, laudos de laboratório com histórico de
+  marcadores, guardião da dose (confere o medicamento no alarme) e
+  **agendamento inteligente** — a IA redistribui os horários das doses
+  respeitando jejum, intervalos prescritos e o sono ("Omeprazol 30 min antes do
+  café; mover a dose das 23h para 21h30"), com revisão e aplicação por
+  medicamento.
+- **Proxy de IA opcional (Cloudflare Worker):** com o proxy hospedado (pasta
+  `worker/`), a IA funciona para todos sem cada pessoa criar a própria chave
+  `nvapi-` — o segredo fica no servidor, com CORS por origem, allowlist de
+  modelos e rate limit. O GitHub Pages continua 100% estático.
 - **Exames:** registro do pedido à realização, com situação (solicitado,
   agendado, realizado), categoria (laboratório, imagem, cardiológico…), médico
   solicitante, local e resultado/laudo; exames agendados aparecem como ponto
@@ -53,9 +65,27 @@ pnpm dev
 
 ## IA (API NVIDIA) — opcional
 
-Os recursos de IA (OCR da carteirinha do plano, OCR do pedido de exame e lista
-online de medicamentos) usam a API da NVIDIA ([build.nvidia.com](https://build.nvidia.com)),
-compatível com o formato OpenAI. Para ativar:
+Os recursos de IA (OCR da carteirinha do plano, OCR do pedido de exame, lista
+online de medicamentos, interações, bula, adesão, resumo de consulta, laudos,
+guardião da dose e agendamento inteligente) usam a API da NVIDIA
+([build.nvidia.com](https://build.nvidia.com)), compatível com o formato
+OpenAI. Há duas formas de ativar:
+
+### Opção A — proxy de IA (sem chave por usuário)
+
+Hospede o Worker da pasta [`worker/`](worker/README.md) uma vez e a IA passa a
+funcionar "de fábrica" para todos os usuários do app:
+
+1. `cd worker && npx wrangler secret put NVIDIA_API_KEY` (sua chave `nvapi-`).
+2. Ajuste `ALLOWED_ORIGINS` no `wrangler.toml` com a URL do seu Pages.
+3. `npx wrangler deploy`.
+4. No app, cole a URL do Worker em **Ajustes → Proxy de IA** — ou defina
+   `VITE_DEFAULT_PROXY_URL` no build para já vir configurado.
+
+A chave fica **no servidor** (secret do Worker); o app só conhece a URL
+pública, protegida por CORS por origem, allowlist de modelos e rate limit.
+
+### Opção B — chave por usuário
 
 1. Crie uma conta em build.nvidia.com e gere uma chave (botão **Get API Key**,
    começa com `nvapi-`).
@@ -66,7 +96,8 @@ compatível com o formato OpenAI. Para ativar:
 
 A chave fica salva **apenas no dispositivo** (localStorage) e é enviada
 somente para `integrate.api.nvidia.com` — nada é embutido no bundle nem
-publicado no repositório. Sem chave, o app usa a lista local de
+publicado no repositório. Se o proxy estiver configurado e cair, o app usa a
+chave direta como reserva. Sem proxy nem chave, o app usa a lista local de
 medicamentos e o cadastro manual da carteirinha e dos exames.
 
 ## Build de produção
