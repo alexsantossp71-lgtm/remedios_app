@@ -47,6 +47,10 @@ VITE_DEFAULT_PROXY_URL=https://remedios-ai-proxy.<sua-conta>.workers.dev
 Com `VITE_DEFAULT_PROXY_URL` definido, qualquer pessoa já usa a IA sem
 configurar nada — quem quiser a própria chave continua podendo informá-la.
 
+No GitHub Actions a variável já está ligada ao build: basta criar
+`VITE_DEFAULT_PROXY_URL` em **Settings → Secrets and variables → Actions →
+Variables** e rodar o deploy novamente (re-run do workflow ou push).
+
 Segurança: a chave nunca vai para o bundle do app; o que o proxy expõe é só a
 URL pública, protegida por CORS + allowlist + rate limit.
 
