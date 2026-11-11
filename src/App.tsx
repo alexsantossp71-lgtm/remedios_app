@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan } from './types';
+import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan, Exam } from './types';
 import { getMedications, AiError } from './services/nvidiaService';
 import { useAiSettings } from './services/settings';
 import { FALLBACK_MEDICATIONS } from './data/medications';
-import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isHealthPlanArray, isReminderArray, loadJson, saveJson } from './storage';
+import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isReminderArray, loadJson, saveJson } from './storage';
 import { parseLocalDateTime } from './utils/datetime';
 import AddReminderModal from './components/AddReminderModal';
 import Calendar from './components/Calendar';
@@ -17,11 +17,13 @@ import AppointmentFormModal from './components/AppointmentFormModal';
 import AppointmentNotificationModal from './components/AppointmentNotificationModal';
 import HealthPlansTab from './components/HealthPlansTab';
 import HealthPlanFormModal from './components/HealthPlanFormModal';
+import ExamsTab from './components/ExamsTab';
+import ExamFormModal from './components/ExamFormModal';
 import SettingsModal from './components/SettingsModal';
 import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon } from './constants';
 
 type MainTab = 'meds' | 'health';
-type HealthTab = 'appointments' | 'doctors' | 'plans';
+type HealthTab = 'appointments' | 'doctors' | 'plans' | 'exams';
 
 const subTabClass = (active: boolean): string =>
     `px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
@@ -55,6 +57,7 @@ const App: React.FC = () => {
     const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [plans, setPlans] = useState<HealthPlan[]>([]);
+    const [exams, setExams] = useState<Exam[]>([]);
 
     // Navegação por abas
     const [mainTab, setMainTab] = useState<MainTab>('meds');
@@ -65,6 +68,7 @@ const App: React.FC = () => {
     const [doctorModal, setDoctorModal] = useState<{ open: boolean; editing: Doctor | null }>({ open: false, editing: null });
     const [appointmentModal, setAppointmentModal] = useState<{ open: boolean; editing: Appointment | null }>({ open: false, editing: null });
     const [planModal, setPlanModal] = useState<{ open: boolean; editing: HealthPlan | null }>({ open: false, editing: null });
+    const [examModal, setExamModal] = useState<{ open: boolean; editing: Exam | null }>({ open: false, editing: null });
     const [appointmentNotification, setAppointmentNotification] = useState<{ appointment: Appointment; offsetMinutes: number } | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
 
@@ -90,6 +94,9 @@ const App: React.FC = () => {
 
         const storedPlans = loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray);
         if (storedPlans) setPlans(storedPlans);
+
+        const storedExams = loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray);
+        if (storedExams) setExams(storedExams);
     }, []);
 
     useEffect(() => {
@@ -107,6 +114,10 @@ const App: React.FC = () => {
     useEffect(() => {
         saveJson(STORAGE_KEYS.plans, plans);
     }, [plans]);
+
+    useEffect(() => {
+        saveJson(STORAGE_KEYS.exams, exams);
+    }, [exams]);
 
     useEffect(() => {
         const fetchMedications = async () => {
@@ -357,6 +368,22 @@ const App: React.FC = () => {
         setPlans(prev => prev.filter(p => p.id !== id));
     };
 
+    // ===== Exames =====
+    const handleSaveExam = (data: Omit<Exam, 'id'>) => {
+        const editingId = examModal.editing?.id;
+        if (editingId) {
+            setExams(prev => prev.map(e => (e.id === editingId ? { ...e, ...data } : e)));
+        } else {
+            setExams(prev => [...prev, { ...data, id: generateId() }]);
+        }
+        setExamModal({ open: false, editing: null });
+    };
+
+    const handleDeleteExam = (id: string) => {
+        if (!window.confirm('Excluir este exame?')) return;
+        setExams(prev => prev.filter(e => e.id !== id));
+    };
+
     const handleAppointmentNotificationDismiss = (appointmentId: string, offsetMinutes: number) => {
         setAppointments(prev => prev.map(a => (
             a.id === appointmentId && !a.notifiedOffsets.includes(offsetMinutes)
@@ -404,7 +431,7 @@ const App: React.FC = () => {
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold">Calendário de Doses</h2>
                     </div>
-                    <Calendar reminders={reminders} appointments={appointments} />
+                    <Calendar reminders={reminders} appointments={appointments} exams={exams} />
                 </div>
                 
                 <div className="lg:col-span-1 bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg">
@@ -430,6 +457,7 @@ const App: React.FC = () => {
                         <div className="flex justify-between items-center flex-wrap gap-3 mb-5">
                             <div className="inline-flex bg-brand-gray-100 dark:bg-brand-gray-700 rounded-lg p-1">
                                 <button onClick={() => setHealthTab('appointments')} className={subTabClass(healthTab === 'appointments')}>Consultas</button>
+                                <button onClick={() => setHealthTab('exams')} className={subTabClass(healthTab === 'exams')}>Exames</button>
                                 <button onClick={() => setHealthTab('doctors')} className={subTabClass(healthTab === 'doctors')}>Médicos</button>
                                 <button onClick={() => setHealthTab('plans')} className={subTabClass(healthTab === 'plans')}>Plano</button>
                             </div>
@@ -437,13 +465,14 @@ const App: React.FC = () => {
                                 onClick={() => {
                                     if (healthTab === 'doctors') setDoctorModal({ open: true, editing: null });
                                     else if (healthTab === 'plans') setPlanModal({ open: true, editing: null });
+                                    else if (healthTab === 'exams') setExamModal({ open: true, editing: null });
                                     else setAppointmentModal({ open: true, editing: null });
                                 }}
                                 className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
-                                aria-label={healthTab === 'doctors' ? 'Adicionar novo médico' : healthTab === 'plans' ? 'Adicionar novo plano de saúde' : 'Adicionar nova consulta'}
+                                aria-label={healthTab === 'doctors' ? 'Adicionar novo médico' : healthTab === 'plans' ? 'Adicionar novo plano de saúde' : healthTab === 'exams' ? 'Adicionar novo exame' : 'Adicionar nova consulta'}
                             >
                                 <PlusIcon className="w-5 h-5 mr-2" />
-                                {healthTab === 'doctors' ? 'Novo médico' : healthTab === 'plans' ? 'Novo plano' : 'Nova consulta'}
+                                {healthTab === 'doctors' ? 'Novo médico' : healthTab === 'plans' ? 'Novo plano' : healthTab === 'exams' ? 'Novo exame' : 'Nova consulta'}
                             </button>
                         </div>
                         {healthTab === 'doctors' ? (
@@ -457,6 +486,12 @@ const App: React.FC = () => {
                                 plans={plans}
                                 onEdit={plan => setPlanModal({ open: true, editing: plan })}
                                 onDelete={handleDeletePlan}
+                            />
+                        ) : healthTab === 'exams' ? (
+                            <ExamsTab
+                                exams={exams}
+                                onEdit={exam => setExamModal({ open: true, editing: exam })}
+                                onDelete={handleDeleteExam}
                             />
                         ) : (
                             <AppointmentsTab
@@ -510,6 +545,16 @@ const App: React.FC = () => {
                     onClose={() => setPlanModal({ open: false, editing: null })}
                     onSave={handleSavePlan}
                     editing={planModal.editing}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                />
+            )}
+
+            {examModal.open && (
+                <ExamFormModal
+                    onClose={() => setExamModal({ open: false, editing: null })}
+                    onSave={handleSaveExam}
+                    doctors={doctors}
+                    editing={examModal.editing}
                     onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}

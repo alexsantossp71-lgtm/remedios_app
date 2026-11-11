@@ -48,6 +48,25 @@ export interface HealthPlan {
 /** Minutos antes da consulta em que o lembrete dispara. */
 export type AppointmentReminderOffset = 0 | 60 | 1440;
 
+/** Categorias fixas de exame oferecidas no cadastro (usada também pelo OCR). */
+export const EXAM_CATEGORIES = ['Laboratório', 'Imagem', 'Cardiológico', 'Oftalmológico', 'Outro'] as const;
+
+/** Situação de um exame no fluxo solicitado -> agendado -> realizado. */
+export type ExamStatus = 'requested' | 'scheduled' | 'done';
+
+/** Exame (laboratório, imagem etc.) registrado pelo usuário. */
+export interface Exam {
+    id: string;
+    name: string; // Ex.: "Hemograma completo" (vários exames separados por vírgula)
+    category: string; // Uma das EXAM_CATEGORIES ou '' quando não classificado
+    status: ExamStatus;
+    date: string; // 'YYYY-MM-DD' — data do pedido, agendada ou de realização (conforme status)
+    doctorId: string; // '' quando o médico não está cadastrado
+    doctorName: string; // snapshot do nome do médico solicitante
+    place: string; // laboratório / clínica onde realizar ou realizado
+    results: string; // valores encontrados / laudo resumido
+}
+
 export interface Appointment {
     id: string;
     doctorId: string; // vazio quando o médico não está cadastrado

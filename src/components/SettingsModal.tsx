@@ -111,7 +111,7 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
 
             <FormSection title="Modelos">
                 <div>
-                    <label htmlFor="settings-vision-model" className={labelClass}>Modelo de visão (OCR da carteirinha)</label>
+                    <label htmlFor="settings-vision-model" className={labelClass}>Modelo de visão (OCR: carteirinha e pedido de exame)</label>
                     <input
                         id="settings-vision-model"
                         type="text"

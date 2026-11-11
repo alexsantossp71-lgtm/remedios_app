@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
-import { Appointment, Reminder, ReminderStatus } from '../types';
+import { Appointment, Exam, Reminder, ReminderStatus } from '../types';
 import { ChevronLeftIcon, ChevronRightIcon } from '../constants';
 import { formatTimeBR, toDateKey } from '../utils/datetime';
 
 interface Props {
     reminders: Reminder[];
     appointments: Appointment[];
+    exams: Exam[];
 }
 
-const Calendar: React.FC<Props> = ({ reminders, appointments }) => {
+const Calendar: React.FC<Props> = ({ reminders, appointments, exams }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
 
     const changeMonth = (amount: number) => {
@@ -82,6 +83,13 @@ const Calendar: React.FC<Props> = ({ reminders, appointments }) => {
         return appointments.filter(appointment => appointment.dateTime.startsWith(dayKey));
     };
 
+    /** Exames agendados para o dia (somente os com data marcada; pedido e realizado não entram). */
+    const getScheduledExamsForDay = (day: Date) => {
+        if (!day) return [];
+        const dayKey = toDateKey(day);
+        return exams.filter(exam => exam.status === 'scheduled' && exam.date === dayKey);
+    };
+
     const isToday = (day: Date) => {
         if (!day) return false;
         const today = new Date();
@@ -91,8 +99,12 @@ const Calendar: React.FC<Props> = ({ reminders, appointments }) => {
     const renderStatusDots = (day: Date) => {
         const statuses = getStatusForDay(day);
         const appointmentDots = renderAppointmentDots(day);
-        // Dias sem doses de remédio ainda exibem o ponto das consultas.
-        if (statuses.length === 0) return appointmentDots;
+        const examDots = renderExamDots(day);
+        // Dias sem doses de remédio ainda exibem os pontos de consultas e exames.
+        if (statuses.length === 0) {
+            if (!appointmentDots && !examDots) return null;
+            return <div className="flex justify-center space-x-1 mt-1">{appointmentDots}{examDots}</div>;
+        }
 
         const takenCount = statuses.filter(s => s.status === ReminderStatus.TAKEN).length;
         const skippedCount = statuses.filter(s => s.status === ReminderStatus.SKIPPED).length;
@@ -104,8 +116,16 @@ const Calendar: React.FC<Props> = ({ reminders, appointments }) => {
                 {skippedCount > 0 && <div className="w-2 h-2 bg-brand-red rounded-full" title={`${skippedCount} dose(s) ignorada(s)`}></div>}
                 {pendingCount > 0 && <div className="w-2 h-2 bg-brand-yellow rounded-full" title={`${pendingCount} dose(s) pendente(s)`}></div>}
                 {appointmentDots}
+                {examDots}
             </div>
         );
+    };
+
+    const renderExamDots = (day: Date) => {
+        const dayExams = getScheduledExamsForDay(day);
+        if (dayExams.length === 0) return null;
+        const title = dayExams.map(exam => `Exame: ${exam.name}`).join(' · ');
+        return <div className="w-2 h-2 bg-purple-500 rounded-full" title={title}></div>;
     };
 
     const renderAppointmentDots = (day: Date) => {

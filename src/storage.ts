@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
     doctors: 'healthDoctors',
     appointments: 'healthAppointments',
     plans: 'healthPlans',
+    exams: 'healthExams',
     settings: 'aiSettings',
 } as const;
 
@@ -62,6 +63,17 @@ export const isHealthPlanArray: Validator = (value) =>
         typeof p.id === 'string' &&
         typeof p.operator === 'string' &&
         typeof p.planName === 'string'
+    );
+
+export const isExamArray: Validator = (value) =>
+    Array.isArray(value) &&
+    value.every((e) =>
+        isRecord(e) &&
+        typeof e.id === 'string' &&
+        typeof e.name === 'string' &&
+        typeof e.category === 'string' &&
+        typeof e.status === 'string' &&
+        typeof e.date === 'string'
     );
 
 /**

@@ -1,5 +1,5 @@
 
-import { Medication } from '../types';
+import { Medication, EXAM_CATEGORIES } from '../types';
 import { readAiSettings } from './settings';
 
 // ===== Cliente da API NVIDIA (build.nvidia.com) =====
@@ -195,6 +195,66 @@ export const scanHealthCard = async (
         validity: /^\d{4}-\d{2}-\d{2}$/.test(str(parsed.validity)) ? str(parsed.validity) : '',
         phone: str(parsed.phone).replace(/\D/g, ''),
         coverage: str(parsed.coverage),
+    };
+};
+
+// ===== OCR do pedido de exame (modelo de visão) =====
+
+export interface ScannedExamRequest {
+    name: string; // nome(s) do(s) exame(s), separados por vírgula
+    category: string; // uma das EXAM_CATEGORIES ou ''
+    doctorName: string;
+    place: string;
+    date: string; // 'YYYY-MM-DD' ou ''
+}
+
+const EXAM_SCAN_PROMPT = `Analise a foto de um pedido médico de exames do Brasil e extraia os dados para o cadastro.
+
+Responda APENAS com um JSON válido, sem nenhum texto antes ou depois, neste formato:
+{"name":"...","category":"...","doctorName":"...","place":"...","date":"..."}
+
+Regras:
+- name: nome do exame pedido (se houver vários, separe por vírgula). Ex.: "Hemograma completo, Glicemia em jejum".
+- category: classifique o(s) exame(s) em exatamente uma destas opções: "Laboratório" (sangue, urina, fezes), "Imagem" (raio-x, ultrassom, tomografia, ressonância, mamografia), "Cardiológico" (ECG, ecocardiograma, teste ergométrico), "Oftalmológico" ou "Outro". Use string vazia se não for possível classificar.
+- doctorName: nome do médico solicitante impresso no pedido (mantenha "Dr."/"Dra." se constar).
+- place: nome do laboratório ou clínica indicado no pedido, se houver; senão string vazia.
+- date: data do pedido visível no documento, em AAAA-MM-DD; string vazia se não houver.
+- Qualquer campo ilegível, ausente ou incompleto deve ser string vazia. Não invente dados.
+- Se a imagem não for um pedido de exame, responda apenas {"error":"not_a_request"}.`;
+
+/** Envia a foto do pedido de exame ao modelo de visão da NVIDIA e devolve os campos reconhecidos. */
+export const scanExamRequest = async (
+    imageBase64: string,
+    mimeType: string
+): Promise<Partial<ScannedExamRequest>> => {
+    const { visionModel } = readAiSettings();
+    const content = await chatCompletion(
+        [
+            {
+                role: 'user',
+                content: [
+                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+                    { type: 'text', text: EXAM_SCAN_PROMPT },
+                ],
+            },
+        ],
+        visionModel,
+        { maxTokens: 500, temperature: 0.1 }
+    );
+
+    const parsed = extractJson(content);
+    if (parsed.error === 'not_a_request') {
+        throw new AiError('A foto não parece ser um pedido de exame. Tente outra imagem com melhor luz e enquadramento.');
+    }
+
+    const str = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+    const category = str(parsed.category);
+    return {
+        name: str(parsed.name),
+        category: (EXAM_CATEGORIES as readonly string[]).includes(category) ? category : '',
+        doctorName: str(parsed.doctorName),
+        place: str(parsed.place),
+        date: /^\d{4}-\d{2}-\d{2}$/.test(str(parsed.date)) ? str(parsed.date) : '',
     };
 };
 

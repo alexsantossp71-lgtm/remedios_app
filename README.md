@@ -4,20 +4,26 @@ Aplicativo (PWA) de lembretes de medicamentos feito com React + Vite + TypeScrip
 
 Configure lembretes com horários, duração e frequência, acompanhe as doses em um
 calendário e receba um alarme sonoro quando estiver na hora. Na aba **Minha
-Saúde** você também cadastra seus médicos, consultas e plano de saúde, com
-lembrete de 1 hora ou 1 dia antes. Os dados ficam salvos no `localStorage` do
-navegador.
+Saúde** você também cadastra seus médicos, consultas, exames e plano de saúde,
+com lembrete de 1 hora ou 1 dia antes das consultas. Os dados ficam salvos no
+`localStorage` do navegador.
 
 ## Funcionalidades
 
 - Cadastro de lembretes em 3 passos (remédio, frequência, horários).
-- Sugestões de medicamentos via API do Google Gemini (com lista offline de
+- Sugestões de medicamentos via API da NVIDIA (com lista offline de
   30 medicamentos comuns quando a chave não está configurada ou há falha de rede).
 - Calendário mensal com status das doses (tomada, ignorada, pendente) e
-  marcação das consultas agendadas.
+  marcação das consultas agendadas e dos exames agendados.
 - **Minha Saúde:** cadastro de médicos (especialidade, CRM, telefone com
   botões de ligar e WhatsApp, clínica) e consultas (data/hora, local, motivo,
   observações e lembrete de 1 hora ou 1 dia antes).
+- **Exames:** registro do pedido à realização, com situação (solicitado,
+  agendado, realizado), categoria (laboratório, imagem, cardiológico…), médico
+  solicitante, local e resultado/laudo; exames agendados aparecem como ponto
+  roxo no calendário. Foto do pedido é lida por OCR via **API da NVIDIA**
+  (modelo de visão) e preenche os campos automaticamente (requer chave
+  configurada no app).
 - **Plano de saúde:** carteirinha com operadora, número copiável, titular,
   validade com selo de alerta (vence em breve / vencida), telefone do SAC e
   observações de cobertura — funciona também para o cartão do SUS. Foto da
@@ -39,8 +45,8 @@ pnpm dev
 
 ## IA (API NVIDIA) — opcional
 
-Os recursos de IA (OCR da carteirinha do plano de saúde e lista online de
-medicamentos) usam a API da NVIDIA ([build.nvidia.com](https://build.nvidia.com)),
+Os recursos de IA (OCR da carteirinha do plano, OCR do pedido de exame e lista
+online de medicamentos) usam a API da NVIDIA ([build.nvidia.com](https://build.nvidia.com)),
 compatível com o formato OpenAI. Para ativar:
 
 1. Crie uma conta em build.nvidia.com e gere uma chave (botão **Get API Key**,
@@ -53,7 +59,7 @@ compatível com o formato OpenAI. Para ativar:
 A chave fica salva **apenas no dispositivo** (localStorage) e é enviada
 somente para `integrate.api.nvidia.com` — nada é embutido no bundle nem
 publicado no repositório. Sem chave, o app usa a lista local de
-medicamentos e o cadastro manual da carteirinha.
+medicamentos e o cadastro manual da carteirinha e dos exames.
 
 ## Build de produção
 
