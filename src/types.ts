@@ -11,6 +11,10 @@ export enum ReminderStatus {
 export interface Reminder {
     id: string;
     medicationName: string;
+    /** Quantidade por dose (ex.: "1 comprimido", "5 ml"). Opcional. */
+    dosage?: string;
+    /** Instruções de uso (ex.: "com alimentos, via oral"). Opcional. */
+    instructions?: string;
     startDate: string; // YYYY-MM-DD
     duration: {
         type: 'days' | 'continuous';
@@ -74,6 +78,8 @@ export interface Exam {
     /** Momento da criação (ISO). Exames criados antes dos lembretes existirem
      * não têm createdAt e nunca disparam alarme "atrasado". */
     createdAt?: string;
+    /** Foto do pedido/laudo anexada pelo usuário (data URL JPEG comprimida). */
+    photo?: string;
     doctorId: string; // '' quando o médico não está cadastrado
     doctorName: string; // snapshot do nome do médico solicitante
     place: string; // laboratório / clínica onde realizar ou realizado

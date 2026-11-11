@@ -41,6 +41,12 @@ const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit }) => {
                         </div>
                         <div className="flex-1">
                             <h4 className="font-bold text-lg text-brand-gray-900 dark:text-white">{reminder.medicationName}</h4>
+                            {reminder.dosage && (
+                                <p className="text-sm font-semibold text-brand-blue dark:text-blue-400">{reminder.dosage}</p>
+                            )}
+                            {reminder.instructions && (
+                                <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 break-words">{reminder.instructions}</p>
+                            )}
                             <div className="text-sm text-brand-gray-600 dark:text-brand-gray-300 mt-1 space-y-1">
                                 <div className="flex items-center">
                                     <ClockIcon className="w-4 h-4 mr-2" />

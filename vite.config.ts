@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 
 // Base para GitHub Pages: nome do repositório.
@@ -12,5 +13,11 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     allowedHosts: true,
+  },
+  // Testes unitários (Vitest): funções puras (datetime, máscaras, adesão,
+  // extractJson) — ambiente Node sem DOM.
+  test: {
+    include: ['src/**/*.test.ts'],
+    environment: 'node',
   },
 });

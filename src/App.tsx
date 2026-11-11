@@ -5,13 +5,15 @@ import { getMedications, AiError } from './services/nvidiaService';
 import { useAiSettings } from './services/settings';
 import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isReminderArray, loadJson, saveJson } from './storage';
-import { formatDateTimeBR, parseLocalDate, parseLocalDateTime, toDateKey } from './utils/datetime';
+import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/datetime';
 import { showSystemNotification, vibrateAlarm } from './utils/notify';
-import MissedDosesModal, { MissedDose } from './components/MissedDosesModal';
+import MissedDosesModal from './components/MissedDosesModal';
+import { findMissedDoses, MissedDose } from './utils/missedDoses';
 import NotificationsBanner from './components/NotificationsBanner';
 import AddReminderModal from './components/AddReminderModal';
 import Calendar from './components/Calendar';
 import ReminderList from './components/ReminderList';
+import AdherenceCard from './components/AdherenceCard';
 import NotificationModal from './components/NotificationModal';
 import DoctorsTab from './components/DoctorsTab';
 import DoctorFormModal from './components/DoctorFormModal';
@@ -52,16 +54,22 @@ const NavButton: React.FC<{ active: boolean; onClick: () => void; label: string;
 
 const ALARM_SOUND_B64 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTSEUAAAAMAEduaXgtbGFtZSAzLjk5LjUAAAAAAAAAAAAAAD43eAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/x/EQoA8ADhyQREAMU3bW3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//-";
 const App: React.FC = () => {
-    const [reminders, setReminders] = useState<Reminder[]>([]);
+    // Dados lidos do localStorage uma única vez, nos initializers (app 100%
+    // cliente, sem SSR): o primeiro render já traz tudo, sem cascade de effect.
+    const [reminders, setReminders] = useState<Reminder[]>(
+        () => loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? []
+    );
     const [medications, setMedications] = useState<Medication[]>([]);
     const [isLoadingMeds, setIsLoadingMeds] = useState(true);
     const [medsError, setMedsError] = useState<string | null>(null);
 
     // Cadastros de "Minha Saúde"
-    const [doctors, setDoctors] = useState<Doctor[]>([]);
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [plans, setPlans] = useState<HealthPlan[]>([]);
-    const [exams, setExams] = useState<Exam[]>([]);
+    const [doctors, setDoctors] = useState<Doctor[]>(() => loadJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray) ?? []);
+    const [appointments, setAppointments] = useState<Appointment[]>(
+        () => loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? []
+    );
+    const [plans, setPlans] = useState<HealthPlan[]>(() => loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? []);
+    const [exams, setExams] = useState<Exam[]>(() => loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? []);
 
     // Navegação por abas
     const [mainTab, setMainTab] = useState<MainTab>('meds');
@@ -77,7 +85,9 @@ const App: React.FC = () => {
     const [examNotification, setExamNotification] = useState<{ exam: Exam; offsetMinutes: number } | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
     // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
-    const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(null);
+    const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(
+        () => findMissedDoses(loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
+    );
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const timeoutRef = useRef<number | null>(null);
@@ -92,70 +102,6 @@ const App: React.FC = () => {
     // Configurações de IA: re-renderiza (e rebusca a lista de medicamentos)
     // quando a chave/modelos são alterados nas Configurações.
     const aiSettings = useAiSettings();
-
-    /**
-     * Doses de HOJE que já passaram do horário sem resposta — aconteceu o
-     * alarme com o app fechado/em segundo plano. Ignora doses futuras,
-     * respondidas, de tratamentos encerrados ou anteriores à criação do
-     * lembrete (criar um lembrete às 9h não marca a dose das 8h como perdida).
-     */
-    const findMissedDoses = useCallback((list: Reminder[]): MissedDose[] => {
-        const now = new Date();
-        const dayKey = toDateKey(now);
-        const missed: MissedDose[] = [];
-
-        list.forEach(reminder => {
-            const startDate = parseLocalDate(reminder.startDate);
-            if (!startDate || startDate.getTime() > now.getTime()) return;
-
-            if (reminder.duration.type === 'days') {
-                const endDate = new Date(startDate);
-                endDate.setDate(endDate.getDate() + reminder.duration.days);
-                if (now > endDate) return;
-            }
-
-            const todayMidnight = new Date();
-            todayMidnight.setHours(0, 0, 0, 0);
-            const diffDays = Math.floor((todayMidnight.getTime() - startDate.getTime()) / 86_400_000);
-            if (reminder.frequency.type === 'interval' && diffDays % reminder.frequency.days !== 0) return;
-
-            const createdMs = reminder.createdAt ? Date.parse(reminder.createdAt) : 0;
-            reminder.times.forEach(time => {
-                const [hour, minute] = time.split(':').map(Number);
-                const doseDate = new Date();
-                doseDate.setHours(hour, minute, 0, 0);
-                if (doseDate.getTime() >= now.getTime()) return; // ainda não chegou
-                if (reminder.history[dayKey]?.[time]) return; // já respondida
-                if (createdMs > doseDate.getTime()) return; // lembrete criado depois da dose
-                missed.push({ reminder, time });
-            });
-        });
-
-        missed.sort((a, b) => a.time.localeCompare(b.time));
-        return missed;
-    }, []);
-
-    // Carrega os dados do localStorage com validação: conteúdos corrompidos
-    // são ignorados com aviso no console em vez de quebrar o app.
-    useEffect(() => {
-        const storedReminders = loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray);
-        if (storedReminders) setReminders(storedReminders);
-
-        const storedDoctors = loadJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray);
-        if (storedDoctors) setDoctors(storedDoctors);
-
-        const storedAppointments = loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray);
-        if (storedAppointments) setAppointments(storedAppointments);
-
-        const storedPlans = loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray);
-        if (storedPlans) setPlans(storedPlans);
-
-        const storedExams = loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray);
-        if (storedExams) setExams(storedExams);
-
-        // Doses de hoje que passaram enquanto o app estava fechado.
-        setMissedDoses(findMissedDoses(storedReminders ?? []));
-    }, [findMissedDoses]);
 
     useEffect(() => {
         saveJson(STORAGE_KEYS.reminders, reminders);
@@ -251,35 +197,37 @@ const App: React.FC = () => {
     }, [reminders]);
 
 
-    const scheduleNextAlarm = useCallback(() => {
+    // Function expression nomeada: o callback do setTimeout re-agenda o próximo
+    // alarme chamando a própria função (auto-referência sem TDZ).
+    const scheduleNextAlarm = useCallback(function scheduleDose() {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
         }
-        
+
         const { nextAlarmTime, nextAlarmReminder } = getNextAlarm();
 
-        if (nextAlarmTime && nextAlarmReminder) {
-            const timeToAlarm = nextAlarmTime.getTime() - Date.now();
-            if (timeToAlarm > 0) {
-                 timeoutRef.current = window.setTimeout(() => {
-                    setNotification(nextAlarmReminder);
-                    // Aviso do sistema quando a página está em segundo plano
-                    // (tela apagada / aba oculta); em primeiro plano o modal já avisa.
-                    if (document.hidden) {
-                        showSystemNotification(
-                            'Hora do remédio',
-                            `${nextAlarmReminder.reminder.medicationName} — dose das ${nextAlarmReminder.time}`,
-                            `remedio-${nextAlarmReminder.reminder.id}-${nextAlarmReminder.time}`
-                        );
-                        vibrateAlarm();
-                    }
-                    if(audioRef.current) {
-                        audioRef.current.play().catch(e => console.error("Error playing sound:", e));
-                    }
-                    scheduleNextAlarm(); 
-                }, timeToAlarm);
+        if (!nextAlarmTime || !nextAlarmReminder) return;
+
+        const timeToAlarm = nextAlarmTime.getTime() - Date.now();
+        if (timeToAlarm <= 0) return;
+
+        timeoutRef.current = window.setTimeout(() => {
+            setNotification(nextAlarmReminder);
+            // Aviso do sistema quando a página está em segundo plano
+            // (tela apagada / aba oculta); em primeiro plano o modal já avisa.
+            if (document.hidden) {
+                showSystemNotification(
+                    'Hora do remédio',
+                    `${nextAlarmReminder.reminder.medicationName} — dose das ${nextAlarmReminder.time}`,
+                    `remedio-${nextAlarmReminder.reminder.id}-${nextAlarmReminder.time}`
+                );
+                vibrateAlarm();
             }
-        }
+            if(audioRef.current) {
+                audioRef.current.play().catch(e => console.error("Error playing sound:", e));
+            }
+            scheduleDose();
+        }, timeToAlarm);
     }, [getNextAlarm]);
 
     useEffect(() => {
@@ -316,7 +264,7 @@ const App: React.FC = () => {
         return candidates[0];
     }, [appointments]);
 
-    const scheduleNextAppointmentAlarm = useCallback(() => {
+    const scheduleNextAppointmentAlarm = useCallback(function scheduleAppointment() {
         if (appointmentTimeoutRef.current) {
             clearTimeout(appointmentTimeoutRef.current);
         }
@@ -339,7 +287,7 @@ const App: React.FC = () => {
             if (audioRef.current) {
                 audioRef.current.play().catch(e => console.error("Error playing sound:", e));
             }
-            scheduleNextAppointmentAlarm();
+            scheduleAppointment();
         }, delay);
     }, [getNextAppointmentAlarm]);
 
@@ -381,7 +329,7 @@ const App: React.FC = () => {
         return candidates[0];
     }, [exams]);
 
-    const scheduleNextExamAlarm = useCallback(() => {
+    const scheduleNextExamAlarm = useCallback(function scheduleExam() {
         if (examTimeoutRef.current) {
             clearTimeout(examTimeoutRef.current);
         }
@@ -404,7 +352,7 @@ const App: React.FC = () => {
             if (audioRef.current) {
                 audioRef.current.play().catch(e => console.error("Error playing sound:", e));
             }
-            scheduleNextExamAlarm();
+            scheduleExam();
         }, delay);
     }, [getNextExamAlarm]);
 
@@ -418,10 +366,13 @@ const App: React.FC = () => {
     }, [exams, scheduleNextExamAlarm]);
 
     // Mantém a lista de doses atrasadas em sincronia com o histórico
-    // (ex.: marcar "Tomei" no modal remove a dose da lista na hora).
+    // (ex.: marcar "Tomei" no modal remove a dose da lista na hora; quem
+    // fechou com "Responder depois" vê a lista reaparecer quando os dados
+    // mudam). Estado local deliberado: derivado de reminders, com override
+    // manual enquanto o usuário não interage.
     useEffect(() => {
         setMissedDoses(prev => (prev === null ? null : findMissedDoses(reminders)));
-    }, [reminders, findMissedDoses]);
+    }, [reminders]);
 
     // Ao voltar para o app (aba retomada, celular desbloqueado), reavalia
     // alarmes que não puderam tocar e doses que passaram em segundo plano.
@@ -435,7 +386,7 @@ const App: React.FC = () => {
         };
         document.addEventListener('visibilitychange', onVisible);
         return () => document.removeEventListener('visibilitychange', onVisible);
-    }, [findMissedDoses, scheduleNextAlarm, scheduleNextAppointmentAlarm, scheduleNextExamAlarm]);
+    }, [scheduleNextAlarm, scheduleNextAppointmentAlarm, scheduleNextExamAlarm]);
 
     const handleSaveReminder = (data: Omit<Reminder, 'id' | 'history' | 'createdAt'>) => {
         const editingId = reminderModal.editing?.id;
@@ -647,6 +598,7 @@ const App: React.FC = () => {
                         onEdit={reminder => setReminderModal({ open: true, editing: reminder })}
                         onDelete={handleDeleteReminder}
                     />
+                    <AdherenceCard reminders={reminders} />
                 </div>
             </main>
             )}

@@ -15,11 +15,18 @@ export const parseLocalDateTime = (iso: string): Date | null => {
 };
 
 /** Converte 'YYYY-MM-DD' em Date LOCAL (meia-noite local). new Date('YYYY-MM-DD')
- * interpreta como UTC e desloca um dia em fusos negativos (ex.: America/Sao_Paulo). */
+ * interpreta como UTC e desloca um dia em fusos negativos (ex.: America/Sao_Paulo).
+ * Datas que rolam (ex.: 2026-02-30) são rejeitadas com null. */
 export const parseLocalDate = (iso: string): Date | null => {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
     if (!match) return null;
-    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const date = new Date(year, month, day);
+    // Componentes devem bater exatamente: 2026-02-30 viraria 02/03 pelo rolamento
+    // do construtor e passaria como "válida" se não checarmos.
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
     return Number.isNaN(date.getTime()) ? null : date;
 };
 

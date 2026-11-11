@@ -24,6 +24,16 @@ const NotificationModal: React.FC<Props> = ({ reminder, time, onAction }) => {
                 <div className="my-6 p-4 bg-brand-gray-100 dark:bg-brand-gray-700 rounded-lg">
                     <p className="text-xl font-semibold text-brand-blue">{reminder.medicationName}</p>
                     <p className="text-3xl font-bold text-brand-gray-800 dark:text-white mt-1">{time}</p>
+                    {(reminder.dosage || reminder.instructions) && (
+                        <div className="mt-3 pt-3 border-t border-brand-gray-200 dark:border-brand-gray-600">
+                            {reminder.dosage && (
+                                <p className="text-sm font-semibold text-brand-gray-800 dark:text-white">{reminder.dosage}</p>
+                            )}
+                            {reminder.instructions && (
+                                <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mt-0.5">{reminder.instructions}</p>
+                            )}
+                        </div>
+                    )}
                 </div>
                 
                 <div className="flex flex-col space-y-3">

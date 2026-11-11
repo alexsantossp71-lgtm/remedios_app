@@ -1,7 +1,8 @@
 
-// Redimensionamento/compressão de fotos no cliente antes do envio à API.
-// Fotos de câmera chegam a 5-10 MB; comprimir para JPEG mantém a leitura
-// precisa e evita estourar limites de payload.
+// Redimensionamento/compressão de fotos no cliente antes do envio à API
+// e do anexo no cadastro de exames. Fotos de câmera chegam a 5-10 MB;
+// comprimir para JPEG mantém a leitura precisa e evita estourar limites
+// de payload e do localStorage.
 
 const MAX_DIMENSION = 1280;
 const JPEG_QUALITY = 0.85;
@@ -15,18 +16,11 @@ const loadImage = (dataUrl: string): Promise<HTMLImageElement> =>
         image.src = dataUrl;
     });
 
-/** Lê um arquivo de imagem e devolve um data URL JPEG (máx. 1280px). */
-export async function fileToCompressedDataUrl(file: File): Promise<string> {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Não foi possível abrir a imagem.'));
-        reader.readAsDataURL(file);
-    });
-
+/** Reduz um data URL para JPEG com dimensão/qualidade definidas. */
+export async function compressDataUrl(dataUrl: string, maxDim: number, quality: number): Promise<string> {
     const image = await loadImage(dataUrl);
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(image.width, image.height));
-    if (scale === 1 && dataUrl.startsWith('data:image/jpeg')) {
+    const scale = Math.min(1, maxDim / Math.max(image.width, image.height));
+    if (scale === 1 && dataUrl.startsWith('data:image/jpeg') && quality >= JPEG_QUALITY) {
         return dataUrl; // já é JPEG pequeno o suficiente
     }
 
@@ -36,5 +30,17 @@ export async function fileToCompressedDataUrl(file: File): Promise<string> {
     const ctx = canvas.getContext('2d');
     if (!ctx) return dataUrl;
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+    return canvas.toDataURL('image/jpeg', quality);
+}
+
+/** Lê um arquivo de imagem e devolve um data URL JPEG (máx. 1280px). */
+export async function fileToCompressedDataUrl(file: File): Promise<string> {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Não foi possível abrir a imagem.'));
+        reader.readAsDataURL(file);
+    });
+
+    return compressDataUrl(dataUrl, MAX_DIMENSION, JPEG_QUALITY);
 }

@@ -3,7 +3,7 @@ import React, { useRef, useState } from 'react';
 import { AppointmentReminderOffset, Doctor, Exam, ExamStatus, EXAM_CATEGORIES } from '../types';
 import { AiError, scanExamRequest, ScannedExamRequest } from '../services/nvidiaService';
 import { useAiSettings } from '../services/settings';
-import { fileToCompressedDataUrl } from '../utils/image';
+import { compressDataUrl, fileToCompressedDataUrl } from '../utils/image';
 import { parseLocalDate, toDateInputValue } from '../utils/datetime';
 import { CameraIcon } from '../constants';
 import { FieldError, FormModalShell, FormSection, helperClass, inputClass, labelClass } from './formFields';
@@ -17,6 +17,10 @@ interface Props {
     /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
     onOpenSettings?: () => void;
 }
+
+/** Anexo: máx. 900px e qualidade 0.72 — ~80 KB por foto no localStorage. */
+const ATTACHMENT_MAX_DIM = 900;
+const ATTACHMENT_QUALITY = 0.72;
 
 const OTHER = '__other__';
 
@@ -63,9 +67,12 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
     const [results, setResults] = useState(editing?.results ?? '');
     const [errors, setErrors] = useState<Errors>({});
 
-    // Scanner do pedido (foto -> OCR via modelo de visão da NVIDIA -> preenche os campos)
+    // Foto do pedido: preview/OCR (photo) e anexo que será salvo (attachment,
+    // versão mais comprimida para caber no localStorage). Em edição, começa
+    // com a foto já anexada ao exame.
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [photo, setPhoto] = useState<string | null>(null);
+    const [photo, setPhoto] = useState<string | null>(editing?.photo ?? null);
+    const [attachment, setAttachment] = useState(editing?.photo ?? '');
     const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
     const [scanError, setScanError] = useState<string | null>(null);
 
@@ -126,6 +133,11 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
         fileToCompressedDataUrl(file)
             .then(dataUrl => {
                 setPhoto(dataUrl);
+                // Anexo para salvar (900px) em segundo plano; o OCR usa a
+                // versão maior (1280px) que já foi gerada acima.
+                compressDataUrl(dataUrl, ATTACHMENT_MAX_DIM, ATTACHMENT_QUALITY)
+                    .then(setAttachment)
+                    .catch(() => setAttachment(dataUrl));
                 return runScan(dataUrl);
             })
             .catch(() => {
@@ -136,6 +148,7 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
 
     const clearPhoto = () => {
         setPhoto(null);
+        setAttachment('');
         setScanStatus('idle');
         setScanError(null);
     };
@@ -153,6 +166,7 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
             // informações abaixo apenas quando status === 'scheduled'.
             time: status === 'scheduled' ? time : '',
             reminderOffset: status === 'scheduled' ? reminderOffset : 0,
+            photo: attachment,
             doctorId: selectedDoctor ? selectedDoctor.id : '',
             doctorName: doctorName.trim(),
             place: place.trim(),
@@ -225,7 +239,7 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
                     </div>
                 )}
                 <p className={helperClass}>
-                    A foto é enviada à API da NVIDIA (modelo de visão definido nas Configurações) apenas para ler os dados do pedido. A chave fica salva somente neste dispositivo.
+                    A foto fica anexada ao exame neste dispositivo e, se você configurou a chave da NVIDIA, a IA lê o pedido para preencher os campos automaticamente.
                 </p>
                 </>
                 ) : (

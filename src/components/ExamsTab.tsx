@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Exam } from '../types';
-import { TrashIcon, PencilIcon, MapPinIcon, StethoscopeIcon, FileTextIcon, CalendarIcon, FlaskIcon } from '../constants';
+import { TrashIcon, PencilIcon, MapPinIcon, StethoscopeIcon, FileTextIcon, CalendarIcon, FlaskIcon, XIcon } from '../constants';
 import { formatDateBR, parseLocalDate } from '../utils/datetime';
 
 interface Props {
@@ -34,7 +34,7 @@ const statusMeta: Record<Exam['status'], { label: string; badge: string; border:
 const datePrefix = (status: Exam['status']): string =>
     status === 'requested' ? 'Pedido em ' : status === 'scheduled' ? 'Agendado para ' : 'Realizado em ';
 
-const ExamItem: React.FC<{ exam: Exam; onEdit: () => void; onDelete: () => void }> = ({ exam, onEdit, onDelete }) => {
+const ExamItem: React.FC<{ exam: Exam; onEdit: () => void; onDelete: () => void; onViewPhoto: () => void }> = ({ exam, onEdit, onDelete, onViewPhoto }) => {
     const meta = statusMeta[exam.status] ?? statusMeta.requested;
     const dateLabel = parseLocalDate(exam.date)
         ? `${datePrefix(exam.status)}${formatDateBR(exam.date)}`
@@ -43,9 +43,21 @@ const ExamItem: React.FC<{ exam: Exam; onEdit: () => void; onDelete: () => void 
     return (
         <div className={`relative rounded-lg border-l-4 ${meta.border} bg-brand-gray-100 dark:bg-brand-gray-700 p-4 shadow-sm`}>
             <div className="flex items-start space-x-3">
-                <div className={`flex-shrink-0 w-11 h-11 rounded-lg ${meta.icon} text-white flex items-center justify-center`}>
-                    <FlaskIcon className="w-6 h-6" />
-                </div>
+                {exam.photo ? (
+                    <button
+                        type="button"
+                        onClick={onViewPhoto}
+                        className="flex-shrink-0 w-11 h-11 rounded-lg overflow-hidden border border-brand-gray-300 dark:border-brand-gray-600 hover:ring-2 hover:ring-brand-blue transition-shadow"
+                        aria-label={`Ver foto anexada do pedido de ${exam.name}`}
+                        title="Ver foto anexada"
+                    >
+                        <img src={exam.photo} alt={`Foto do pedido de ${exam.name}`} className="w-full h-full object-cover" />
+                    </button>
+                ) : (
+                    <div className={`flex-shrink-0 w-11 h-11 rounded-lg ${meta.icon} text-white flex items-center justify-center`}>
+                        <FlaskIcon className="w-6 h-6" />
+                    </div>
+                )}
                 <div className="flex-1 min-w-0">
                     <h4 className="font-bold text-lg text-brand-gray-900 dark:text-white break-words pr-12">{exam.name}</h4>
                     <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -105,6 +117,9 @@ const ExamItem: React.FC<{ exam: Exam; onEdit: () => void; onDelete: () => void 
 };
 
 const ExamsTab: React.FC<Props> = ({ exams, onEdit, onDelete }) => {
+    // Foto anexada aberta em tela cheia (lightbox); null = fechado.
+    const [viewPhoto, setViewPhoto] = React.useState<Exam | null>(null);
+
     if (exams.length === 0) {
         return (
             <div className="text-center py-10 text-brand-gray-500">
@@ -129,7 +144,7 @@ const ExamsTab: React.FC<Props> = ({ exams, onEdit, onDelete }) => {
                 <>
                     <h4 className="text-sm font-semibold uppercase tracking-wide text-brand-gray-500 dark:text-brand-gray-400">Pendentes</h4>
                     {pending.map(exam => (
-                        <ExamItem key={exam.id} exam={exam} onEdit={() => onEdit(exam)} onDelete={() => onDelete(exam.id)} />
+                        <ExamItem key={exam.id} exam={exam} onEdit={() => onEdit(exam)} onDelete={() => onDelete(exam.id)} onViewPhoto={() => setViewPhoto(exam)} />
                     ))}
                 </>
             )}
@@ -138,10 +153,38 @@ const ExamsTab: React.FC<Props> = ({ exams, onEdit, onDelete }) => {
                     <h4 className="text-sm font-semibold uppercase tracking-wide text-brand-gray-500 dark:text-brand-gray-400 pt-2">Realizados</h4>
                     {done.map(exam => (
                         <div key={exam.id} className="opacity-75">
-                            <ExamItem key={exam.id} exam={exam} onEdit={() => onEdit(exam)} onDelete={() => onDelete(exam.id)} />
+                            <ExamItem key={exam.id} exam={exam} onEdit={() => onEdit(exam)} onDelete={() => onDelete(exam.id)} onViewPhoto={() => setViewPhoto(exam)} />
                         </div>
                     ))}
                 </>
+            )}
+
+            {viewPhoto && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-80 z-50 flex justify-center items-center p-4"
+                    onClick={() => setViewPhoto(null)}
+                    role="dialog"
+                    aria-label={`Foto do pedido de ${viewPhoto.name}`}
+                >
+                    <div className="max-w-2xl w-full" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-2">
+                            <p className="text-white text-sm font-semibold">{viewPhoto.name}</p>
+                            <button
+                                onClick={() => setViewPhoto(null)}
+                                className="flex items-center gap-1 text-white/80 hover:text-white text-sm font-bold"
+                                aria-label="Fechar foto"
+                            >
+                                Fechar
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <img
+                            src={viewPhoto.photo}
+                            alt={`Foto do pedido de ${viewPhoto.name}`}
+                            className="w-full max-h-[75vh] object-contain rounded-lg bg-white"
+                        />
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Reminder, Medication } from '../types';
-import { XIcon, PillIcon, CalendarIcon, ClockIcon, TrashIcon } from '../constants';
+import { XIcon, TrashIcon } from '../constants';
 import { toDateInputValue } from '../utils/datetime';
 
 interface Props {
@@ -17,6 +17,8 @@ interface Props {
 const AddReminderModal: React.FC<Props> = ({ onClose, onSave, medications, isLoadingMeds, medsError, editing }) => {
     const [step, setStep] = useState(1);
     const [medicationName, setMedicationName] = useState(editing?.medicationName ?? '');
+    const [dosage, setDosage] = useState(editing?.dosage ?? '');
+    const [instructions, setInstructions] = useState(editing?.instructions ?? '');
     // Data de hoje no fuso LOCAL (toISOString() é UTC e sugeriria ontem entre 21h e meia-noite).
     const [startDate, setStartDate] = useState(() => editing?.startDate ?? toDateInputValue(new Date()));
     
@@ -60,6 +62,8 @@ const AddReminderModal: React.FC<Props> = ({ onClose, onSave, medications, isLoa
         }
         onSave({
             medicationName,
+            dosage: dosage.trim(),
+            instructions: instructions.trim(),
             startDate,
             duration: {
                 type: durationType,
@@ -98,6 +102,28 @@ const AddReminderModal: React.FC<Props> = ({ onClose, onSave, medications, isLoa
                         {medications.map((med, index) => <option key={index} value={med.name} />)}
                     </datalist>
                     {medsError && <p className="text-sm text-brand-red mt-1">{medsError}</p>}
+                </div>
+                <div>
+                    <label htmlFor="dosage" className="block text-sm font-medium text-brand-gray-700 dark:text-brand-gray-300">Dosagem por dose (opcional)</label>
+                    <input
+                        id="dosage"
+                        type="text"
+                        value={dosage}
+                        onChange={(e) => setDosage(e.target.value)}
+                        className="mt-1 block w-full rounded-md border-brand-gray-300 shadow-sm focus:border-brand-blue focus:ring-brand-blue sm:text-sm dark:bg-brand-gray-700 dark:border-brand-gray-600"
+                        placeholder="Ex.: 1 comprimido, 5 ml, 2 gotas"
+                    />
+                </div>
+                <div>
+                    <label htmlFor="instructions" className="block text-sm font-medium text-brand-gray-700 dark:text-brand-gray-300">Instruções (opcional)</label>
+                    <input
+                        id="instructions"
+                        type="text"
+                        value={instructions}
+                        onChange={(e) => setInstructions(e.target.value)}
+                        className="mt-1 block w-full rounded-md border-brand-gray-300 shadow-sm focus:border-brand-blue focus:ring-brand-blue sm:text-sm dark:bg-brand-gray-700 dark:border-brand-gray-600"
+                        placeholder="Ex.: com alimentos, via oral, de manhã"
+                    />
                 </div>
                 <div>
                     <label htmlFor="start-date" className="block text-sm font-medium text-brand-gray-700 dark:text-brand-gray-300">Data de Início</label>

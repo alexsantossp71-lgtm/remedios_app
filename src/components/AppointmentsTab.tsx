@@ -1,8 +1,8 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Appointment, Doctor } from '../types';
 import { TrashIcon, PencilIcon, MapPinIcon, ClockIcon, BellIcon, FileTextIcon, CalendarIcon } from '../constants';
-import { describeReminderOffset, formatDateTimeBR, formatTimeBR, formatWeekdayBR, parseLocalDateTime } from '../utils/datetime';
+import { describeReminderOffset, formatDateTimeBR, formatWeekdayBR, parseLocalDateTime } from '../utils/datetime';
 
 interface Props {
     appointments: Appointment[];
@@ -77,6 +77,10 @@ const AppointmentItem: React.FC<{
 };
 
 const AppointmentsTab: React.FC<Props> = ({ appointments, doctors, onEdit, onDelete }) => {
+    // Hooks antes de qualquer early return (regras do React).
+    // eslint-disable-next-line react-hooks/purity -- relógio não pode ser puro; fixado por montagem para não variar entre renders.
+    const now = useMemo(() => Date.now(), []);
+
     if (appointments.length === 0) {
         return (
             <div className="text-center py-10 text-brand-gray-500">
@@ -90,7 +94,7 @@ const AppointmentsTab: React.FC<Props> = ({ appointments, doctors, onEdit, onDel
     const specialtyOf = (appointment: Appointment): string | undefined =>
         doctors.find(d => d.id === appointment.doctorId)?.specialty;
 
-    const now = Date.now();
+    // Instante fixado por montagem: separa consultas futuras/passadas.
     const upcoming = appointments
         .filter(a => (parseLocalDateTime(a.dateTime)?.getTime() ?? 0) >= now)
         .sort((a, b) => a.dateTime.localeCompare(b.dateTime));

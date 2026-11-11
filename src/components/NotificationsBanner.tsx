@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { BellIcon, XIcon } from '../constants';
 import { notificationStatus, requestNotificationPermission } from '../utils/notify';
 
@@ -11,17 +11,17 @@ const DISMISS_KEY = 'notifBannerDismissed';
  * decidida; "Agora não" guarda a recusa para não insistir.
  */
 const NotificationsBanner: React.FC = () => {
-    const [visible, setVisible] = useState(false);
-
-    useEffect(() => {
+    // Leitura one-shot do localStorage no initializer (app é 100% cliente,
+    // sem SSR): evita effect com setState que só causaria uma renderização extra.
+    const [visible, setVisible] = useState<boolean>(() => {
         let dismissed = false;
         try {
             dismissed = localStorage.getItem(DISMISS_KEY) === '1';
         } catch {
             // localStorage indisponível: não insiste neste navegador
         }
-        setVisible(notificationStatus() === 'default' && !dismissed);
-    }, []);
+        return notificationStatus() === 'default' && !dismissed;
+    });
 
     if (!visible) return null;
 

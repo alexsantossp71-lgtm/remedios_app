@@ -87,7 +87,7 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
         if (!file) return;
         setBackupMessage(null);
 
-        let text = '';
+        let text: string;
         try {
             text = await file.text();
         } catch {

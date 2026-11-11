@@ -1,12 +1,8 @@
 
 import React from 'react';
-import { Reminder, ReminderStatus } from '../types';
+import { ReminderStatus } from '../types';
 import { CheckCircleIcon, XCircleIcon, ClockIcon } from '../constants';
-
-export interface MissedDose {
-    reminder: Reminder;
-    time: string; // HH:MM
-}
+import { MissedDose } from '../utils/missedDoses';
 
 interface Props {
     doses: MissedDose[];

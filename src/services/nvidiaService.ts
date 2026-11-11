@@ -119,7 +119,7 @@ async function describeHttpError(response: Response): Promise<string> {
 }
 
 /** Extrai o primeiro objeto JSON da resposta do modelo (tolerante a blocos de código). */
-function extractJson(text: string): Record<string, unknown> {
+export function extractJson(text: string): Record<string, unknown> {
     const cleaned = text.replace(/```(?:json)?/gi, '');
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');

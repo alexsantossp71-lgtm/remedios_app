@@ -52,6 +52,8 @@ export function useAiSettings(): AiSettings {
         window.addEventListener(EVENT_NAME, onChange);
         return () => window.removeEventListener(EVENT_NAME, onChange);
     }, []);
-    // `version` serve de gatilho de re-leitura do localStorage.
+    // `version` serve de gatilho de re-leitura do localStorage (invalidação
+    // manual por contador de eventos — deliberadamente não usado no cálculo).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     return useMemo(() => readAiSettings(), [version]);
 }
