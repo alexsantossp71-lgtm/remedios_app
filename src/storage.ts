@@ -11,9 +11,13 @@ export const STORAGE_KEYS = {
     appointments: 'healthAppointments',
     plans: 'healthPlans',
     exams: 'healthExams',
+    /** Laudos de laboratório lidos por IA (labResults). */
+    labs: 'healthLabResults',
     settings: 'aiSettings',
     /** Cache de explicações de medicamento geradas por IA (bulaCache.ts). */
     guides: 'aiMedicationGuides',
+    /** Cache de análises de adesão geradas por IA (insightsCache.ts). */
+    adherenceInsights: 'aiAdherenceInsights',
 } as const;
 
 /** ID único; usa crypto.randomUUID quando disponível (contexto seguro). */
@@ -76,6 +80,20 @@ export const isExamArray: Validator = (value) =>
         typeof e.category === 'string' &&
         typeof e.status === 'string' &&
         typeof e.date === 'string'
+    );
+
+export const isLabResultArray: Validator = (value) =>
+    Array.isArray(value) &&
+    value.every((l) =>
+        isRecord(l) &&
+        typeof l.id === 'string' &&
+        typeof l.date === 'string' &&
+        typeof l.labName === 'string' &&
+        typeof l.notes === 'string' &&
+        Array.isArray(l.values) &&
+        l.values.every((v) =>
+            isRecord(v) && typeof (v as Record<string, unknown>).examName === 'string'
+        )
     );
 
 /**

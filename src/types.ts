@@ -86,6 +86,34 @@ export interface Exam {
     results: string; // valores encontrados / laudo resumido
 }
 
+/** Um valor medido no laudo (ex.: Glicemia 95 mg/dL, faixa 70–99). */
+export interface LabValue {
+    examName: string; // "Glicemia", "Hemoglobina"
+    /** Valor como escrito no laudo ("95", "5,4", "10.200"); '' quando ilegível. */
+    valueText: string;
+    /** Valor numérico parseado (vírgula decimal pt-BR); null quando não numérico. */
+    numericValue: number | null;
+    unit: string; // "mg/dL", "g/dL"
+    /** Faixa de referência parseada; null quando não interpretável. */
+    referenceLow: number | null;
+    referenceHigh: number | null;
+    /** Faixa como escrita no laudo ("70 - 99"); '' quando ausente. */
+    referenceText: string;
+    /** Comparação com a faixa, calculada no app (nunca pela IA). */
+    flag: '' | 'low' | 'normal' | 'high';
+}
+
+/** Laudo de laboratório fotografado e lido pela IA (ou digitado à mão). */
+export interface LabResult {
+    id: string;
+    date: string; // 'YYYY-MM-DD' — data do laudo/coleta
+    labName: string; // laboratório/clínica ('' quando não informado)
+    photo?: string; // foto do laudo (data URL JPEG comprimida)
+    values: LabValue[];
+    notes: string;
+    createdAt: string; // ISO
+}
+
 export interface Appointment {
     id: string;
     doctorId: string; // vazio quando o médico não está cadastrado

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan, Exam } from './types';
+import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan, Exam, LabResult } from './types';
 import { getMedications, AiError } from './services/nvidiaService';
 import { useAiSettings } from './services/settings';
 import { FALLBACK_MEDICATIONS } from './data/medications';
-import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isReminderArray, loadJson, saveJson } from './storage';
+import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray, loadJson, saveJson } from './storage';
 import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/datetime';
 import { showSystemNotification, vibrateAlarm } from './utils/notify';
 import MissedDosesModal from './components/MissedDosesModal';
@@ -29,11 +29,14 @@ import SettingsModal from './components/SettingsModal';
 import PrescriptionImportModal from './components/PrescriptionImportModal';
 import InteractionsModal from './components/InteractionsModal';
 import BulaModal from './components/BulaModal';
+import ConsultationSummaryModal from './components/ConsultationSummaryModal';
+import LabFormModal from './components/LabFormModal';
+import LabResultsTab from './components/LabResultsTab';
 import type { ReminderDraft } from './utils/prescription';
 import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon, FileTextIcon } from './constants';
 
 type MainTab = 'meds' | 'health';
-type HealthTab = 'appointments' | 'doctors' | 'plans' | 'exams';
+type HealthTab = 'appointments' | 'doctors' | 'plans' | 'exams' | 'labs';
 
 const subTabClass = (active: boolean): string =>
     `px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
@@ -74,6 +77,7 @@ const App: React.FC = () => {
     );
     const [plans, setPlans] = useState<HealthPlan[]>(() => loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? []);
     const [exams, setExams] = useState<Exam[]>(() => loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? []);
+    const [labs, setLabs] = useState<LabResult[]>(() => loadJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? []);
 
     // Navegação por abas
     const [mainTab, setMainTab] = useState<MainTab>('meds');
@@ -85,6 +89,7 @@ const App: React.FC = () => {
     const [appointmentModal, setAppointmentModal] = useState<{ open: boolean; editing: Appointment | null }>({ open: false, editing: null });
     const [planModal, setPlanModal] = useState<{ open: boolean; editing: HealthPlan | null }>({ open: false, editing: null });
     const [examModal, setExamModal] = useState<{ open: boolean; editing: Exam | null }>({ open: false, editing: null });
+    const [labModalOpen, setLabModalOpen] = useState(false);
     const [appointmentNotification, setAppointmentNotification] = useState<{ appointment: Appointment; offsetMinutes: number } | null>(null);
     const [examNotification, setExamNotification] = useState<{ exam: Exam; offsetMinutes: number } | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
@@ -92,6 +97,8 @@ const App: React.FC = () => {
     const [prescriptionOpen, setPrescriptionOpen] = useState(false);
     const [interactionsOpen, setInteractionsOpen] = useState(false);
     const [bulaReminder, setBulaReminder] = useState<Reminder | null>(null);
+    // Recursos de IA (Camada 2): resumo para consulta e insights de adesão.
+    const [consultationOpen, setConsultationOpen] = useState(false);
     // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
     const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(
         () => findMissedDoses(loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
@@ -130,6 +137,10 @@ const App: React.FC = () => {
     useEffect(() => {
         saveJson(STORAGE_KEYS.exams, exams);
     }, [exams]);
+
+    useEffect(() => {
+        saveJson(STORAGE_KEYS.labs, labs);
+    }, [labs]);
 
     useEffect(() => {
         const fetchMedications = async () => {
@@ -542,6 +553,20 @@ const App: React.FC = () => {
         setExams(prev => prev.filter(e => e.id !== id));
     };
 
+    // ===== Laudos de laboratório (IA lê a foto; comparações são locais) =====
+    const handleSaveLab = (data: Omit<LabResult, 'id' | 'createdAt'>) => {
+        setLabs(prev => [
+            ...prev,
+            { ...data, id: generateId(), createdAt: new Date().toISOString() },
+        ]);
+        setLabModalOpen(false);
+    };
+
+    const handleDeleteLab = (id: string) => {
+        if (!window.confirm('Excluir este laudo?')) return;
+        setLabs(prev => prev.filter(l => l.id !== id));
+    };
+
     const handleAppointmentNotificationDismiss = (appointmentId: string, offsetMinutes: number) => {
         setAppointments(prev => prev.map(a => (
             a.id === appointmentId && !a.notifiedOffsets.includes(offsetMinutes)
@@ -642,6 +667,15 @@ const App: React.FC = () => {
                             Analisar interações (IA)
                         </button>
                     )}
+                    {reminders.length > 0 && (
+                        <button
+                            onClick={() => setConsultationOpen(true)}
+                            className="mt-2 w-full flex items-center justify-center gap-2 text-sm font-semibold text-brand-blue border border-brand-gray-300 dark:border-brand-gray-600 rounded-lg py-2 hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
+                            title="Gera um resumo com medicamentos, adesão, exames e perguntas para levar ao médico"
+                        >
+                            Resumo para a consulta
+                        </button>
+                    )}
                     <AdherenceCard reminders={reminders} />
                 </div>
             </main>
@@ -654,6 +688,7 @@ const App: React.FC = () => {
                             <div className="inline-flex bg-brand-gray-100 dark:bg-brand-gray-700 rounded-lg p-1">
                                 <button onClick={() => setHealthTab('appointments')} className={subTabClass(healthTab === 'appointments')}>Consultas</button>
                                 <button onClick={() => setHealthTab('exams')} className={subTabClass(healthTab === 'exams')}>Exames</button>
+                                <button onClick={() => setHealthTab('labs')} className={subTabClass(healthTab === 'labs')}>Laudos</button>
                                 <button onClick={() => setHealthTab('doctors')} className={subTabClass(healthTab === 'doctors')}>Médicos</button>
                                 <button onClick={() => setHealthTab('plans')} className={subTabClass(healthTab === 'plans')}>Plano</button>
                             </div>
@@ -662,13 +697,14 @@ const App: React.FC = () => {
                                     if (healthTab === 'doctors') setDoctorModal({ open: true, editing: null });
                                     else if (healthTab === 'plans') setPlanModal({ open: true, editing: null });
                                     else if (healthTab === 'exams') setExamModal({ open: true, editing: null });
+                                    else if (healthTab === 'labs') setLabModalOpen(true);
                                     else setAppointmentModal({ open: true, editing: null });
                                 }}
                                 className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
-                                aria-label={healthTab === 'doctors' ? 'Adicionar novo médico' : healthTab === 'plans' ? 'Adicionar novo plano de saúde' : healthTab === 'exams' ? 'Adicionar novo exame' : 'Adicionar nova consulta'}
+                                aria-label={healthTab === 'doctors' ? 'Adicionar novo médico' : healthTab === 'plans' ? 'Adicionar novo plano de saúde' : healthTab === 'exams' ? 'Adicionar novo exame' : healthTab === 'labs' ? 'Registrar novo laudo' : 'Adicionar nova consulta'}
                             >
                                 <PlusIcon className="w-5 h-5 mr-2" />
-                                {healthTab === 'doctors' ? 'Novo médico' : healthTab === 'plans' ? 'Novo plano' : healthTab === 'exams' ? 'Novo exame' : 'Nova consulta'}
+                                {healthTab === 'doctors' ? 'Novo médico' : healthTab === 'plans' ? 'Novo plano' : healthTab === 'exams' ? 'Novo exame' : healthTab === 'labs' ? 'Registrar laudo' : 'Nova consulta'}
                             </button>
                         </div>
                         {healthTab === 'doctors' ? (
@@ -688,6 +724,12 @@ const App: React.FC = () => {
                                 exams={exams}
                                 onEdit={exam => setExamModal({ open: true, editing: exam })}
                                 onDelete={handleDeleteExam}
+                            />
+                        ) : healthTab === 'labs' ? (
+                            <LabResultsTab
+                                labs={labs}
+                                onDelete={handleDeleteLab}
+                                onNew={() => setLabModalOpen(true)}
                             />
                         ) : (
                             <AppointmentsTab
@@ -725,6 +767,7 @@ const App: React.FC = () => {
                     reminder={notification.reminder}
                     time={notification.time}
                     onAction={handleNotificationAction}
+                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -785,6 +828,22 @@ const App: React.FC = () => {
                     reminder={bulaReminder}
                     onClose={() => setBulaReminder(null)}
                     onOpenSettings={() => setSettingsOpen(true)}
+                />
+            )}
+
+            {consultationOpen && (
+                <ConsultationSummaryModal
+                    reminders={reminders}
+                    exams={exams}
+                    appointments={appointments}
+                    onClose={() => setConsultationOpen(false)}
+                />
+            )}
+
+            {labModalOpen && (
+                <LabFormModal
+                    onClose={() => setLabModalOpen(false)}
+                    onSave={handleSaveLab}
                 />
             )}
 
