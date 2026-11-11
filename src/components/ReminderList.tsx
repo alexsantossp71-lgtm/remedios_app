@@ -1,16 +1,18 @@
 
 import React from 'react';
 import { Reminder } from '../types';
-import { TrashIcon, PillIcon, ClockIcon, CalendarIcon, PencilIcon } from '../constants';
+import { TrashIcon, PillIcon, ClockIcon, CalendarIcon, PencilIcon, InfoIcon } from '../constants';
 
 interface Props {
     reminders: Reminder[];
     onDelete: (id: string) => void;
     /** Abre o formulário para editar o lembrete (histórico de doses é mantido). */
     onEdit: (reminder: Reminder) => void;
+    /** Explica o medicamento com IA (bula simplificada, com cache). */
+    onExplain?: (reminder: Reminder) => void;
 }
 
-const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit }) => {
+const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit, onExplain }) => {
     if (reminders.length === 0) {
         return <div className="text-center py-10 text-brand-gray-500">
             <PillIcon className="w-12 h-12 mx-auto mb-2"/>
@@ -71,6 +73,16 @@ const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit }) => {
                         >
                             <PencilIcon className="w-5 h-5" />
                         </button>
+                        {onExplain && (
+                            <button
+                                onClick={() => onExplain(reminder)}
+                                className="p-1 text-brand-gray-400 hover:text-brand-blue dark:hover:text-brand-blue transition-colors"
+                                aria-label={`Explicar o medicamento ${reminder.medicationName} com IA`}
+                                title="Explicar este remédio (IA)"
+                            >
+                                <InfoIcon className="w-5 h-5" />
+                            </button>
+                        )}
                         <button
                             onClick={() => onDelete(reminder.id)}
                             className="p-1 text-brand-gray-400 hover:text-brand-red dark:hover:text-brand-red transition-colors"

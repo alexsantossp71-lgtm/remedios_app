@@ -12,6 +12,8 @@ export const STORAGE_KEYS = {
     plans: 'healthPlans',
     exams: 'healthExams',
     settings: 'aiSettings',
+    /** Cache de explicações de medicamento geradas por IA (bulaCache.ts). */
+    guides: 'aiMedicationGuides',
 } as const;
 
 /** ID único; usa crypto.randomUUID quando disponível (contexto seguro). */

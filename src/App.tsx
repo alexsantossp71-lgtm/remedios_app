@@ -26,7 +26,11 @@ import ExamsTab from './components/ExamsTab';
 import ExamFormModal from './components/ExamFormModal';
 import ExamNotificationModal from './components/ExamNotificationModal';
 import SettingsModal from './components/SettingsModal';
-import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon } from './constants';
+import PrescriptionImportModal from './components/PrescriptionImportModal';
+import InteractionsModal from './components/InteractionsModal';
+import BulaModal from './components/BulaModal';
+import type { ReminderDraft } from './utils/prescription';
+import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon, FileTextIcon } from './constants';
 
 type MainTab = 'meds' | 'health';
 type HealthTab = 'appointments' | 'doctors' | 'plans' | 'exams';
@@ -84,6 +88,10 @@ const App: React.FC = () => {
     const [appointmentNotification, setAppointmentNotification] = useState<{ appointment: Appointment; offsetMinutes: number } | null>(null);
     const [examNotification, setExamNotification] = useState<{ exam: Exam; offsetMinutes: number } | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
+    // Recursos de IA (Camada 1): importar receita, interações e bula simplificada.
+    const [prescriptionOpen, setPrescriptionOpen] = useState(false);
+    const [interactionsOpen, setInteractionsOpen] = useState(false);
+    const [bulaReminder, setBulaReminder] = useState<Reminder | null>(null);
     // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
     const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(
         () => findMissedDoses(loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
@@ -407,6 +415,21 @@ const App: React.FC = () => {
         setReminders(prev => prev.filter(r => r.id !== id));
     };
 
+    // ===== Receita importada (IA): cria vários lembretes de uma vez =====
+    const handleImportPrescription = (drafts: ReminderDraft[]) => {
+        if (!drafts.length) return;
+        setReminders(prev => [
+            ...prev,
+            ...drafts.map(draft => ({
+                ...draft,
+                id: generateId(),
+                history: {},
+                createdAt: new Date().toISOString(),
+            })),
+        ]);
+        setPrescriptionOpen(false);
+    };
+
     const stopAlarm = () => {
         if (audioRef.current) {
             audioRef.current.pause();
@@ -584,20 +607,41 @@ const App: React.FC = () => {
                 <div className="lg:col-span-1 bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold">Meus Lembretes</h2>
-                         <button
-                            onClick={() => setReminderModal({ open: true, editing: null })}
-                            className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
-                            aria-label="Adicionar novo lembrete"
-                        >
-                            <PlusIcon className="w-5 h-5 mr-2" />
-                            Adicionar
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setPrescriptionOpen(true)}
+                                className="flex items-center border border-brand-blue text-brand-blue font-semibold px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-200"
+                                aria-label="Importar receita com IA"
+                                title="Importar receita com IA (foto ou texto)"
+                            >
+                                <FileTextIcon className="w-5 h-5 sm:mr-2" />
+                                <span className="hidden sm:inline">Receita</span>
+                            </button>
+                            <button
+                                onClick={() => setReminderModal({ open: true, editing: null })}
+                                className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
+                                aria-label="Adicionar novo lembrete"
+                            >
+                                <PlusIcon className="w-5 h-5 mr-2" />
+                                Adicionar
+                            </button>
+                        </div>
                     </div>
                     <ReminderList
                         reminders={reminders}
                         onEdit={reminder => setReminderModal({ open: true, editing: reminder })}
                         onDelete={handleDeleteReminder}
+                        onExplain={setBulaReminder}
                     />
+                    {reminders.length >= 2 && (
+                        <button
+                            onClick={() => setInteractionsOpen(true)}
+                            className="mt-3 w-full flex items-center justify-center gap-2 text-sm font-semibold text-brand-blue border border-brand-gray-300 dark:border-brand-gray-600 rounded-lg py-2 hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
+                            title="A IA verifica duplicidades e interações entre os seus remédios"
+                        >
+                            Analisar interações (IA)
+                        </button>
+                    )}
                     <AdherenceCard reminders={reminders} />
                 </div>
             </main>
@@ -716,6 +760,30 @@ const App: React.FC = () => {
                     onSave={handleSaveExam}
                     doctors={doctors}
                     editing={examModal.editing}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                />
+            )}
+
+            {prescriptionOpen && (
+                <PrescriptionImportModal
+                    onClose={() => setPrescriptionOpen(false)}
+                    onImport={handleImportPrescription}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                />
+            )}
+
+            {interactionsOpen && (
+                <InteractionsModal
+                    medications={reminders.map(reminder => ({ name: reminder.medicationName, dosage: reminder.dosage }))}
+                    onClose={() => setInteractionsOpen(false)}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                />
+            )}
+
+            {bulaReminder && (
+                <BulaModal
+                    reminder={bulaReminder}
+                    onClose={() => setBulaReminder(null)}
                     onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}

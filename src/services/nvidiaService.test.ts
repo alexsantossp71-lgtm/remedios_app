@@ -1,6 +1,11 @@
 
 import { describe, it, expect } from 'vitest';
-import { AiError, extractJson } from './nvidiaService';
+import {
+    AiError,
+    extractJson,
+    sanitizeInteractionReport,
+    sanitizeMedicationGuide,
+} from './nvidiaService';
 
 describe('extractJson', () => {
     it('extrai JSON puro', () => {
@@ -35,5 +40,73 @@ describe('extractJson', () => {
     it('lança AiError para JSON malformado', () => {
         expect(() => extractJson('{"a":1')).toThrow(AiError);
         expect(() => extractJson('{a:1}')).toThrow(AiError);
+    });
+});
+
+describe('sanitizeInteractionReport', () => {
+    it('devolve relatório vazio para entradas inesperadas', () => {
+        expect(sanitizeInteractionReport(null)).toEqual({ summary: '', duplicates: [], interactions: [] });
+        expect(sanitizeInteractionReport('texto')).toEqual({ summary: '', duplicates: [], interactions: [] });
+        expect(sanitizeInteractionReport([1, 2, 3])).toEqual({ summary: '', duplicates: [], interactions: [] });
+    });
+
+    it('normaliza relatório completo da IA', () => {
+        const report = sanitizeInteractionReport({
+            summary: ' Dois alertas encontrados. ',
+            duplicates: [
+                { activeIngredient: 'Dipirona', medications: ['Dipirona', 'Novalgina'], note: 'Risco de dose dupla.' },
+                { activeIngredient: '', medications: ['Sem nome'] }, // descartado
+            ],
+            interactions: [
+                {
+                    severity: 'ALTA',
+                    medications: ['AAS', 'Ibuprofeno'],
+                    description: 'Aumenta risco de sangramento.',
+                    recommendation: 'Converse com o médico.',
+                },
+                { severity: 'alta', medications: [], description: 'Sem medicamentos' }, // descartado
+            ],
+        });
+        expect(report.summary).toBe('Dois alertas encontrados.');
+        expect(report.duplicates).toHaveLength(1);
+        expect(report.duplicates[0].medications).toEqual(['Dipirona', 'Novalgina']);
+        expect(report.interactions).toHaveLength(1);
+        // severity inválida cai para 'moderada' (padrão seguro)
+        expect(report.interactions[0].severity).toBe('moderada');
+    });
+
+    it('limita listas e descarta itens não-objetos', () => {
+        const report = sanitizeInteractionReport({
+            duplicates: [null, 'x', { activeIngredient: 'X', medications: ['A', 'B'] }],
+            interactions: [42, { severity: 'baixa', medications: ['C'], description: 'Descoberta.' }],
+        });
+        expect(report.duplicates).toHaveLength(1);
+        expect(report.interactions).toHaveLength(1);
+        expect(report.interactions[0].severity).toBe('baixa');
+    });
+});
+
+describe('sanitizeMedicationGuide', () => {
+    it('devolve guia vazio para entrada inesperada', () => {
+        expect(sanitizeMedicationGuide(undefined)).toEqual({
+            whatFor: '',
+            howToUse: '',
+            commonSideEffects: [],
+            warnings: [],
+            note: '',
+        });
+    });
+
+    it('normaliza textos e listas', () => {
+        const guide = sanitizeMedicationGuide({
+            whatFor: '  Trata dor e febre. ',
+            howToUse: 'Tomar com água.',
+            commonSideEffects: ['Náusea', '', '   ', 'Sonolência'],
+            warnings: ['Evite álcool', 42, 'Gravidez: consulte o médico'],
+            note: 'Consulte a bula.',
+        });
+        expect(guide.whatFor).toBe('Trata dor e febre.');
+        expect(guide.commonSideEffects).toEqual(['Náusea', 'Sonolência']);
+        expect(guide.warnings).toEqual(['Evite álcool', 'Gravidez: consulte o médico']);
     });
 });
