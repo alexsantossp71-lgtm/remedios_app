@@ -21,8 +21,8 @@ navegador.
 - **Plano de saúde:** carteirinha com operadora, número copiável, titular,
   validade com selo de alerta (vence em breve / vencida), telefone do SAC e
   observações de cobertura — funciona também para o cartão do SUS. Foto da
-  carteirinha é lida pela API do Gemini (visão) e preenche os campos
-  automaticamente (requer `VITE_API_KEY`).
+  carteirinha é lida por OCR via **API da NVIDIA** (modelo de visão) e
+  preenche os campos automaticamente (requer chave configurada no app).
 - Formulários de cadastro com validação inline, máscaras automáticas de
   telefone e carteirinha, campos agrupados por seção e envio com Enter.
 - Modal de notificação com som de alarme, para doses e para consultas.
@@ -34,17 +34,26 @@ navegador.
 
 ```bash
 pnpm install
-cp .env.example .env.local   # preencha VITE_API_KEY com sua chave Gemini (opcional)
 pnpm dev
 ```
 
-A chave `VITE_API_KEY` é opcional para usar o app: sem ela a lista de
-medicamentos sugerida usa a lista local embutida. Obtenha uma chave em
-https://aistudio.google.com/apikey.
+## IA (API NVIDIA) — opcional
 
-Importante: a chave é embutida no bundle JavaScript em tempo de build e
-fica visível para qualquer visitante do site publicado. Para uso pessoal
-isso é aceitável; para um público maior, prefira um proxy serverless.
+Os recursos de IA (OCR da carteirinha do plano de saúde e lista online de
+medicamentos) usam a API da NVIDIA ([build.nvidia.com](https://build.nvidia.com)),
+compatível com o formato OpenAI. Para ativar:
+
+1. Crie uma conta em build.nvidia.com e gere uma chave (botão **Get API Key**,
+   começa com `nvapi-`).
+2. No app, toque no botão **IA** no topo e cole a chave.
+3. Opcionalmente ajuste os modelos:
+   - **Visão (OCR):** `meta/llama-3.2-90b-vision-instruct` (padrão);
+   - **Texto (medicamentos):** `meta/llama-3.3-70b-instruct` (padrão).
+
+A chave fica salva **apenas no dispositivo** (localStorage) e é enviada
+somente para `integrate.api.nvidia.com` — nada é embutido no bundle nem
+publicado no repositório. Sem chave, o app usa a lista local de
+medicamentos e o cadastro manual da carteirinha.
 
 ## Build de produção
 
@@ -71,9 +80,8 @@ Configuração única no repositório:
 1. **Settings → Pages → Build and deployment → Source: `GitHub Actions`**
    (com o Source em "Deploy from a branch" o site publica código-fonte em
    vez do `dist/` — a causa do site quebrado).
-2. *(Opcional)* **Settings → Secrets and variables → Actions → New repository
-   secret** `VITE_API_KEY`, com sua chave Gemini, para habilitar as sugestões
-   de medicamentos no app publicado. Sem o secret, o app usa a lista local.
+2. *(Opcional)* A chave da API NVIDIA **não** precisa de secret do GitHub:
+   cada pessoa configura a própria chave pelo botão **IA** dentro do app.
 
 Testar sem publicar: abra um pull request — o workflow roda build +
 typecheck, mas não publica.

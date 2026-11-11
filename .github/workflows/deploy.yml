@@ -39,10 +39,6 @@ jobs:
 
       - name: Build
         run: pnpm run build
-        env:
-          # Injetada no bundle em tempo de build. Sem o secret configurado,
-          # o app usa a lista de medicamentos local (fallback).
-          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

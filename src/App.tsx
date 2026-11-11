@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan } from './types';
-import { getMedications } from './services/geminiService';
+import { getMedications, AiError } from './services/nvidiaService';
+import { useAiSettings } from './services/settings';
 import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isHealthPlanArray, isReminderArray, loadJson, saveJson } from './storage';
 import { parseLocalDateTime } from './utils/datetime';
@@ -16,7 +17,8 @@ import AppointmentFormModal from './components/AppointmentFormModal';
 import AppointmentNotificationModal from './components/AppointmentNotificationModal';
 import HealthPlansTab from './components/HealthPlansTab';
 import HealthPlanFormModal from './components/HealthPlanFormModal';
-import { PlusIcon, PillIcon, StethoscopeIcon } from './constants';
+import SettingsModal from './components/SettingsModal';
+import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon } from './constants';
 
 type MainTab = 'meds' | 'health';
 type HealthTab = 'appointments' | 'doctors' | 'plans';
@@ -64,10 +66,15 @@ const App: React.FC = () => {
     const [appointmentModal, setAppointmentModal] = useState<{ open: boolean; editing: Appointment | null }>({ open: false, editing: null });
     const [planModal, setPlanModal] = useState<{ open: boolean; editing: HealthPlan | null }>({ open: false, editing: null });
     const [appointmentNotification, setAppointmentNotification] = useState<{ appointment: Appointment; offsetMinutes: number } | null>(null);
+    const [isSettingsOpen, setSettingsOpen] = useState(false);
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const timeoutRef = useRef<number | null>(null);
     const appointmentTimeoutRef = useRef<number | null>(null);
+
+    // Configurações de IA: re-renderiza (e rebusca a lista de medicamentos)
+    // quando a chave/modelos são alterados nas Configurações.
+    const aiSettings = useAiSettings();
 
     // Carrega os dados do localStorage com validação: conteúdos corrompidos
     // são ignorados com aviso no console em vez de quebrar o app.
@@ -108,7 +115,10 @@ const App: React.FC = () => {
                 setMedications(meds);
             } catch (error) {
                 console.error("Failed to fetch medications:", error);
-                setMedsError("Lista online indisponível — usando lista offline de medicamentos comuns.");
+                const missingKey = error instanceof AiError && error.message.includes('Configure a chave');
+                setMedsError(missingKey
+                    ? "Lista de medicamentos offline em uso. Para a lista completa, configure sua chave da API NVIDIA no botão \"IA\" no topo."
+                    : "Lista online indisponível — usando lista offline de medicamentos comuns.");
                 setMedications(FALLBACK_MEDICATIONS);
             } finally {
                 setIsLoadingMeds(false);
@@ -116,7 +126,7 @@ const App: React.FC = () => {
         };
 
         fetchMedications();
-    }, []);
+    }, [aiSettings.nvidiaApiKey, aiSettings.textModel]);
     
     const getNextAlarm = useCallback((): {
         nextAlarmTime: Date | null;
@@ -369,6 +379,15 @@ const App: React.FC = () => {
                         <PillIcon className="w-8 h-8 text-brand-blue" />
                         <h1 className="text-2xl font-bold text-brand-blue">Remédio na Hora</h1>
                     </div>
+                    <button
+                        onClick={() => setSettingsOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-brand-gray-500 dark:text-brand-gray-300 hover:text-brand-blue hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
+                        aria-label="Configurações de IA (API NVIDIA)"
+                        title="Configurações de IA (API NVIDIA)"
+                    >
+                        <GearIcon className="w-5 h-5" />
+                        IA
+                    </button>
                 </div>
             </header>
 
@@ -491,7 +510,12 @@ const App: React.FC = () => {
                     onClose={() => setPlanModal({ open: false, editing: null })}
                     onSave={handleSavePlan}
                     editing={planModal.editing}
+                    onOpenSettings={() => setSettingsOpen(true)}
                 />
+            )}
+
+            {isSettingsOpen && (
+                <SettingsModal onClose={() => setSettingsOpen(false)} />
             )}
 
             {appointmentNotification && (

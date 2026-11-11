@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
     doctors: 'healthDoctors',
     appointments: 'healthAppointments',
     plans: 'healthPlans',
+    settings: 'aiSettings',
 } as const;
 
 /** ID único; usa crypto.randomUUID quando disponível (contexto seguro). */

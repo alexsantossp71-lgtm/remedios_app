@@ -1,7 +1,7 @@
 
 // Lista offline de medicamentos comuns no Brasil.
 // Usada como fallback imediato quando a API Gemini não está configurada
-// (sem VITE_API_KEY) ou falha (offline, erro de rede), para que o
+// (IA sem chave) ou falha (offline, erro de rede), para que o
 // autocomplete do formulário continue funcionando sem depender de rede.
 
 import { Medication } from '../types';

@@ -1,7 +1,8 @@
 
 import React, { useRef, useState } from 'react';
 import { HealthPlan } from '../types';
-import { scanHealthCard, ScannedHealthCard, IS_API_CONFIGURED } from '../services/geminiService';
+import { AiError, scanHealthCard, ScannedHealthCard } from '../services/nvidiaService';
+import { useAiSettings } from '../services/settings';
 import { fileToCompressedDataUrl } from '../utils/image';
 import { CameraIcon } from '../constants';
 import {
@@ -21,6 +22,8 @@ interface Props {
     onSave: (plan: Omit<HealthPlan, 'id'>) => void;
     /** Plano em edição; `null`/ausente = novo cadastro. */
     editing?: HealthPlan | null;
+    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
+    onOpenSettings?: () => void;
 }
 
 type Errors = Partial<Record<'operator' | 'planName' | 'cardNumber' | 'phone', string>>;
@@ -29,7 +32,9 @@ type ScanStatus = 'idle' | 'scanning' | 'success' | 'error';
 const SCAN_ERROR_MESSAGE =
     'Não foi possível ler a carteirinha automaticamente. Preencha os campos manualmente ou tente outra foto com melhor luz e enquadramento.';
 
-const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
+const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpenSettings }) => {
+    const aiSettings = useAiSettings();
+    const hasApiKey = Boolean(aiSettings.nvidiaApiKey.trim());
     const [operator, setOperator] = useState(editing?.operator ?? '');
     const [planName, setPlanName] = useState(editing?.planName ?? '');
     const [cardNumber, setCardNumber] = useState(maskCardNumber(editing?.cardNumber ?? ''));
@@ -39,7 +44,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
     const [coverage, setCoverage] = useState(editing?.coverage ?? '');
     const [errors, setErrors] = useState<Errors>({});
 
-    // Scanner de carteirinha (foto -> OCR via Gemini -> preenche os campos)
+    // Scanner de carteirinha (foto -> OCR via modelo de visão da NVIDIA -> preenche os campos)
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [photo, setPhoto] = useState<string | null>(null);
     const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
@@ -70,6 +75,8 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
         if (fields.cardNumber) setCardNumber(maskCardNumber(fields.cardNumber));
         if (fields.holder) setHolder(fields.holder);
         if (fields.validity) setValidity(fields.validity);
+        if (fields.phone) setPhone(maskPhone(fields.phone));
+        if (fields.coverage) setCoverage(fields.coverage);
     };
 
     const runScan = async (dataUrl: string) => {
@@ -82,9 +89,9 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
             const fields = await scanHealthCard(base64, mimeType);
             applyScan(fields);
             setScanStatus('success');
-        } catch {
+        } catch (error) {
             setScanStatus('error');
-            setScanError(SCAN_ERROR_MESSAGE);
+            setScanError(error instanceof AiError ? error.message : SCAN_ERROR_MESSAGE);
         }
     };
 
@@ -135,8 +142,9 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
             onClose={onClose}
             onSubmit={handleSave}
         >
-            {IS_API_CONFIGURED && (
             <FormSection title="Foto da carteirinha (opcional)">
+                {hasApiKey ? (
+                <>
                 <input
                     ref={fileInputRef}
                     id="plan-photo"
@@ -147,6 +155,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
                     className="sr-only"
                 />
                 {!photo ? (
+                    <>
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
@@ -159,6 +168,10 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
                         </span>
                         <span className="text-xs">Tira foto (ou escolhe da galeria) e a IA preenche os campos</span>
                     </button>
+                    {scanStatus === 'error' && scanError && (
+                        <p className="text-xs font-medium text-brand-red" role="alert">{scanError}</p>
+                    )}
+                    </>
                 ) : (
                     <div className="flex items-center gap-3">
                         <img src={photo} alt="Foto da carteirinha" className="w-20 h-14 object-cover rounded-md border border-brand-gray-300 dark:border-brand-gray-600" />
@@ -188,10 +201,25 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
                     </div>
                 )}
                 <p className={helperClass}>
-                    A foto é enviada ao Google Gemini apenas para leitura dos dados. Nada é armazenado por terceiros pelo app.
+                    A foto é enviada à API da NVIDIA (modelo de visão definido nas Configurações) apenas para ler os dados da carteirinha. A chave fica salva somente neste dispositivo.
                 </p>
+                </>
+                ) : (
+                    <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-4 px-3 text-center">
+                        <CameraIcon className="w-6 h-6 mx-auto text-brand-gray-400" />
+                        <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
+                            Escanear com a câmera e preencher os campos automaticamente com IA.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => onOpenSettings?.()}
+                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
+                        >
+                            Configurar chave da API (NVIDIA)
+                        </button>
+                    </div>
+                )}
             </FormSection>
-            )}
 
             <FormSection title="Carteirinha">
                 <div>
