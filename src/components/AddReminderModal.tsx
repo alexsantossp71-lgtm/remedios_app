@@ -6,28 +6,32 @@ import { toDateInputValue } from '../utils/datetime';
 
 interface Props {
     onClose: () => void;
-    onAdd: (reminder: Omit<Reminder, 'id' | 'history'>) => void;
+    onSave: (reminder: Omit<Reminder, 'id' | 'history' | 'createdAt'>) => void;
     medications: Medication[];
     isLoadingMeds: boolean;
     medsError: string | null;
+    /** Lembrete em edição; `null`/ausente = novo cadastro. */
+    editing?: Reminder | null;
 }
 
-const AddReminderModal: React.FC<Props> = ({ onClose, onAdd, medications, isLoadingMeds, medsError }) => {
+const AddReminderModal: React.FC<Props> = ({ onClose, onSave, medications, isLoadingMeds, medsError, editing }) => {
     const [step, setStep] = useState(1);
-    const [medicationName, setMedicationName] = useState('');
+    const [medicationName, setMedicationName] = useState(editing?.medicationName ?? '');
     // Data de hoje no fuso LOCAL (toISOString() é UTC e sugeriria ontem entre 21h e meia-noite).
-    const [startDate, setStartDate] = useState(() => toDateInputValue(new Date()));
+    const [startDate, setStartDate] = useState(() => editing?.startDate ?? toDateInputValue(new Date()));
     
-    const [durationType, setDurationType] = useState<'continuous' | 'days'>('days');
-    const [durationDays, setDurationDays] = useState(7);
+    const [durationType, setDurationType] = useState<'continuous' | 'days'>(editing?.duration.type ?? 'days');
+    const [durationDays, setDurationDays] = useState(editing?.duration.days ?? 7);
     
-    const [frequencyType, setFrequencyType] = useState<'daily' | 'interval'>('daily');
-    const [frequencyDays, setFrequencyDays] = useState(2);
+    const [frequencyType, setFrequencyType] = useState<'daily' | 'interval'>(editing?.frequency.type ?? 'daily');
+    const [frequencyDays, setFrequencyDays] = useState(editing?.frequency.days ?? 2);
     
-    const [timingType, setTimingType] = useState<'count' | 'specific'>('count');
+    // Em edição os horários salvos são editados um a um (não dá para saber
+    // se originalmente vieram de "N vezes ao dia").
+    const [timingType, setTimingType] = useState<'count' | 'specific'>(editing ? 'specific' : 'count');
     const [timesPerDay, setTimesPerDay] = useState(1);
     const [firstDoseTime, setFirstDoseTime] = useState('08:00');
-    const [specificTimes, setSpecificTimes] = useState<string[]>(['08:00']);
+    const [specificTimes, setSpecificTimes] = useState<string[]>(editing?.times.length ? editing.times : ['08:00']);
 
     const calculateTimes = () => {
         if (timingType === 'specific') {
@@ -49,7 +53,12 @@ const AddReminderModal: React.FC<Props> = ({ onClose, onAdd, medications, isLoad
             alert('Por favor, selecione um medicamento.');
             return;
         }
-        onAdd({
+        const times = calculateTimes();
+        if (times.length === 0) {
+            alert('Adicione pelo menos um horário de dose.');
+            return;
+        }
+        onSave({
             medicationName,
             startDate,
             duration: {
@@ -60,7 +69,7 @@ const AddReminderModal: React.FC<Props> = ({ onClose, onAdd, medications, isLoad
                 type: frequencyType,
                 days: frequencyType === 'interval' ? frequencyDays : 1,
             },
-            times: calculateTimes(),
+            times,
         });
     };
 
@@ -207,7 +216,7 @@ const AddReminderModal: React.FC<Props> = ({ onClose, onAdd, medications, isLoad
             </div>
             <div className="mt-6 flex justify-between">
                 <button onClick={handleBack} className="px-4 py-2 bg-brand-gray-200 dark:bg-brand-gray-600 rounded-md hover:bg-brand-gray-300">Voltar</button>
-                <button onClick={handleAdd} className="px-4 py-2 bg-brand-green text-white rounded-md hover:bg-green-600">Concluir</button>
+                <button onClick={handleAdd} className="px-4 py-2 bg-brand-green text-white rounded-md hover:bg-green-600">{editing ? 'Salvar alterações' : 'Concluir'}</button>
             </div>
         </>
     );

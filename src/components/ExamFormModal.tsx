@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { Doctor, Exam, ExamStatus, EXAM_CATEGORIES } from '../types';
+import { AppointmentReminderOffset, Doctor, Exam, ExamStatus, EXAM_CATEGORIES } from '../types';
 import { AiError, scanExamRequest, ScannedExamRequest } from '../services/nvidiaService';
 import { useAiSettings } from '../services/settings';
 import { fileToCompressedDataUrl } from '../utils/image';
@@ -10,7 +10,7 @@ import { FieldError, FormModalShell, FormSection, helperClass, inputClass, label
 
 interface Props {
     onClose: () => void;
-    onSave: (exam: Omit<Exam, 'id'>) => void;
+    onSave: (exam: Omit<Exam, 'id' | 'notifiedOffsets' | 'createdAt'>) => void;
     doctors: Doctor[];
     /** Exame em edição; `null`/ausente = novo cadastro. */
     editing?: Exam | null;
@@ -32,6 +32,12 @@ const statusOptions: { value: ExamStatus; label: string }[] = [
     { value: 'done', label: 'Realizado' },
 ];
 
+const reminderOptions: { value: AppointmentReminderOffset; label: string }[] = [
+    { value: 1440, label: '1 dia antes' },
+    { value: 60, label: '1 h antes' },
+    { value: 0, label: 'Sem lembrete' },
+];
+
 /** Rótulo do campo de data conforme a situação do exame. */
 const dateLabelFor = (status: ExamStatus): string => {
     if (status === 'requested') return 'Data do pedido *';
@@ -47,6 +53,8 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
     const [category, setCategory] = useState(editing?.category ?? '');
     const [status, setStatus] = useState<ExamStatus>(editing?.status ?? 'requested');
     const [date, setDate] = useState(editing?.date ?? toDateInputValue(new Date()));
+    const [time, setTime] = useState(editing?.time || '08:00');
+    const [reminderOffset, setReminderOffset] = useState<AppointmentReminderOffset>(editing?.reminderOffset ?? 1440);
     const [doctorId, setDoctorId] = useState(
         editing?.doctorId && doctors.some(d => d.id === editing.doctorId) ? editing.doctorId : OTHER
     );
@@ -141,6 +149,10 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
             category,
             status,
             date,
+            // Hora só faz sentido para exame agendado; o alarme usa as
+            // informações abaixo apenas quando status === 'scheduled'.
+            time: status === 'scheduled' ? time : '',
+            reminderOffset: status === 'scheduled' ? reminderOffset : 0,
             doctorId: selectedDoctor ? selectedDoctor.id : '',
             doctorName: doctorName.trim(),
             place: place.trim(),
@@ -297,7 +309,46 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
                     />
                     <FieldError id="exam-date-error" message={errors.date} />
                 </div>
+                {status === 'scheduled' && (
+                    <div>
+                        <label htmlFor="exam-time" className={labelClass}>Hora agendada</label>
+                        <input
+                            id="exam-time"
+                            type="time"
+                            value={time}
+                            onChange={(e) => setTime(e.target.value)}
+                            className={inputClass()}
+                        />
+                        <p className={helperClass}>Sem hora definida? O lembrete usa 08:00 como referência.</p>
+                    </div>
+                )}
             </FormSection>
+
+            {status === 'scheduled' && (
+            <FormSection title="Lembrete">
+                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Lembrete do exame">
+                    {reminderOptions.map(option => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={reminderOffset === option.value}
+                            onClick={() => setReminderOffset(option.value)}
+                            className={`px-2 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                                reminderOffset === option.value
+                                    ? 'bg-brand-blue text-white shadow-sm'
+                                    : 'bg-brand-gray-100 dark:bg-brand-gray-700 text-brand-gray-600 dark:text-brand-gray-300 hover:bg-brand-gray-200 dark:hover:bg-brand-gray-600'
+                            }`}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
+                <p className={helperClass}>
+                    Útil quando o exame exige preparo (jejum, coleta em casa). O alarme toca com o app aberto, como nas consultas.
+                </p>
+            </FormSection>
+            )}
 
             <FormSection title="Origem">
                 <div>

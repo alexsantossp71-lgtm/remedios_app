@@ -1,14 +1,16 @@
 
 import React from 'react';
 import { Reminder } from '../types';
-import { TrashIcon, PillIcon, ClockIcon, CalendarIcon } from '../constants';
+import { TrashIcon, PillIcon, ClockIcon, CalendarIcon, PencilIcon } from '../constants';
 
 interface Props {
     reminders: Reminder[];
     onDelete: (id: string) => void;
+    /** Abre o formulário para editar o lembrete (histórico de doses é mantido). */
+    onEdit: (reminder: Reminder) => void;
 }
 
-const ReminderList: React.FC<Props> = ({ reminders, onDelete }) => {
+const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit }) => {
     if (reminders.length === 0) {
         return <div className="text-center py-10 text-brand-gray-500">
             <PillIcon className="w-12 h-12 mx-auto mb-2"/>
@@ -54,13 +56,23 @@ const ReminderList: React.FC<Props> = ({ reminders, onDelete }) => {
                             </div>
                         </div>
                     </div>
-                    <button 
-                        onClick={() => onDelete(reminder.id)}
-                        className="absolute top-2 right-2 p-1 text-brand-gray-400 hover:text-brand-red dark:hover:text-brand-red transition-colors"
-                        aria-label={`Deletar lembrete para ${reminder.medicationName}`}
-                    >
-                        <TrashIcon className="w-5 h-5" />
-                    </button>
+                    <div className="absolute top-2 right-2 flex flex-col items-center">
+                        <button
+                            onClick={() => onEdit(reminder)}
+                            className="p-1 text-brand-gray-400 hover:text-brand-blue dark:hover:text-brand-blue transition-colors"
+                            aria-label={`Editar lembrete para ${reminder.medicationName}`}
+                            title="Editar lembrete"
+                        >
+                            <PencilIcon className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(reminder.id)}
+                            className="p-1 text-brand-gray-400 hover:text-brand-red dark:hover:text-brand-red transition-colors"
+                            aria-label={`Deletar lembrete para ${reminder.medicationName}`}
+                        >
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             ))}
         </div>

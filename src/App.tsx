@@ -22,6 +22,7 @@ import HealthPlansTab from './components/HealthPlansTab';
 import HealthPlanFormModal from './components/HealthPlanFormModal';
 import ExamsTab from './components/ExamsTab';
 import ExamFormModal from './components/ExamFormModal';
+import ExamNotificationModal from './components/ExamNotificationModal';
 import SettingsModal from './components/SettingsModal';
 import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon } from './constants';
 
@@ -66,13 +67,14 @@ const App: React.FC = () => {
     const [mainTab, setMainTab] = useState<MainTab>('meds');
     const [healthTab, setHealthTab] = useState<HealthTab>('appointments');
 
-    const [isAddModalOpen, setAddModalOpen] = useState(false);
+    const [reminderModal, setReminderModal] = useState<{ open: boolean; editing: Reminder | null }>({ open: false, editing: null });
     const [notification, setNotification] = useState<{ reminder: Reminder; time: string } | null>(null);
     const [doctorModal, setDoctorModal] = useState<{ open: boolean; editing: Doctor | null }>({ open: false, editing: null });
     const [appointmentModal, setAppointmentModal] = useState<{ open: boolean; editing: Appointment | null }>({ open: false, editing: null });
     const [planModal, setPlanModal] = useState<{ open: boolean; editing: HealthPlan | null }>({ open: false, editing: null });
     const [examModal, setExamModal] = useState<{ open: boolean; editing: Exam | null }>({ open: false, editing: null });
     const [appointmentNotification, setAppointmentNotification] = useState<{ appointment: Appointment; offsetMinutes: number } | null>(null);
+    const [examNotification, setExamNotification] = useState<{ exam: Exam; offsetMinutes: number } | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
     // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
     const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(null);
@@ -80,6 +82,7 @@ const App: React.FC = () => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const timeoutRef = useRef<number | null>(null);
     const appointmentTimeoutRef = useRef<number | null>(null);
+    const examTimeoutRef = useRef<number | null>(null);
     const remindersRef = useRef<Reminder[]>([]);
 
     useEffect(() => {
@@ -349,6 +352,71 @@ const App: React.FC = () => {
         };
     }, [appointments, scheduleNextAppointmentAlarm]);
 
+    // ===== Alarmes de exame agendado (mesmo mecanismo das consultas) =====
+    const getNextExamAlarm = useCallback((): { time: Date; exam: Exam; offset: number } | null => {
+        const now = Date.now();
+        const candidates = exams.flatMap(exam => {
+            if (exam.status !== 'scheduled') return [];
+            const offset = exam.reminderOffset ?? 0;
+            if (offset <= 0) return [];
+            if ((exam.notifiedOffsets ?? []).includes(offset)) return [];
+
+            // Exame sem hora definida: alarme ancorado às 08:00 do dia.
+            const scheduledMs = parseLocalDateTime(`${exam.date}T${exam.time || '08:00'}`)?.getTime();
+            if (!scheduledMs) return [];
+
+            const triggerMs = scheduledMs - offset * 60_000;
+            // Se o horário do lembrete passou com o app fechado, dispara assim
+            // que abrir — mas apenas quando o exame foi cadastrado ANTES desse
+            // horário. Exames antigos (sem createdAt) nunca disparam atrasado.
+            const createdMs = exam.createdAt ? Date.parse(exam.createdAt) : Infinity;
+            const dueMs = triggerMs <= now && createdMs <= triggerMs ? now : triggerMs;
+            if (dueMs < now) return [];
+
+            return [{ time: new Date(dueMs), exam, offset }];
+        });
+
+        if (candidates.length === 0) return null;
+        candidates.sort((a, b) => a.time.getTime() - b.time.getTime());
+        return candidates[0];
+    }, [exams]);
+
+    const scheduleNextExamAlarm = useCallback(() => {
+        if (examTimeoutRef.current) {
+            clearTimeout(examTimeoutRef.current);
+        }
+
+        const next = getNextExamAlarm();
+        if (!next) return;
+
+        const delay = Math.max(0, next.time.getTime() - Date.now());
+        examTimeoutRef.current = window.setTimeout(() => {
+            setExamNotification({ exam: next.exam, offsetMinutes: next.offset });
+            // Aviso do sistema quando a página está em segundo plano.
+            if (document.hidden) {
+                showSystemNotification(
+                    'Lembrete de exame',
+                    `${next.exam.name} — ${formatDateTimeBR(`${next.exam.date}T${next.exam.time || '08:00'}`)}`,
+                    `exame-${next.exam.id}-${next.offset}`
+                );
+                vibrateAlarm();
+            }
+            if (audioRef.current) {
+                audioRef.current.play().catch(e => console.error("Error playing sound:", e));
+            }
+            scheduleNextExamAlarm();
+        }, delay);
+    }, [getNextExamAlarm]);
+
+    useEffect(() => {
+        scheduleNextExamAlarm();
+        return () => {
+            if (examTimeoutRef.current) {
+                clearTimeout(examTimeoutRef.current);
+            }
+        };
+    }, [exams, scheduleNextExamAlarm]);
+
     // Mantém a lista de doses atrasadas em sincronia com o histórico
     // (ex.: marcar "Tomei" no modal remove a dose da lista na hora).
     useEffect(() => {
@@ -363,17 +431,25 @@ const App: React.FC = () => {
             setMissedDoses(findMissedDoses(remindersRef.current));
             scheduleNextAlarm();
             scheduleNextAppointmentAlarm();
+            scheduleNextExamAlarm();
         };
         document.addEventListener('visibilitychange', onVisible);
         return () => document.removeEventListener('visibilitychange', onVisible);
-    }, [findMissedDoses, scheduleNextAlarm, scheduleNextAppointmentAlarm]);
+    }, [findMissedDoses, scheduleNextAlarm, scheduleNextAppointmentAlarm, scheduleNextExamAlarm]);
 
-    const handleAddReminder = (newReminder: Omit<Reminder, 'id' | 'history' | 'createdAt'>) => {
-        setReminders(prev => [
-            ...prev,
-            { ...newReminder, id: generateId(), history: {}, createdAt: new Date().toISOString() },
-        ]);
-        setAddModalOpen(false);
+    const handleSaveReminder = (data: Omit<Reminder, 'id' | 'history' | 'createdAt'>) => {
+        const editingId = reminderModal.editing?.id;
+        if (editingId) {
+            // Edição preserva id, histórico de doses e createdAt (para não
+            // "apagar" o histórico nem rearmar doses perdidas).
+            setReminders(prev => prev.map(r => (r.id === editingId ? { ...r, ...data } : r)));
+        } else {
+            setReminders(prev => [
+                ...prev,
+                { ...data, id: generateId(), history: {}, createdAt: new Date().toISOString() },
+            ]);
+        }
+        setReminderModal({ open: false, editing: null });
     };
 
     const handleDeleteReminder = (id: string) => {
@@ -467,12 +543,22 @@ const App: React.FC = () => {
     };
 
     // ===== Exames =====
-    const handleSaveExam = (data: Omit<Exam, 'id'>) => {
+    const handleSaveExam = (data: Omit<Exam, 'id' | 'notifiedOffsets' | 'createdAt'>) => {
         const editingId = examModal.editing?.id;
         if (editingId) {
-            setExams(prev => prev.map(e => (e.id === editingId ? { ...e, ...data } : e)));
+            setExams(prev => prev.map(e => {
+                if (e.id !== editingId) return e;
+                // Data, hora ou lembrete alterados: permite que o alarme
+                // rearmado pelo novo horário dispare de novo.
+                const scheduleChanged =
+                    e.date !== data.date || e.time !== data.time || e.reminderOffset !== data.reminderOffset;
+                return { ...e, ...data, notifiedOffsets: scheduleChanged ? [] : (e.notifiedOffsets ?? []) };
+            }));
         } else {
-            setExams(prev => [...prev, { ...data, id: generateId() }]);
+            setExams(prev => [
+                ...prev,
+                { ...data, id: generateId(), notifiedOffsets: [], createdAt: new Date().toISOString() },
+            ]);
         }
         setExamModal({ open: false, editing: null });
     };
@@ -490,6 +576,16 @@ const App: React.FC = () => {
         )));
         stopAlarm();
         setAppointmentNotification(null);
+    };
+
+    const handleExamNotificationDismiss = (examId: string, offsetMinutes: number) => {
+        setExams(prev => prev.map(e => (
+            e.id === examId && !(e.notifiedOffsets ?? []).includes(offsetMinutes)
+                ? { ...e, notifiedOffsets: [...(e.notifiedOffsets ?? []), offsetMinutes] }
+                : e
+        )));
+        stopAlarm();
+        setExamNotification(null);
     };
 
     const notificationDoctor = appointmentNotification
@@ -538,7 +634,7 @@ const App: React.FC = () => {
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold">Meus Lembretes</h2>
                          <button
-                            onClick={() => setAddModalOpen(true)}
+                            onClick={() => setReminderModal({ open: true, editing: null })}
                             className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
                             aria-label="Adicionar novo lembrete"
                         >
@@ -546,7 +642,11 @@ const App: React.FC = () => {
                             Adicionar
                         </button>
                     </div>
-                    <ReminderList reminders={reminders} onDelete={handleDeleteReminder} />
+                    <ReminderList
+                        reminders={reminders}
+                        onEdit={reminder => setReminderModal({ open: true, editing: reminder })}
+                        onDelete={handleDeleteReminder}
+                    />
                 </div>
             </main>
             )}
@@ -605,13 +705,14 @@ const App: React.FC = () => {
                 </main>
             )}
             
-            {isAddModalOpen && (
+            {reminderModal.open && (
                 <AddReminderModal
-                    onClose={() => setAddModalOpen(false)}
-                    onAdd={handleAddReminder}
+                    onClose={() => setReminderModal({ open: false, editing: null })}
+                    onSave={handleSaveReminder}
                     medications={medications}
                     isLoadingMeds={isLoadingMeds}
                     medsError={medsError}
+                    editing={reminderModal.editing}
                 />
             )}
             
@@ -669,6 +770,13 @@ const App: React.FC = () => {
 
             {isSettingsOpen && (
                 <SettingsModal onClose={() => setSettingsOpen(false)} />
+            )}
+
+            {examNotification && (
+                <ExamNotificationModal
+                    exam={examNotification.exam}
+                    onDismiss={handleExamNotificationDismiss}
+                />
             )}
 
             {appointmentNotification && (

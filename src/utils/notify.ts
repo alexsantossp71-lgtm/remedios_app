@@ -22,10 +22,10 @@ export async function requestNotificationPermission(): Promise<NotificationSuppo
     }
 }
 
-/** Ícone de notificação: mesmo visual do manifesto (quadrado azul com pílula).
- * Alguns navegadores ignoram SVG — o erro só degrada para o ícone padrão. */
-const NOTIFICATION_ICON =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23007aff'/%3E%3Cg fill='none' stroke='white' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M76 140l64-64a31 31 0 1 0-44-44L32 96a31 31 0 1 0 44 44z'/%3E%3Cpath d='M64 64l64 64'/%3E%3C/g%3E%3C/svg%3E";
+/** Ícone de notificação: mesmo visual do manifesto (fundo azul com pílula),
+ * agora em PNG (o SVG era ignorado por vários navegadores). Caminho relativo
+ * funciona em qualquer base (/, /remedios_app/). */
+const NOTIFICATION_ICON = 'icon-192.png';
 
 /**
  * Mostra uma notificação do sistema; só dispara com permissão concedida.

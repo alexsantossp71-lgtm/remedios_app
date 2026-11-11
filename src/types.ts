@@ -64,6 +64,16 @@ export interface Exam {
     category: string; // Uma das EXAM_CATEGORIES ou '' quando não classificado
     status: ExamStatus;
     date: string; // 'YYYY-MM-DD' — data do pedido, agendada ou de realização (conforme status)
+    /** 'HH:MM' agendada (status 'scheduled'); ''/ausente quando sem hora definida. */
+    time?: string;
+    /** Minutos antes do horário agendado em que o lembrete dispara.
+     * Ausente/0 = sem lembrete (exames antigos só tocam após reeditados). */
+    reminderOffset?: AppointmentReminderOffset;
+    /** Offsets cujo lembrete já foi exibido (evita repetir o alarme). */
+    notifiedOffsets?: number[];
+    /** Momento da criação (ISO). Exames criados antes dos lembretes existirem
+     * não têm createdAt e nunca disparam alarme "atrasado". */
+    createdAt?: string;
     doctorId: string; // '' quando o médico não está cadastrado
     doctorName: string; // snapshot do nome do médico solicitante
     place: string; // laboratório / clínica onde realizar ou realizado
