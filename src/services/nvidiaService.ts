@@ -263,16 +263,23 @@ async function diagnosticRequest(proxy: string, model: string, prompt: string): 
 
 function evaluateDiagnosticInteractions(content: string): string {
     const parsed = extractJson(content);
+    const rawInteractions = Array.isArray(parsed.interactions)
+        ? parsed.interactions.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item))
+        : [];
+    const rawRelevant = rawInteractions.find((item) => {
+        const names = Array.isArray(item.medications) ? item.medications.join(' ').toLowerCase() : '';
+        return names.includes('varfarina') && names.includes('ibuprofeno');
+    });
+    if (!rawRelevant) throw new AiError('Não identificou a combinação varfarina + ibuprofeno no formato esperado.');
+    if (rawRelevant.severity !== 'alta' && rawRelevant.severity !== 'moderada') throw new AiError('Classificação de gravidade não passou no critério de teste.');
     const report = sanitizeInteractionReport(parsed);
-    const alerts = report.interactions;
-    const relevant = alerts.find((alert) => {
+    const relevant = report.interactions.find((alert) => {
         const names = alert.medications.join(' ').toLowerCase();
         return names.includes('varfarina') && names.includes('ibuprofeno');
     });
-    if (!relevant) throw new AiError('Não identificou a combinação varfarina + ibuprofeno no formato esperado.');
+    if (!relevant) throw new AiError('A estrutura do alerta de interação está incompleta.');
     if (!/sangr|hemorrag/i.test(relevant.description)) throw new AiError('Identificou a combinação, mas não explicou o risco de sangramento.');
     if (!/farmac|m[eé]dic/i.test(relevant.recommendation)) throw new AiError('Não orientou confirmar com médico ou farmacêutico.');
-    if (!['alta', 'moderada'].includes(relevant.severity)) throw new AiError('Classificação de gravidade não passou no critério de teste.');
     if (report.sources.length > 0) throw new AiError('Declarou fontes externas que não foram consultadas no teste.');
     return 'JSON válido; reconheceu o risco de sangramento; recomendou confirmação profissional; não inventou fontes.';
 }
