@@ -236,3 +236,22 @@ input::placeholder, textarea::placeholder { color: #94a3a8; }
   background-color: #172733; border-color: #405657; color: #e2eeee;
 }
 .dark .empty-state { border-color: #405657; }
+
+
+.app-record-card {
+  border: 1px solid rgba(210, 225, 223, .9);
+  background: linear-gradient(145deg, #ffffff 0%, #fbfefe 100%);
+  border-radius: 1.1rem;
+  box-shadow: 0 5px 18px rgba(15, 50, 52, .045);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.app-record-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(13,148,136,.3);
+  box-shadow: 0 12px 28px rgba(15,50,52,.075);
+}
+.dark .app-record-card {
+  background: linear-gradient(145deg, #1e293b 0%, #1a2a34 100%);
+  border-color: #3a5153;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14);
+}
