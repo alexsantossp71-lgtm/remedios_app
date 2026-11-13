@@ -141,7 +141,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                         {diagnosticProgress
                             ? `Concluídos ${diagnosticProgress.completed} de ${diagnosticProgress.total} modelos. Testando: ${diagnosticProgress.model}`
                             : 'Consultando os modelos disponíveis…'}
-                        {' '}Cada modelo recebe dois testes independentes; a análise pode levar até cerca de 1 minuto.
+                        {' '}Cada modelo recebe dois testes independentes. O diagnóstico permite até 30 segundos por resposta e pode levar alguns minutos, dependendo dos provedores.
                     </p>
                 )}
                 {diagnosticError && <p className="text-sm text-brand-red" role="alert">{diagnosticError}</p>}
