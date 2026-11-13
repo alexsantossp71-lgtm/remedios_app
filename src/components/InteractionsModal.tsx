@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AiError, analyzeInteractions, type InteractionReport } from '../services/nvidiaService';
 import { hasAiAccess, useAiSettings } from '../services/settings';
 import { ShieldIcon, XIcon } from '../constants';
@@ -32,13 +32,20 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
     const [report, setReport] = useState<InteractionReport | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
+    const [slowResponse, setSlowResponse] = useState(false);
+    // Usa uma chave de conteúdo estável: o componente pai cria um novo array a cada render.
+    const medicationPayload = useMemo(
+        () => JSON.stringify(medications.map(({ name, dosage }) => ({ name, dosage }))),
+        [medications]
+    );
 
     useEscapeToClose(onClose);
 
     useEffect(() => {
         if (!hasApiKey) return;
         let cancelled = false;
-        analyzeInteractions(medications)
+        const slowTimer = window.setTimeout(() => setSlowResponse(true), 8_000);
+        analyzeInteractions(JSON.parse(medicationPayload) as Array<{ name: string; dosage?: string }>)
             .then((result) => {
                 if (cancelled) return;
                 setReport(result);
@@ -51,8 +58,9 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
             });
         return () => {
             cancelled = true;
+            window.clearTimeout(slowTimer);
         };
-    }, [hasApiKey, medications, attempt]);
+    }, [hasApiKey, medicationPayload, attempt]);
 
     const noCombinations =
         status === 'done' && report && report.duplicates.length === 0 && report.interactions.length === 0;
@@ -86,7 +94,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
                 {status === 'loading' && (
                     <div className="py-8 text-center" role="status">
                         <p className="text-sm font-semibold text-brand-blue">Analisando {medications.length} medicamentos com a IA...</p>
-                        <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mt-1">Pode levar alguns segundos.</p>
+                        <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mt-1">{slowResponse ? 'A resposta está demorando. O aplicativo está aguardando mais um modelo e encerrará a tentativa automaticamente se não houver resposta.' : 'Consultando o serviço de IA…'}</p>
                     </div>
                 )}
 
@@ -97,6 +105,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
                             type="button"
                             onClick={() => {
                                 setStatus('loading');
+                                setSlowResponse(false);
                                 setError(null);
                                 setAttempt((a) => a + 1);
                             }}

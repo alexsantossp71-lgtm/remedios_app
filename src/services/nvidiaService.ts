@@ -76,7 +76,7 @@ export function extractChatContent(value: unknown): string {
 async function chatCompletion(
     messages: ChatMessage[],
     model: string,
-    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void }
+    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void; requestTimeoutMs?: number; catalogTimeoutMs?: number; maxModels?: number }
 ): Promise<string> {
     const settings = readAiSettings();
     const proxy = effectiveProxyUrl(settings);
@@ -86,7 +86,8 @@ async function chatCompletion(
 
     const attempt = async (url: string, headers: Record<string, string>, candidateModel: string): Promise<string> => {
         const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const requestTimeoutMs = options?.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
+        const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs);
         try {
             const response = await fetch(url, {
                 method: 'POST',
@@ -118,7 +119,7 @@ async function chatCompletion(
             throw new AiError('O modelo respondeu sem conteúdo válido. Tente novamente.');
         } catch (error) {
             if (controller.signal.aborted) {
-                throw new AiError(`O modelo ${candidateModel} demorou mais de ${Math.round(REQUEST_TIMEOUT_MS / 1000)} segundos. Tentando outra opção.`);
+                throw new AiError(`O modelo ${candidateModel} demorou mais de ${Math.round(requestTimeoutMs / 1000)} segundos. Tentando outra opção.`);
             }
             if (error instanceof AiError) throw error;
             throw new AiError('Não foi possível conectar ao serviço de IA. Verifique a conexão e tente novamente.');
@@ -150,7 +151,7 @@ async function chatCompletion(
         ? modelCatalogCache.ids
         : null;
     const catalogController = new AbortController();
-    const catalogTimeout = window.setTimeout(() => catalogController.abort(), 8_000);
+    const catalogTimeout = window.setTimeout(() => catalogController.abort(), options?.catalogTimeoutMs ?? 8_000);
     try {
         if (!availableIds) {
             const catalogResponse = await fetch(`${proxy}/models`, {
@@ -180,7 +181,7 @@ async function chatCompletion(
         : ordered;
     // No máximo três modelos por operação: mantém a resposta rápida mesmo quando
     // um endpoint está lento ou indisponível (até ~36 s de geração, além do catálogo). 
-    const modelsToTry = (candidates.length ? candidates : ordered).slice(0, 3);
+    const modelsToTry = (candidates.length ? candidates : ordered).slice(0, options?.maxModels ?? 3);
     let lastError: unknown;
     for (const candidate of modelsToTry) {
         try {
@@ -898,7 +899,7 @@ export const analyzeInteractions = async (
             },
         ],
         textModel,
-        { maxTokens: 1800, temperature: 0.1, validateResponse: (value) => { extractJson(value); } }
+        { maxTokens: 1800, temperature: 0.1, validateResponse: (value) => { extractJson(value); }, requestTimeoutMs: 9_000, catalogTimeoutMs: 3_000, maxModels: 2 }
     );
 
     return sanitizeInteractionReport(extractJson(content));
