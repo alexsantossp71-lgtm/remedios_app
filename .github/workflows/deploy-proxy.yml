@@ -45,6 +45,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Instalar dependências do Worker
+        run: npm install --no-audit --no-fund
+
       - name: Aplicar migrações do banco D1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
