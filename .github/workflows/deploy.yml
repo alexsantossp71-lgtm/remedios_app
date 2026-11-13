@@ -50,7 +50,7 @@ jobs:
         # (variável VITE_DEFAULT_PROXY_URL). Sem a variável, o build segue
         # igual e o usuário configura a URL por dispositivo.
         env:
-          VITE_DEFAULT_PROXY_URL: ${{ vars.VITE_DEFAULT_PROXY_URL }}
+          VITE_DEFAULT_PROXY_URL: https://remedios-ai-proxy.alexsantossp71.workers.dev
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
