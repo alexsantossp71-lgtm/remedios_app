@@ -11,7 +11,7 @@ interface Props {
     onClose: () => void;
 }
 
-type Status = 'loading' | 'done' | 'error' | 'nokey';
+type Status = 'consent' | 'loading' | 'done' | 'error' | 'nokey';
 
 const GENERIC_ERROR = 'Não foi possível concluir a análise. Tente novamente.';
 
@@ -28,7 +28,8 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
 
     // Estados iniciais cobrem os caminhos síncronos (carregando / sem chave);
     // o effect cuida só da busca assíncrona, sem setState direto no corpo.
-    const [status, setStatus] = useState<Status>(hasApiKey ? 'loading' : 'nokey');
+    const [status, setStatus] = useState<Status>(hasApiKey ? 'consent' : 'nokey');
+    const [externalDataConsent, setExternalDataConsent] = useState(false);
     const [report, setReport] = useState<InteractionReport | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
@@ -42,7 +43,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
     useEscapeToClose(onClose);
 
     useEffect(() => {
-        if (!hasApiKey) return;
+        if (!hasApiKey || status !== 'loading') return;
         let cancelled = false;
         const slowTimer = window.setTimeout(() => setSlowResponse(true), 8_000);
         analyzeInteractions(JSON.parse(medicationPayload) as Array<{ name: string; dosage?: string }>)
@@ -60,7 +61,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
             cancelled = true;
             window.clearTimeout(slowTimer);
         };
-    }, [hasApiKey, medicationPayload, attempt]);
+    }, [hasApiKey, medicationPayload, attempt, status]);
 
     const noCombinations =
         status === 'done' && report && report.duplicates.length === 0 && report.interactions.length === 0;
@@ -88,6 +89,34 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
                             Este recurso está temporariamente indisponível. Tente novamente mais tarde.
                         </p>
+                    </div>
+                )}
+
+                {status === 'consent' && (
+                    <div className="rounded-lg border border-brand-gray-200 dark:border-brand-gray-600 p-4">
+                        <p className="text-sm font-semibold text-brand-gray-800 dark:text-white">
+                            Antes de iniciar, saiba como os dados serão usados
+                        </p>
+                        <p className="mt-2 text-sm text-brand-gray-600 dark:text-brand-gray-300">
+                            Os nomes e as dosagens informados serão enviados ao Pollinations.ai para gerar a análise. Se esse serviço falhar, os mesmos dados poderão ser enviados à NVIDIA como alternativa. A transmissão ocorre por provedores externos de IA; não inclua informações pessoais além dos dados dos medicamentos.
+                        </p>
+                        <label className="mt-3 flex items-start gap-2 text-sm text-brand-gray-700 dark:text-brand-gray-200">
+                            <input
+                                type="checkbox"
+                                checked={externalDataConsent}
+                                onChange={(event) => setExternalDataConsent(event.target.checked)}
+                                className="mt-1"
+                            />
+                            <span>Autorizo o envio dos nomes e das dosagens dos medicamentos a esses provedores para realizar esta análise.</span>
+                        </label>
+                        <button
+                            type="button"
+                            disabled={!externalDataConsent}
+                            onClick={() => setStatus('loading')}
+                            className="mt-4 w-full rounded-md bg-brand-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Autorizar e analisar
+                        </button>
                     </div>
                 )}
 
