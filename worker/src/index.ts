@@ -26,6 +26,8 @@ export interface WorkerEnv {
     VAPID_PUBLIC_KEY?: string;
     VAPID_PRIVATE_KEY?: string;
     NVIDIA_API_KEY?: string;
+    POLLINATIONS_API_KEY?: string;
+    POLLINATIONS_ALLOWED_MODELS?: string;
     ALLOWED_ORIGINS?: string;
     ALLOWED_MODELS?: string;
     RATE_LIMIT_WINDOW_MS?: string;
@@ -106,6 +108,68 @@ export default {
             if (!env.PUSH_DB) return jsonResponse(503, { error: { message: 'Banco de notificações indisponível.' } }, allowedOrigin);
             const pushResponse = await handlePushRequest(request, env as PushEnv, allowedOrigin);
             if (pushResponse) return pushResponse;
+        }
+
+        // Provedor experimental Pollinations.ai. Esta rota é isolada da NVIDIA
+        // e só funciona quando a chave secreta estiver configurada no Worker.
+        if (pathname.startsWith('/v1/pollinations/')) {
+            if (!(env.POLLINATIONS_API_KEY ?? '').trim()) {
+                return jsonResponse(503, { error: { message: 'Pollinations.ai ainda não está configurado neste servidor. Cadastre POLLINATIONS_API_KEY como secret do Cloudflare Worker.' } }, allowedOrigin);
+            }
+            const pollinationsVerdict = limitsFor(env).hit(clientIp(request), Date.now());
+            if (!pollinationsVerdict.allowed) {
+                return jsonResponse(429, { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } }, allowedOrigin, { 'Retry-After': String(pollinationsVerdict.retryAfterSec) });
+            }
+            const pollinationsAuth = { Authorization: `Bearer ${(env.POLLINATIONS_API_KEY ?? '').trim()}` };
+            try {
+                if (pathname === '/v1/pollinations/models' && request.method === 'GET') {
+                    const upstream = await fetch('https://gen.pollinations.ai/v1/models', {
+                        headers: { ...pollinationsAuth, Accept: 'application/json' },
+                    });
+                    return passThrough(upstream, allowedOrigin);
+                }
+                if (pathname === '/v1/pollinations/chat/completions' && request.method === 'POST') {
+                    const contentType = request.headers.get('Content-Type') ?? '';
+                    if (!/^application\/json(?:\s*;|$)/i.test(contentType)) {
+                        return jsonResponse(415, { error: { message: 'Envie o corpo como application/json.' } }, allowedOrigin);
+                    }
+                    const declaredLength = Number(request.headers.get('Content-Length') ?? 0);
+                    if (declaredLength > MAX_BODY_BYTES) {
+                        return jsonResponse(413, { error: { message: 'Corpo do pedido grande demais.' } }, allowedOrigin);
+                    }
+                    const raw = await request.text();
+                    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
+                        return jsonResponse(413, { error: { message: 'Corpo do pedido grande demais.' } }, allowedOrigin);
+                    }
+                    let parsed: { model?: unknown; stream?: unknown } = {};
+                    try {
+                        const decoded: unknown = JSON.parse(raw);
+                        if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) {
+                            return jsonResponse(400, { error: { message: 'O corpo deve ser um objeto JSON.' } }, allowedOrigin);
+                        }
+                        parsed = decoded as { model?: unknown; stream?: unknown };
+                    } catch {
+                        return jsonResponse(400, { error: { message: 'Corpo não é um JSON válido.' } }, allowedOrigin);
+                    }
+                    const allowedPollinationsModels = (env.POLLINATIONS_ALLOWED_MODELS ?? 'google/gemini-3.8-flash,openai/gpt-5.4-nano,deepseek/deepseek-v4-flash,qwen/qwen3.8-27b')
+                        .split(',').map((model) => model.trim()).filter(Boolean);
+                    if (!isModelAllowed(typeof parsed.model === 'string' ? parsed.model : '', allowedPollinationsModels)) {
+                        return jsonResponse(403, { error: { message: 'Modelo Pollinations não permitido neste proxy.' } }, allowedOrigin);
+                    }
+                    if (parsed.stream === true) {
+                        return jsonResponse(400, { error: { message: 'Streaming não é suportado neste proxy (use stream: false).' } }, allowedOrigin);
+                    }
+                    const upstream = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: { ...pollinationsAuth, 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: raw,
+                    });
+                    return passThrough(upstream, allowedOrigin);
+                }
+            } catch {
+                return jsonResponse(502, { error: { message: 'O proxy não conseguiu falar com Pollinations.ai agora. Tente novamente.' } }, allowedOrigin);
+            }
+            return jsonResponse(404, { error: { message: 'Rota Pollinations não encontrada.' } }, allowedOrigin);
         }
 
         if (!(env.NVIDIA_API_KEY ?? '').trim()) {

@@ -23,10 +23,12 @@ limites de cobrança no provedor.
 
 Somente:
 - NVIDIA_API_KEY — chave da conta NVIDIA.
+- POLLINATIONS_API_KEY — chave secreta `sk_` do Pollinations (opcional; habilita somente as rotas experimentais `/v1/pollinations/*`).
 - CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID — para o deploy via GitHub Actions.
 
-O workflow publica automaticamente NVIDIA_API_KEY no Worker. Não crie nem
-distribua token compartilhado para os usuários.
+O workflow publica automaticamente NVIDIA_API_KEY no Worker. Para habilitar o teste Pollinations, crie uma chave secreta em https://enter.pollinations.ai e cadastre-a nos GitHub Actions Secrets com o nome `POLLINATIONS_API_KEY`; o workflow a publicará no Worker. Não crie nem distribua token compartilhado para os usuários.
+
+A integração experimental usa `https://gen.pollinations.ai/v1/chat/completions` e `GET /v1/models`, com autenticação Bearer no servidor. Ela não é usada pelas funções normais do aplicativo e não substitui a NVIDIA. Modelos permitidos ficam em `POLLINATIONS_ALLOWED_MODELS` no `wrangler.toml`. Os testes de comparação usam somente casos sintéticos. Não envie dados reais de pacientes até concluir a avaliação de privacidade, retenção e conformidade do provedor e dos modelos de destino.
 
 ## Deploy e teste
 
