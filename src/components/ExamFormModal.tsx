@@ -49,7 +49,7 @@ const dateLabelFor = (status: ExamStatus): string => {
     return 'Data de realização *';
 };
 
-const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onOpenSettings }) => {
+const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
 
