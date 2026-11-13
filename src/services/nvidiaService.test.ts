@@ -5,7 +5,7 @@ import {
     extractJson,
     extractChatContent,
     sanitizeInteractionReport,
-    sanitizeMedicationGuide,
+    sanitizeMedicationGuide,\n    selectAvailablePollinationsModels,
 } from './nvidiaService';
 
 describe('extractChatContent', () => {
@@ -142,5 +142,28 @@ describe('sanitizeMedicationGuide', () => {
         expect(guide.whatFor).toBe('Trata dor e febre.');
         expect(guide.commonSideEffects).toEqual(['Náusea', 'Sonolência']);
         expect(guide.warnings).toEqual(['Evite álcool', 'Gravidez: consulte o médico']);
+    });
+});
+
+describe('selectAvailablePollinationsModels', () => {
+    it('usa somente modelos permitidos e presentes no catálogo Pollinations', () => {
+        expect(selectAvailablePollinationsModels([
+            'qwen/qwen3.8-27b',
+            'modelo/desconhecido',
+            'google/gemini-3.8-flash',
+        ])).toEqual(['google/gemini-3.8-flash', 'qwen/qwen3.8-27b']);
+    });
+
+    it('não tenta modelos quando o catálogo não oferece opções compatíveis', () => {
+        expect(selectAvailablePollinationsModels(['modelo/desconhecido'])).toEqual([]);
+    });
+
+    it('limita a tentativa a dois modelos para preservar o tempo de resposta', () => {
+        expect(selectAvailablePollinationsModels([
+            'google/gemini-3.8-flash',
+            'openai/gpt-5.4-nano',
+            'deepseek/deepseek-v4-flash',
+            'qwen/qwen3.8-27b',
+        ])).toHaveLength(2);
     });
 });
