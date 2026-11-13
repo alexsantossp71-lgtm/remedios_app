@@ -45,9 +45,9 @@ describe('extractJson', () => {
 
 describe('sanitizeInteractionReport', () => {
     it('devolve relatório vazio para entradas inesperadas', () => {
-        expect(sanitizeInteractionReport(null)).toEqual({ summary: '', duplicates: [], interactions: [] });
-        expect(sanitizeInteractionReport('texto')).toEqual({ summary: '', duplicates: [], interactions: [] });
-        expect(sanitizeInteractionReport([1, 2, 3])).toEqual({ summary: '', duplicates: [], interactions: [] });
+        expect(sanitizeInteractionReport(null)).toEqual({ summary: '', duplicates: [], interactions: [], sources: [] });
+        expect(sanitizeInteractionReport('texto')).toEqual({ summary: '', duplicates: [], interactions: [], sources: [] });
+        expect(sanitizeInteractionReport([1, 2, 3])).toEqual({ summary: '', duplicates: [], interactions: [], sources: [] });
     });
 
     it('normaliza relatório completo da IA', () => {
@@ -73,6 +73,20 @@ describe('sanitizeInteractionReport', () => {
         expect(report.interactions).toHaveLength(1);
         // severity inválida cai para 'moderada' (padrão seguro)
         expect(report.interactions[0].severity).toBe('moderada');
+    });
+
+    it('preserva somente fontes identificadas e datas fornecidas, sem inventar metadados', () => {
+        const report = sanitizeInteractionReport({
+            sources: [
+                { name: 'Bula oficial do medicamento', date: 'Edição 2025' },
+                { name: '', date: '2026-01-01' },
+                { name: 'Fonte sem data', date: 2026 },
+            ],
+        });
+        expect(report.sources).toEqual([
+            { name: 'Bula oficial do medicamento', date: 'Edição 2025' },
+            { name: 'Fonte sem data', date: '' },
+        ]);
     });
 
     it('limita listas e descarta itens não-objetos', () => {

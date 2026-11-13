@@ -94,6 +94,14 @@ const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose }) 
         const updates = advice.suggestions
             .filter((s) => selectedIds.includes(s.medicationId))
             .map((s) => ({ id: s.medicationId, times: s.suggestedTimes }));
+        const details = updates.map((update) => {
+            const suggestion = advice.suggestions.find((item) => item.medicationId === update.id)!;
+            return `${suggestion.medicationName}: ${suggestion.changes.map((change) => `${change.from} → ${change.to}`).join(', ')}`;
+        }).join(String.fromCharCode(10));
+        const confirmed = window.confirm(
+            `Você está prestes a alterar somente os horários dos lembretes selecionados:${String.fromCharCode(10)}${String.fromCharCode(10)}${details}${String.fromCharCode(10)}${String.fromCharCode(10)}Compare cada sugestão com a receita. A IA pode errar; não altere dose, frequência ou duração prescrita. Deseja aplicar?`
+        );
+        if (!confirmed) return;
         onApply(updates);
         onClose();
     };
@@ -112,7 +120,7 @@ const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose }) 
                     Otimizar horários com IA
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    A sugestão considera os horários e as instruções cadastrados. Ela é educativa e não substitui a orientação de um médico ou farmacêutico.
+                    A IA só propõe opções de horário. Não altera dose, frequência ou duração prescrita. A sugestão não substitui orientação médica ou farmacêutica.
                 </p>
 
                 {status === 'nokey' && (
@@ -251,9 +259,7 @@ const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose }) 
                         )}
 
                         <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 border-t border-brand-gray-200 dark:border-brand-gray-600 pt-3">
-                            Sugestões geradas por IA a partir dos horários e instruções cadastrados. Confirme com seu
-                            médico ou farmacêutico antes de mudar horários — especialmente exigências de jejum,
-                            intervalos prescritos e doses ligadas a exames.
+                            Sugestões geradas por IA apenas para revisão, com base nos dados cadastrados. Nenhuma fonte clínica externa foi consultada nesta sugestão. Não alteram dose, frequência ou duração. Se a receita tiver horários fixos ou se o intervalo prescrito não estiver claro, mantenha a prescrição e consulte seu médico ou farmacêutico.
                         </p>
                     </div>
                 )}

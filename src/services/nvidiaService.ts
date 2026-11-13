@@ -310,6 +310,9 @@ const PRESCRIPTION_JSON_RULES = `Regras:
 - times: horários de dose explícitos na receita em HH:MM (24h, ex.: "07:30"); [] se não houver horários escritos.
 - startDate: data de início escrita na receita em AAAA-MM-DD; string vazia se não houver.
 - Um item por medicamento. Campo ilegível ou ausente → vazio/0/[] conforme o tipo. NÃO invente dados.
+- Nunca deduza nem complete dose, frequência, duração ou horário. Extraia somente o que estiver escrito.
+- Se um campo estiver ilegível ou ausente, deixe-o vazio/0/[]; nunca substitua por um esquema padrão.
+- A saída é uma transcrição assistida, não uma prescrição ou recomendação clínica.
 - Se não houver receita com medicamentos, responda apenas {"medicamentos":[]}.`;
 
 const PRESCRIPTION_PHOTO_PROMPT = `Analise a foto de uma receita/prescrição médica brasileira e extraia TODOS os medicamentos prescritos.
@@ -408,6 +411,7 @@ export interface InteractionReport {
     summary: string;
     duplicates: DuplicateGroup[];
     interactions: InteractionAlert[];
+    sources: Array<{ name: string; date: string }>;
 }
 
 const clipText = (value: unknown, max: number): string =>
@@ -421,18 +425,20 @@ const stringList = (raw: unknown, maxItems: number, maxLen: number): string[] =>
               .slice(0, maxItems)
         : [];
 
-const INTERACTIONS_PROMPT = `Você é um farmacêutico clínico. Analise a lista de medicamentos de um paciente e identifique duplicidades de princípio ativo e interações medicamentosas relevantes.
+const INTERACTIONS_PROMPT = `Analise a lista de medicamentos de um paciente para apontar possíveis duplicidades de princípio ativo e interações medicamentosas relevantes. Você é um assistente informativo, não um farmacêutico responsável pelo paciente.
 
 Responda APENAS com um JSON válido, sem nenhum texto antes ou depois, neste formato:
-{"summary":"...","duplicates":[{"activeIngredient":"...","medications":["..."],"note":"..."}],"interactions":[{"severity":"alta","medications":["..."],"description":"...","recommendation":"..."}]}
+{"summary":"...","duplicates":[{"activeIngredient":"...","medications":["..."],"note":"..."}],"interactions":[{"severity":"alta","medications":["..."],"description":"...","recommendation":"..."}],"sources":[{"name":"fonte identificável consultada","date":"data da edição ou AAAA-MM-DD"}]}
 
 Regras:
-- Considere nomes comerciais e genéricos (ex.: Tylenol e Paracetamol têm o mesmo princípio ativo).
-- duplicates: grupos da lista que compartilham princípio ativo ou classe terapêutica com risco de dose dupla.
-- interactions: combinações da lista clinicamente reconhecidas como relevantes. severity deve ser exatamente "alta", "moderada" ou "baixa".
-- description: o que pode acontecer, em 1-2 frases de linguagem simples. recommendation: o que o paciente deve fazer, em 1 frase.
-- summary: uma frase resumindo o resultado geral. Se a lista for segura, devolva listas vazias e um summary tranquilizador.
-- Só inclua combinações clinicamente reconhecidas; não invente. Português do Brasil, para paciente leigo.`;
+- Considere nomes comerciais e genéricos, mas sinalize incerteza quando nomes semelhantes puderem ser confundidos.
+- duplicates: grupos da lista que compartilham princípio ativo com risco de duplicidade; não afirme equivalência sem segurança.
+- interactions: somente combinações clinicamente reconhecidas; severity exatamente "alta", "moderada" ou "baixa".
+- description: possível consequência em linguagem simples. recommendation: orientar a confirmar com médico ou farmacêutico.
+- Nunca recomende iniciar, suspender, substituir, aumentar ou reduzir medicamento, dose ou frequência.
+- Nunca declare que uma combinação é "segura" nem que "não há risco". Ausência de alertas não exclui interações.
+- sources: inclua apenas fontes clínicas realmente consultadas e identificáveis. Informe data/edição apenas se conhecida. Nunca invente fonte ou data; se não houver, devolva [].
+- Esta é uma análise preliminar e educativa, NÃO uma verificação farmacêutica definitiva. Português do Brasil.`;
 
 /** Normaliza a resposta da IA; nunca lança — entrada estranha vira relatório vazio. */
 export function sanitizeInteractionReport(value: unknown): InteractionReport {
@@ -463,7 +469,13 @@ export function sanitizeInteractionReport(value: unknown): InteractionReport {
         .filter((item) => item.description && item.medications.length > 0)
         .slice(0, 10);
 
-    return { summary: clipText(record.summary, 300), duplicates, interactions };
+    const sources = (Array.isArray(record.sources) ? record.sources : [])
+        .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item))
+        .map((item) => ({ name: clipText(item.name, 180), date: clipText(item.date, 40) }))
+        .filter((item) => item.name)
+        .slice(0, 5);
+
+    return { summary: clipText(record.summary, 300), duplicates, interactions, sources };
 }
 
 /** Analisa os lembretes ativos quanto a duplicidades e interações. */
@@ -488,7 +500,7 @@ export const analyzeInteractions = async (
             },
         ],
         textModel,
-        { maxTokens: 1600, temperature: 0.2 }
+        { maxTokens: 1800, temperature: 0.1 }
     );
 
     return sanitizeInteractionReport(extractJson(content));
@@ -652,7 +664,8 @@ Regras:
 - value: o resultado medido EXATAMENTE como número escrito (ex.: "95", "5,4", "10.200"); não inclua a unidade aqui.
 - unit: unidade (ex.: "mg/dL", "g/dL"); string vazia se não houver.
 - reference: a faixa de referência impressa para esse exame (ex.: "70 - 99", "até 100", "≥ 4,0"); string vazia se não houver.
-- Transcreva fielmente; NÃO interprete nem classifique valores como normais/alterados.
+- Transcreva fielmente; NÃO interprete, diagnostique, recomende tratamento nem classifique valores como normais/alterados. A comparação com a faixa impressa é calculada separadamente pelo aplicativo e também não é diagnóstico.
+- A única fonte de referência desta extração é o próprio laudo enviado pelo usuário. Não consulte nem invente faixas de referência externas.
 - Um item por marcador, na ordem do laudo, até 40 itens. Qualquer campo ilegível deve ser string vazia.
 - Se a imagem não for um laudo com valores de exames, responda apenas {"error":"not_a_report"}.`;
 
@@ -726,21 +739,20 @@ export const identifyMedication = async (
 
 // ===== Agendamento inteligente: redistribuição de horários (modelo de texto) =====
 
-const SCHEDULE_PROMPT = `Você é um farmacêutico que organiza a rotina de medicamentos de um paciente. Reorganize os horários das doses para melhorar a rotina, respeitando as regras de cada medicamento.
+const SCHEDULE_PROMPT = `Você é um assistente que apenas apresenta opções de organização de horários para revisão humana. Você NÃO é médico nem farmacêutico e NÃO faz prescrição.
 
-Responda APENAS com um JSON válido, sem nenhum texto antes ou depois, neste formato:
-{"summary":"...","suggestions":[{"medicationId":"...","medicationName":"...","suggestedTimes":["07:30","21:30"],"reason":"...","warnings":["..."]}]}
+Responda APENAS com JSON válido:
+{"summary":"...","suggestions":[{"medicationId":"...","medicationName":"...","suggestedTimes":["07:30"],"reason":"...","warnings":["..."]}]}
 
-Regras:
-- Para cada medicamento, mantenha EXATAMENTE o mesmo número de doses por dia e respeite o intervalo mínimo entre doses (considere o intervalo atual como prescrito).
-- Respeite as instruções de uso: "em jejum" = 30 a 60 minutos antes do café da manhã; "com alimentos" = junto às refeições principais (café, almoço, jantar); instruções que citam horário ou evento fixo devem ser mantidas.
-- Prefira horários entre 06:00 e 22:30. Se houver dose depois das 23:00 e ela puder ser movida respeitando o intervalo, mova para mais cedo (ex.: dose das 23h vai para 21h30 para não atrapalhar o sono).
-- Espalhe os medicamentos ao longo do dia; evite 3 ou mais medicamentos no mesmo horário e separe medicamentos que pedem jejum dos que pedem alimento.
-- Inclua UM item por medicamento da lista (use o medicationId exato informado). Quando não houver mudança que valha a pena, devolva os mesmos horários e um reason explicando que a rotina já está boa.
-- NÃO mude doses, nomes, quantidade de doses por dia nem crie medicamentos novos. Não sugera reduzir, aumentar ou parar medicamentos — isso é decisão médica.
-- reason: 1-2 frases simples explicando a mudança (ex.: "Omeprazol 30 min antes do café; a dose das 23h passa para 21h30, respeitando o intervalo de 8h").
-- warnings: pontos que precisam de confirmação do médico/farmacêutico (ex.: "intervalo menor que o atual", "exigência de jejum confirmada apenas na bula"); lista vazia se não houver.
-- Português do Brasil, linguagem simples para paciente leigo.`;
+Regras obrigatórias:
+- Nunca altere nem sugira alterar dose, quantidade de doses, frequência, duração ou intervalo prescrito. A tarefa é limitada ao horário do relógio.
+- Se a receita trouxer horários fixos, mantenha-os exatamente.
+- Se não houver dados suficientes para verificar que a mudança respeita a prescrição, mantenha os horários atuais e explique a limitação.
+- Não deduza horários clinicamente equivalentes, não invente intervalos e não presuma que horários podem ser movidos.
+- Não recomende iniciar, suspender, substituir, aumentar ou reduzir medicamentos.
+- Inclua um item por medicamento usando o medicationId exato. Se não houver mudança segura e justificável, devolva os horários atuais.
+- warnings deve explicitar qualquer informação ausente ou ponto que precise de confirmação profissional.
+- Português do Brasil, linguagem simples.`;
 
 /** Sugere novos horários para os lembretes, respeitando jejum e intervalos. */
 export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promise<ScheduleAdvice> => {

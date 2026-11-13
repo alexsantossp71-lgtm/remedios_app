@@ -71,7 +71,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
                     Análise de interações
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    A análise é informativa e não substitui a orientação de um profissional de saúde.
+                    Análise preliminar por IA — não é uma verificação farmacêutica definitiva. A ausência de alertas não garante que não existam interações.
                 </p>
 
                 {status === 'nokey' && (
@@ -117,7 +117,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
 
                         {noCombinations && (
                             <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20 p-3 text-sm text-green-800 dark:text-green-300">
-                                Nenhuma duplicidade ou interação relevante foi identificada nesta lista.
+                                A IA não identificou alertas nesta lista. Isso não comprova que a combinação seja segura nem exclui interações. Confirme a lista completa com um farmacêutico ou médico.
                             </div>
                         )}
 
@@ -176,8 +176,16 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
                         )}
 
                         <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 border-t border-brand-gray-200 dark:border-brand-gray-600 pt-3">
-                            Análise educativa gerada por IA a partir dos nomes cadastrados — não substitui a avaliação de um
-                            médico ou farmacêutico. Não altere seu tratamento sem orientação profissional.
+                            Análise preliminar gerada por IA a partir dos nomes cadastrados. Pode haver omissões ou confusão entre medicamentos de nomes semelhantes. Não altere, suspenda ou ajuste doses por causa deste resultado; confirme com médico ou farmacêutico.
+                        </p>
+                        <div className="text-xs text-brand-gray-500 dark:text-brand-gray-400">
+                            <strong>Fontes e data de referência:</strong>
+                            {report.sources.length ? (
+                                <ul className="mt-1 list-disc pl-4">{report.sources.map((source, index) => <li key={`${source.name}-${index}`}>{source.name}{source.date ? ` — ${source.date}` : ' — data não informada'} <span className="italic">(informação declarada pela IA; não verificada independentemente)</span></li>)}</ul>
+                            ) : <p className="mt-1">Nenhuma fonte clínica ou data de referência foi identificada nesta resposta. Não trate o resultado como confirmação farmacêutica.</p>}
+                        </div>
+                        <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 border-t border-brand-gray-200 dark:border-brand-gray-600 pt-3">
+                            Não altere seu tratamento sem orientação profissional.
                         </p>
                     </div>
                 )}
