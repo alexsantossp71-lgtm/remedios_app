@@ -3,9 +3,29 @@ import { describe, it, expect } from 'vitest';
 import {
     AiError,
     extractJson,
+    extractChatContent,
     sanitizeInteractionReport,
     sanitizeMedicationGuide,
 } from './nvidiaService';
+
+describe('extractChatContent', () => {
+    it('aceita conteúdo textual simples', () => {
+        expect(extractChatContent('Resposta da IA')).toBe('Resposta da IA');
+    });
+
+    it('concatena partes textuais do formato multimodal OpenAI', () => {
+        expect(extractChatContent([
+            { type: 'text', text: '{"summary":' },
+            { type: 'text', text: '"ok"}' },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+        ])).toBe('{"summary":"ok"}');
+    });
+
+    it('ignora partes sem texto e formatos inesperados', () => {
+        expect(extractChatContent([{ type: 'image_url' }, null, 42])).toBe('');
+        expect(extractChatContent(null)).toBe('');
+    });
+});
 
 describe('extractJson', () => {
     it('extrai JSON puro', () => {
