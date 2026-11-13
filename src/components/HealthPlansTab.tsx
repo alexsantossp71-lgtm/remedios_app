@@ -65,7 +65,7 @@ const PlanCard: React.FC<{ plan: HealthPlan; onEdit: () => void; onDelete: () =>
     };
 
     return (
-        <div className="relative rounded-lg border-l-4 border-brand-blue bg-brand-gray-100 dark:bg-brand-gray-700 p-4 shadow-sm">
+        <div className="app-record-card relative rounded-xl border-l-4 border-brand-blue bg-brand-gray-100 dark:bg-brand-gray-700 p-4 shadow-sm">
             <div className="flex items-start space-x-3">
                 <div className="flex-shrink-0 w-11 h-11 rounded-lg bg-brand-blue text-white flex items-center justify-center">
                     <IdCardIcon className="w-6 h-6" />
