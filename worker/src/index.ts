@@ -95,14 +95,6 @@ export default {
             return jsonResponse(403, { error: { message: 'Origem não autorizada para usar este proxy.' } }, '');
         }
 
-        if (!(env.NVIDIA_API_KEY ?? '').trim()) {
-            return jsonResponse(
-                500,
-                { error: { message: 'Proxy sem chave da NVIDIA configurada: rode `wrangler secret put NVIDIA_API_KEY`.' } },
-                allowedOrigin
-            );
-        }
-
         // Falha fechada: sem segredo no servidor, o proxy não atende chamadas.
         const configuredToken = (env.PROXY_TOKEN ?? '').trim();
         if (!configuredToken) {
@@ -111,6 +103,14 @@ export default {
         const token = (request.headers.get('x-proxy-token') ?? '').trim();
         if (!constantTimeEquals(token, configuredToken)) {
             return jsonResponse(401, { error: { message: 'Token do proxy inválido ou ausente.' } }, allowedOrigin);
+        }
+
+        if (!(env.NVIDIA_API_KEY ?? '').trim()) {
+            return jsonResponse(
+                500,
+                { error: { message: 'Proxy sem chave da NVIDIA configurada: rode `wrangler secret put NVIDIA_API_KEY`.' } },
+                allowedOrigin
+            );
         }
 
         const verdict = limitsFor(env).hit(clientIp(request), Date.now());
