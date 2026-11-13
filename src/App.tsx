@@ -36,7 +36,7 @@ import ScheduleAdvisorModal from './components/ScheduleAdvisorModal';
 import LabFormModal from './components/LabFormModal';
 import LabResultsTab from './components/LabResultsTab';
 import type { ReminderDraft } from './utils/prescription';
-import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon, FileTextIcon, CalendarIcon, ChartIcon, SparklesIcon } from './constants';
+import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon, FileTextIcon, CalendarIcon, ChartIcon, SparklesIcon, ClockIcon } from './constants';
 
 type MainTab = 'home' | 'meds' | 'schedule' | 'health';
 type HealthTab = 'appointments' | 'doctors' | 'plans' | 'exams' | 'labs';
@@ -613,7 +613,7 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
         total + Object.values(reminder.history[todayKey] ?? {}).filter(status => status === ReminderStatus.TAKEN).length
     ), 0);
     const upcomingAppointments = appointments.filter(appointment => (
-        parseLocalDateTime(appointment.dateTime)?.getTime() >= Date.now()
+        (parseLocalDateTime(appointment.dateTime)?.getTime() ?? 0) >= Date.now()
     )).length;
     const todayLabel = today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
