@@ -46,8 +46,9 @@ curl https://remedios-ai-proxy.<sua-conta>.workers.dev/health
 VITE_DEFAULT_PROXY_URL=https://remedios-ai-proxy.<sua-conta>.workers.dev
 ```
 
-Com `VITE_DEFAULT_PROXY_URL` definido, qualquer pessoa já usa a IA sem
-configurar nada — quem quiser a própria chave continua podendo informá-la.
+Com `VITE_DEFAULT_PROXY_URL` definido, a URL já vem preenchida; cada usuário
+autorizado ainda precisa informar o token em Configurações. Quem quiser usar
+sua própria chave NVIDIA pode informá-la em vez do proxy.
 
 No GitHub Actions a variável já está ligada ao build: basta criar
 `VITE_DEFAULT_PROXY_URL` em **Settings → Secrets and variables → Actions →
