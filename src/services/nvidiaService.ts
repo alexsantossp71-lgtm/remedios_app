@@ -222,14 +222,6 @@ export interface ModelDiagnosticProgress {
     model: string;
 }
 
-const DIAGNOSTIC_MODELS = [
-    'nvidia/nemotron-3.5-lightning-30b-a3b',
-    'z-ai/glm-5.3-flash',
-    'meta/muse-glimmer-30b',
-    'stepfun-ai/step-5-preview',
-    'nvidia/nemotron-3.5-super-vl-120b-a12b',
-];
-
 const DIAGNOSTIC_INTERACTIONS_PROMPT = `Você está sendo avaliado em uma tarefa educativa de identificação de interação medicamentosa. Use somente conhecimento geral; não alegue ter consultado fontes externas.
 Caso fictício de teste: varfarina e ibuprofeno.
 Responda em português do Brasil e APENAS JSON válido:
@@ -246,22 +238,28 @@ Não crie nem remova medicamentos ou doses. Preserve os IDs e todos os horários
 const DIAGNOSTIC_TIMEOUT_MS = 30_000;
 const DIAGNOSTIC_MAX_TOKENS = 1_500;
 
-async function diagnosticRequest(proxy: string, model: string, prompt: string, provider: 'NVIDIA' | 'Pollinations.ai' = 'NVIDIA'): Promise<{ content: string; durationMs: number }> {
+async function diagnosticRequest(
+    proxy: string,
+    model: string,
+    prompt: string,
+    task: 'interactions' | 'schedule',
+    provider: 'NVIDIA' | 'Pollinations.ai' = 'NVIDIA'
+): Promise<{ content: string; durationMs: number }> {
     const controller = new AbortController();
     const started = performance.now();
     const timeout = window.setTimeout(() => controller.abort(), DIAGNOSTIC_TIMEOUT_MS);
     try {
-        const endpoint = provider === 'Pollinations.ai' ? `${proxy}/pollinations/chat/completions` : `${proxy}/chat/completions`;
+        const isPollinations = provider === 'Pollinations.ai';
+        const endpoint = isPollinations
+            ? `${proxy}/pollinations/chat/completions`
+            : `${proxy}/diagnostics/chat/completions`;
+        const body = isPollinations
+            ? { model, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: DIAGNOSTIC_MAX_TOKENS, stream: false }
+            : { model, task };
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: proxyHeaders(),
-            body: JSON.stringify({
-                model,
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0,
-                max_tokens: DIAGNOSTIC_MAX_TOKENS,
-                stream: false,
-            }),
+            body: JSON.stringify(body),
             signal: controller.signal,
         });
         if (!response.ok) {
@@ -336,24 +334,25 @@ export async function runAiModelDiagnostics(
     const proxy = effectiveProxyUrl(readAiSettings());
     if (!proxy) throw new AiError(NO_CREDENTIALS_MESSAGE);
 
-    let models = DIAGNOSTIC_MODELS;
+    // Usa o catálogo real devolvido pela NVIDIA para esta chave, sem a lista
+    // estática do app. Modelos sem suporte a chat também são registrados como falha.
     const catalogController = new AbortController();
-    const catalogTimeout = window.setTimeout(() => catalogController.abort(), 8_000);
+    const catalogTimeout = window.setTimeout(() => catalogController.abort(), 15_000);
+    let models: string[] = [];
     try {
         const response = await fetch(`${proxy}/models`, {
             headers: proxyHeaders(),
             signal: catalogController.signal,
         });
-        if (response.ok) {
-            const catalog = await response.json() as { data?: Array<{ id?: unknown }> };
-            const available = new Set((catalog.data ?? [])
-                .map((item) => typeof item.id === 'string' ? item.id : '')
-                .filter(Boolean));
-            const matching = DIAGNOSTIC_MODELS.filter((model) => available.has(model));
-            if (matching.length) models = matching;
-        }
-    } catch {
-        // O diagnóstico tenta a lista permitida mesmo se o catálogo estiver indisponível.
+        if (!response.ok) throw new AiError(await describeHttpError(response));
+        const catalog = await response.json() as { data?: Array<{ id?: unknown }> };
+        models = [...new Set((catalog.data ?? [])
+            .map((item) => typeof item.id === 'string' ? item.id.trim() : '')
+            .filter(Boolean))].sort((left, right) => left.localeCompare(right));
+        if (!models.length) throw new AiError('A NVIDIA não retornou modelos no catálogo desta chave.');
+    } catch (error) {
+        if (catalogController.signal.aborted) throw new AiError('Tempo limite ao consultar o catálogo NVIDIA (15 segundos).');
+        throw error instanceof Error ? error : new AiError('Não foi possível consultar o catálogo NVIDIA.');
     } finally {
         window.clearTimeout(catalogTimeout);
     }
@@ -399,7 +398,7 @@ export async function runAiModelDiagnostics(
             (async (): Promise<ModelDiagnosticTask> => {
                 const taskStarted = performance.now();
                 try {
-                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_INTERACTIONS_PROMPT);
+                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_INTERACTIONS_PROMPT, 'interactions');
                     return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticInteractions(response.content) };
                 } catch (error) {
                     return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
@@ -408,7 +407,7 @@ export async function runAiModelDiagnostics(
             (async (): Promise<ModelDiagnosticTask> => {
                 const taskStarted = performance.now();
                 try {
-                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_SCHEDULE_PROMPT);
+                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_SCHEDULE_PROMPT, 'schedule');
                     return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticSchedule(response.content) };
                 } catch (error) {
                     return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
@@ -441,7 +440,7 @@ export async function runAiModelDiagnostics(
                 (async (): Promise<ModelDiagnosticTask> => {
                     const taskStarted = performance.now();
                     try {
-                        const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_INTERACTIONS_PROMPT, 'Pollinations.ai');
+                        const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_INTERACTIONS_PROMPT, 'interactions', 'Pollinations.ai');
                         return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticInteractions(response.content) };
                     } catch (error) {
                         return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
@@ -450,7 +449,7 @@ export async function runAiModelDiagnostics(
                 (async (): Promise<ModelDiagnosticTask> => {
                     const taskStarted = performance.now();
                     try {
-                        const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_SCHEDULE_PROMPT, 'Pollinations.ai');
+                        const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_SCHEDULE_PROMPT, 'schedule', 'Pollinations.ai');
                         return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticSchedule(response.content) };
                     } catch (error) {
                         return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
