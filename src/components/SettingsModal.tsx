@@ -17,6 +17,7 @@ import {
 
 interface Props {
     onClose: () => void;
+    onLock: () => void;
 }
 
 const PERMISSION_LABELS: Record<NotificationSupport, string> = {
@@ -27,7 +28,7 @@ const PERMISSION_LABELS: Record<NotificationSupport, string> = {
 };
 
 /** Configurações visíveis ao usuário: notificações e backup dos dados. */
-const SettingsModal: React.FC<Props> = ({ onClose }) => {
+const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
     const [permission, setPermission] = useState<NotificationSupport>(() => notificationStatus());
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -162,10 +163,18 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
             </FormSection>
 
             <FormSection title="Privacidade e segurança">
-                <p className={helperClass}>
-                    O backup protegido usa criptografia AES-GCM e uma chave derivada da sua senha. A senha não é enviada nem salva pelo aplicativo.
-                    Esta proteção se aplica ao arquivo exportado; os dados de uso diário continuam no armazenamento deste navegador.
-                </p>
+                <div className={helperClass}>
+                    <p>Medicamentos, horários, histórico de doses, médicos, consultas, carteirinha, exames, fotos e laudos ficam criptografados neste dispositivo. O aplicativo não mantém uma conta nem sincroniza esses registros com um servidor próprio.</p>
+                    <p className="mt-2">Quando você escolhe usar recursos de leitura ou análise inteligente, o conteúdo necessário para aquela função — que pode incluir texto, fotos ou dados de medicamentos — é enviado a um serviço externo para processamento. Não use esses recursos se não concordar com esse envio.</p>
+                    <p className="mt-2">Os backups são arquivos baixados por você e protegidos por uma senha própria. Guarde a senha do aplicativo e a do backup em local seguro. Se perder a senha do aplicativo, não será possível recuperar o cofre sem um backup válido.</p>
+                    <p className="mt-2">A exclusão dos dados do navegador, a limpeza do perfil ou a perda do dispositivo pode apagar os registros locais. Exporte backups protegidos regularmente.</p>
+                </div>
+            </FormSection>
+            <FormSection title="Bloqueio do aplicativo">
+                <p className={helperClass}>Bloqueie a tela quando deixar o dispositivo. Será necessário digitar sua senha novamente para acessar os registros.</p>
+                <button type="button" onClick={onLock} className="w-full rounded-lg border border-brand-blue px-4 py-2 font-semibold text-brand-blue hover:bg-blue-50 dark:hover:bg-brand-gray-700">
+                    Bloquear aplicativo agora
+                </button>
             </FormSection>
         </FormModalShell>
     );
