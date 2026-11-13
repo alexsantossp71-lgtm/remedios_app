@@ -13,7 +13,6 @@
 import {
     MAX_BODY_BYTES,
     UPSTREAM_BASE,
-    constantTimeEquals,
     isModelAllowed,
     isOriginAllowed,
     parseConfig,
@@ -24,7 +23,7 @@ import { RateLimits, clientIp } from './limiter';
 export interface WorkerEnv {
     [key: string]: string | undefined;
     NVIDIA_API_KEY?: string;
-        ALLOWED_ORIGINS?: string;
+    ALLOWED_ORIGINS?: string;
     ALLOWED_MODELS?: string;
     RATE_LIMIT_WINDOW_MS?: string;
     RATE_LIMIT_MAX?: string;
