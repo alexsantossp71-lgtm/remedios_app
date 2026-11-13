@@ -9,7 +9,7 @@ import {
     isEncryptedBackup,
     parseBackup,
 } from '../services/backup';
-import { createSecureVault, flushSecureWrites, inspectSecureStorage } from '../services/secureStorage';
+import { createSecureVault, disableSecureVault, flushSecureWrites, inspectSecureStorage } from '../services/secureStorage';
 import { notificationStatus, NotificationSupport, requestNotificationPermission } from '../utils/notify';
 import {
     FormModalShell,
@@ -180,7 +180,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
                     <p className="mt-2">Quando você escolhe usar recursos de leitura ou análise inteligente, o conteúdo necessário para aquela função — que pode incluir texto, fotos ou dados de medicamentos — é enviado a um serviço externo para processamento. Não use esses recursos se não concordar com esse envio.</p>
                     <p className="mt-2">O backup pode ser exportado sem criptografia ou protegido por uma senha própria. Arquivos sem criptografia podem ser lidos por qualquer pessoa que tenha acesso a eles. Se ativar a senha do aplicativo, guarde-a: não há recuperação automática.</p>
                     <p className="mt-2">A proteção reduz o risco de leitura direta do armazenamento, mas não protege contra um dispositivo comprometido, extensões maliciosas ou acesso enquanto o aplicativo está desbloqueado. Bloqueie a tela ao se afastar.</p>
-                    <p className="mt-2">A exclusão dos dados do navegador, a limpeza do perfil ou a perda do dispositivo pode apagar os registros locais. Exporte backups protegidos regularmente.</p>
+                    <p className="mt-2">A exclusão dos dados do navegador, a limpeza do perfil ou a perda do dispositivo pode apagar os registros locais. Faça backups regularmente e, se possível, proteja o arquivo com senha.</p>
                 </div>
             </FormSection>
             <FormSection title="Senha e bloqueio">
@@ -190,6 +190,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
                 </> : <>
                     <p className={helperClass}>A proteção por senha está ativa. Será necessário desbloquear o aplicativo ao abrir novamente.</p>
                     <button type="button" onClick={onLock} className="w-full rounded-lg border border-brand-blue px-4 py-2 font-semibold text-brand-blue hover:bg-blue-50 dark:hover:bg-brand-gray-700">Bloquear aplicativo agora</button>
+                    <button type="button" onClick={async () => { const confirmed = window.confirm('Desativar a senha? Seus dados continuarão neste dispositivo, mas deixarão de ser criptografados.'); if (!confirmed) return; try { await disableSecureVault(); window.location.reload(); } catch (error) { setBackupMessage({ ok: false, text: error instanceof Error ? error.message : 'Não foi possível desativar a proteção.' }); } }} className="w-full rounded-lg border border-brand-gray-400 px-4 py-2 text-sm font-semibold text-brand-gray-700 dark:text-brand-gray-200 hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700">Desativar senha e manter acesso livre</button>
                 </>}
             </FormSection>
         </FormModalShell>
