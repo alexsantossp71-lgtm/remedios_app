@@ -18,6 +18,7 @@ const lab: LabResult = {
         flag: 'normal',
     }],
     notes: 'Resultado de exemplo',
+    photo: 'data:image/jpeg;base64,laudo-foto-exemplo',
     createdAt: '2026-11-10T10:00:00.000Z',
 };
 
@@ -36,12 +37,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('backup de laudos laboratoriais', () => {
-    it('inclui os laudos laboratoriais na exportação', () => {
+    it('inclui os laudos laboratoriais completos, inclusive foto e valores, na exportação', () => {
         store.set(STORAGE_KEYS.labs, JSON.stringify([lab]));
         expect(buildBackup().data.labs).toEqual([lab]);
     });
 
-    it('valida e restaura os laudos na importação', () => {
+    it('valida e restaura os laudos completos, inclusive foto e valores, na importação', () => {
         const file = {
             app: 'remedio-na-hora',
             version: 1,
