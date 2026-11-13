@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '../storage';
-import { applyBackup, buildBackup, parseBackup } from './backup';
+import { applyBackup, buildBackup, decryptBackup, encryptBackup, parseBackup } from './backup';
 import type { LabResult } from '../types';
 
 const lab: LabResult = {
@@ -81,5 +81,26 @@ describe('backup de laudos laboratoriais', () => {
         };
         expect(parseBackup(JSON.stringify(invalid)).ok).toBe(false);
         expect(store.has(STORAGE_KEYS.reminders)).toBe(false);
+    });
+});
+
+
+describe('backup protegido por senha', () => {
+    it('criptografa e abre o backup com a senha correta', async () => {
+        store.set(STORAGE_KEYS.reminders, JSON.stringify([]));
+        const encrypted = await encryptBackup('senha-segura-123');
+        expect(encrypted).not.toContain('"data"');
+        const plaintext = await decryptBackup(encrypted, 'senha-segura-123');
+        const parsed = parseBackup(plaintext);
+        expect(parsed.ok).toBe(true);
+    });
+
+    it('recusa senha incorreta sem revelar o conteúdo', async () => {
+        const encrypted = await encryptBackup('senha-segura-123');
+        await expect(decryptBackup(encrypted, 'senha-errada')).rejects.toThrow('Confira a senha');
+    });
+
+    it('exige senha mínima para exportar', async () => {
+        await expect(encryptBackup('123')).rejects.toThrow('pelo menos 8 caracteres');
     });
 });
