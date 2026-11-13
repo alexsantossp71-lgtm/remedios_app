@@ -21,11 +21,13 @@ export function normalizeProxyUrl(raw: string): string {
     return /\/v1$/i.test(value) ? value : value + '/v1';
 }
 
-export function effectiveProxyUrl(_settings?: Pick<AiSettings, 'proxyUrl'>): string {
+export function effectiveProxyUrl(settings?: Pick<AiSettings, 'proxyUrl'>): string {
+    void settings;
     return normalizeProxyUrl(DEFAULT_PROXY_URL);
 }
 
-export function hasAiAccess(_settings?: Pick<AiSettings, 'proxyUrl' | 'nvidiaApiKey'>): boolean {
+export function hasAiAccess(settings?: Pick<AiSettings, 'proxyUrl' | 'nvidiaApiKey'>): boolean {
+    void settings;
     return Boolean(effectiveProxyUrl());
 }
 
@@ -42,7 +44,8 @@ export function readAiSettings(): AiSettings {
 }
 
 // Compatibilidade com chamadas antigas; nenhum segredo é persistido no navegador.
-export function saveAiSettings(_next: AiSettings): void {
+export function saveAiSettings(next: AiSettings): void {
+    void next;
     window.dispatchEvent(new Event(EVENT_NAME));
 }
 
