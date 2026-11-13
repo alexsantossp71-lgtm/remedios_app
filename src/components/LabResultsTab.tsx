@@ -75,7 +75,7 @@ const LabResultsTab: React.FC<Props> = ({ labs, onDelete, onNew }) => {
             {sorted.map((lab) => {
                 const isOpen = expanded === lab.id;
                 return (
-                    <div key={lab.id} className="relative rounded-lg border-l-4 border-brand-blue bg-brand-gray-100 dark:bg-brand-gray-700 p-4 shadow-sm">
+                    <div key={lab.id} className="app-record-card relative rounded-xl border-l-4 border-brand-blue bg-brand-gray-100 dark:bg-brand-gray-700 p-4 shadow-sm">
                         <div className="flex items-start space-x-3">
                             {lab.photo ? (
                                 <button
