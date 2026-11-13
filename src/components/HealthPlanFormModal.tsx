@@ -22,8 +22,6 @@ interface Props {
     onSave: (plan: Omit<HealthPlan, 'id'>) => void;
     /** Plano em edição; `null`/ausente = novo cadastro. */
     editing?: HealthPlan | null;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
 }
 
 type Errors = Partial<Record<'operator' | 'planName' | 'cardNumber' | 'phone', string>>;
@@ -32,7 +30,7 @@ type ScanStatus = 'idle' | 'scanning' | 'success' | 'error';
 const SCAN_ERROR_MESSAGE =
     'Não foi possível ler a carteirinha automaticamente. Preencha os campos manualmente ou tente outra foto com melhor luz e enquadramento.';
 
-const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpenSettings }) => {
+const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
     const [operator, setOperator] = useState(editing?.operator ?? '');
@@ -44,7 +42,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpen
     const [coverage, setCoverage] = useState(editing?.coverage ?? '');
     const [errors, setErrors] = useState<Errors>({});
 
-    // Scanner de carteirinha (foto -> OCR via modelo de visão da NVIDIA -> preenche os campos)
+    // Leitura automática da carteirinha para preencher os dados do plano.
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [photo, setPhoto] = useState<string | null>(null);
     const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
@@ -201,7 +199,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpen
                     </div>
                 )}
                 <p className={helperClass}>
-                    A foto é enviada à API da NVIDIA (modelo de visão definido nas Configurações) apenas para ler os dados da carteirinha. A chave fica salva somente neste dispositivo.
+                    A foto é usada para identificar os dados da carteirinha e preencher o cadastro. Confira as informações antes de salvar.
                 </p>
                 </>
                 ) : (
@@ -210,13 +208,6 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpen
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
                             Escanear com a câmera e preencher os campos automaticamente com IA.
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => onOpenSettings?.()}
-                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
-                        >
-                            Configurar IA (proxy ou chave)
-                        </button>
                     </div>
                 )}
             </FormSection>

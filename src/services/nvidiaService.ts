@@ -13,8 +13,7 @@ import {
     type ScheduleAdvisorMed,
 } from '../utils/scheduleAdvisor';
 
-// Cliente interno de IA: o navegador chama somente o Worker do sistema.
-// A credencial NVIDIA permanece exclusivamente no ambiente do servidor.
+// Cliente interno: o navegador acessa somente o serviço central do sistema.
 
 const REQUEST_TIMEOUT_MS = 60_000;
 
@@ -39,12 +38,11 @@ interface ChatChoice {
     message?: { content?: unknown };
 }
 
-/** Mensagem quando não há proxy nem chave configurados. O App reconhece a
- * aviso amigável quando o serviço estiver indisponível. */
+/** Mensagem amigável quando o serviço interno estiver indisponível. */
 const NO_CREDENTIALS_MESSAGE =
     'O serviço de inteligência artificial está temporariamente indisponível. Tente novamente em alguns instantes.';
 
-/** Cabeçalhos do serviço interno; nenhuma credencial é enviada pelo navegador. */
+/** Cabeçalhos da comunicação com o serviço interno. */
 const proxyHeaders = (): Record<string, string> => ({
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -52,7 +50,7 @@ const proxyHeaders = (): Record<string, string> => ({
 
 /**
  * Chamada única de chat completions; devolve o texto da primeira resposta.
- * O endpoint e a credencial de upstream são gerenciados pelo servidor.
+ * O endereço e as credenciais são gerenciados internamente.
  */
 async function chatCompletion(
     messages: ChatMessage[],
@@ -65,7 +63,7 @@ async function chatCompletion(
         throw new AiError(NO_CREDENTIALS_MESSAGE);
     }
 
-    const attempt = async (url: string, headers: Record<string, string>, viaProxy: boolean): Promise<string> => {
+    const attempt = async (url: string, headers: Record<string, string>): Promise<string> => {
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -85,16 +83,14 @@ async function chatCompletion(
             });
         } catch {
             throw new AiError(
-                viaProxy
-                    ? 'Não foi possível conectar ao proxy de IA. Verifique sua conexão com a internet e tente novamente.'
-                    : 'Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.'
+                'Não foi possível conectar ao serviço. Verifique sua conexão com a internet e tente novamente.'
             );
         } finally {
             window.clearTimeout(timeout);
         }
 
         if (!response.ok) {
-            const error = new AiError(await describeHttpError(response, viaProxy));
+            const error = new AiError(await describeHttpError(response));
             error.status = response.status;
             throw error;
         }
@@ -108,37 +104,27 @@ async function chatCompletion(
                 .join('');
             if (text.trim()) return text;
         }
-        throw new AiError('A API da NVIDIA respondeu em um formato inesperado. Tente novamente.');
+        throw new AiError('Não foi possível concluir a leitura. Tente novamente.');
     };
 
-    return attempt(`${proxy}/chat/completions`, proxyHeaders(), true);
+    return attempt(`${proxy}/chat/completions`, proxyHeaders());
 }
 
 /** Traduz erros HTTP da API/proxy para mensagens claras em português. */
-async function describeHttpError(response: Response, viaProxy = false): Promise<string> {
-    let detail = '';
-    try {
-        const body = await response.json();
-        if (typeof body?.detail === 'string') detail = body.detail;
-        else if (typeof body?.error?.message === 'string') detail = body.error.message;
-    } catch {
-        // corpo sem JSON: segue sem detalhe
-    }
+async function describeHttpError(response: Response): Promise<string> {
     if (response.status === 401 || response.status === 403) {
-        return viaProxy
-            ? 'O serviço de IA recusou o pedido. Verifique a configuração interna do Worker.'
-            : 'Chave da API NVIDIA inválida ou sem permissão. Gere uma chave nova em build.nvidia.com ("Get API Key") e confirme nas Configurações.';
+        return 'Não foi possível processar sua solicitação no momento. Tente novamente mais tarde.';
     }
     if (response.status === 404) {
-        return `Modelo não disponível para sua conta. Verifique o nome do modelo nas Configurações. ${detail}`.trim();
+        return 'Este recurso está temporariamente indisponível. Tente novamente mais tarde.';
     }
     if (response.status === 413) {
-        return 'A foto/texto é grande demais para o proxy. Tente uma imagem menor.';
+        return 'A foto ou o texto é muito grande. Escolha uma imagem menor ou reduza o texto.';
     }
     if (response.status === 429) {
-        return 'Limite de uso atingido (rate limit do proxy ou da API NVIDIA). Aguarde alguns instantes e tente novamente.';
+        return 'Muitas solicitações foram feitas em pouco tempo. Aguarde alguns instantes e tente novamente.';
     }
-    return `A API da NVIDIA respondeu com erro ${response.status}. ${detail}`.trim();
+    return 'Ocorreu um problema ao processar sua solicitação. Tente novamente em alguns instantes.';
 }
 
 /** Extrai o primeiro objeto JSON da resposta do modelo (tolerante a blocos de código). */
@@ -184,7 +170,7 @@ Regras:
 - Qualquer campo ilegível, ausente ou incompleto deve ser string vazia. Não invente dados.
 - Se a imagem não for uma carteirinha de plano de saúde, responda apenas {"error":"not_a_card"}.`;
 
-/** Envia a foto da carteirinha ao modelo de visão da NVIDIA e devolve os campos reconhecidos. */
+/** Lê a foto da carteirinha e devolve os campos reconhecidos. */
 export const scanHealthCard = async (
     imageBase64: string,
     mimeType: string
@@ -245,7 +231,7 @@ Regras:
 - Qualquer campo ilegível, ausente ou incompleto deve ser string vazia. Não invente dados.
 - Se a imagem não for um pedido de exame, responda apenas {"error":"not_a_request"}.`;
 
-/** Envia a foto do pedido de exame ao modelo de visão da NVIDIA e devolve os campos reconhecidos. */
+/** Lê a foto do pedido de exame e devolve os campos reconhecidos. */
 export const scanExamRequest = async (
     imageBase64: string,
     mimeType: string

@@ -14,8 +14,6 @@ interface Props {
     doctors: Doctor[];
     /** Exame em edição; `null`/ausente = novo cadastro. */
     editing?: Exam | null;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
 }
 
 /** Anexo: máx. 900px e qualidade 0.72 — ~80 KB por foto no localStorage. */
@@ -49,7 +47,7 @@ const dateLabelFor = (status: ExamStatus): string => {
     return 'Data de realização *';
 };
 
-const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onOpenSettings }) => {
+const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
 
@@ -239,7 +237,7 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
                     </div>
                 )}
                 <p className={helperClass}>
-                    A foto fica anexada ao exame neste dispositivo e, se você configurou a chave da NVIDIA, a IA lê o pedido para preencher os campos automaticamente.
+                    A foto fica anexada ao exame neste dispositivo. A leitura automática identifica os dados do pedido para preencher os campos.
                 </p>
                 </>
                 ) : (
@@ -248,13 +246,6 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
                             Escanear o pedido do médico com a câmera e preencher os campos automaticamente com IA.
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => onOpenSettings?.()}
-                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
-                        >
-                            Configurar IA (proxy ou chave)
-                        </button>
                     </div>
                 )}
             </FormSection>

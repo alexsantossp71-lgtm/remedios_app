@@ -11,8 +11,6 @@ interface Props {
     /** Lembrete cujo medicamento será explicado (nome + dosagem + instruções). */
     reminder: Reminder;
     onClose: () => void;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
 }
 
 type Status = 'loading' | 'done' | 'error' | 'nokey';
@@ -29,7 +27,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 );
 
 /** Explicação do medicamento ("bula simplificada") com cache no localStorage. */
-const BulaModal: React.FC<Props> = ({ reminder, onClose, onOpenSettings }) => {
+const BulaModal: React.FC<Props> = ({ reminder, onClose }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
 
@@ -81,7 +79,7 @@ const BulaModal: React.FC<Props> = ({ reminder, onClose, onOpenSettings }) => {
                     Sobre {reminder.medicationName}
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    Explicação simples gerada pela IA da NVIDIA e salva neste dispositivo para não repetir a consulta.
+                    Explicação simples gerada automaticamente e salva neste dispositivo para evitar repetir a consulta.
                 </p>
 
                 {status === 'loading' && (
@@ -98,15 +96,8 @@ const BulaModal: React.FC<Props> = ({ reminder, onClose, onOpenSettings }) => {
                     <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-6 px-3 text-center">
                         <InfoIcon className="w-6 h-6 mx-auto text-brand-gray-400" />
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
-                            A explicação usa a IA configurada neste dispositivo (proxy de IA ou chave da API NVIDIA).
+                            Este recurso está temporariamente indisponível. Tente novamente mais tarde.
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => onOpenSettings?.()}
-                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
-                        >
-                            Configurar IA (proxy ou chave)
-                        </button>
                     </div>
                 )}
 

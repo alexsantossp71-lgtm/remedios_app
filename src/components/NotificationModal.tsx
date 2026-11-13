@@ -11,8 +11,6 @@ interface Props {
     reminder: Reminder;
     time: string;
     onAction: (reminderId: string, time: string, status: ReminderStatus) => void;
-    /** Abre a tela de Configurações (exibida quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
 }
 
 type GuardianState =
@@ -24,8 +22,7 @@ type GuardianState =
 /** Guardião da dose: foto da embalagem conferida com o lembrete disparado. */
 const GuardianCheck: React.FC<{
     reminder: Reminder;
-    onOpenSettings?: () => void;
-}> = ({ reminder, onOpenSettings }) => {
+}> = ({ reminder }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
     const [state, setState] = useState<GuardianState>({ kind: 'hidden' });
@@ -116,13 +113,11 @@ const GuardianCheck: React.FC<{
                 )}
                 {error && <p className="mt-2 text-xs font-medium text-brand-red" role="alert">{error}</p>}
                 <p className="mt-2 text-xs text-brand-gray-500 dark:text-brand-gray-400">
-                    A foto é enviada à NVIDIA apenas para leitura e não é salva no app.
+                    A foto é usada apenas para identificar o medicamento e não é armazenada no app.
                 </p>
                 {!hasApiKey && (
-                    <p className="mt-1 text-center text-xs">
-                        <button type="button" onClick={() => onOpenSettings?.()} className="font-semibold text-brand-blue hover:underline">
-                            A conferência precisa da IA configurada (proxy ou chave) — configurar
-                        </button>
+                    <p className="mt-1 text-center text-xs text-brand-gray-500 dark:text-brand-gray-400">
+                        A conferência automática está temporariamente indisponível.
                     </p>
                 )}
             </div>
@@ -173,7 +168,7 @@ const GuardianCheck: React.FC<{
     );
 };
 
-const NotificationModal: React.FC<Props> = ({ reminder, time, onAction, onOpenSettings }) => {
+const NotificationModal: React.FC<Props> = ({ reminder, time, onAction }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 animate-fade-in">
             <div className="bg-white dark:bg-brand-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 text-center transform transition-all animate-slide-up">
@@ -200,7 +195,7 @@ const NotificationModal: React.FC<Props> = ({ reminder, time, onAction, onOpenSe
                     )}
                 </div>
 
-                <GuardianCheck reminder={reminder} onOpenSettings={onOpenSettings} />
+                <GuardianCheck reminder={reminder} />
                 
                 <div className="flex flex-col space-y-3 mt-3">
                     <button

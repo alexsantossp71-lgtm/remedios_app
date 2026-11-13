@@ -1,7 +1,6 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { AiError, parsePrescriptionText, scanPrescription } from '../services/nvidiaService';
-import { hasAiAccess, useAiSettings } from '../services/settings';
 import { fileToCompressedDataUrl } from '../utils/image';
 import { toDateInputValue } from '../utils/datetime';
 import { describeDraft, draftsFromPrescription, type PrescriptionEntry, type ReminderDraft } from '../utils/prescription';
@@ -12,8 +11,6 @@ interface Props {
     onClose: () => void;
     /** Recebe os lembretes confirmados pelo usuário e fecha o modal no App. */
     onImport: (drafts: ReminderDraft[]) => void;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
 }
 
 const GENERIC_ERROR =
@@ -23,9 +20,7 @@ type Mode = 'photo' | 'text';
 type Status = 'idle' | 'loading' | 'error';
 
 /** Prévia dos medicamentos reconhecidos; o usuário marca quais viram lembretes. */
-const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport, onOpenSettings }) => {
-    const aiSettings = useAiSettings();
-    const hasApiKey = hasAiAccess(aiSettings);
+const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport }) => {
 
     const [mode, setMode] = useState<Mode>('photo');
     const [status, setStatus] = useState<Status>('idle');
@@ -146,23 +141,10 @@ const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport, onOpenSet
                     Importar receita com IA
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
+                    Fotografe ou cole a receita para identificar os medicamentos e revisar os lembretes antes de adicioná-los.
                 </p>
 
-                {!hasApiKey ? (
-                    <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-6 px-3 text-center">
-                        <FileTextIcon className="w-6 h-6 mx-auto text-brand-gray-400" />
-                        <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
-                            Fotografe ou cole a receita do médico e a IA cria os lembretes prontos para revisar.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => onOpenSettings?.()}
-                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
-                        >
-                            Configurar IA (proxy ou chave)
-                        </button>
-                    </div>
-                ) : entries ? (
+                {entries ? (
                     <>
                         <div className="flex items-center justify-between mb-2">
                             <p className="text-sm font-semibold text-green-700 dark:text-green-400" role="status">

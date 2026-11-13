@@ -9,8 +9,6 @@ interface Props {
     /** Lembretes ativos (nome + dosagem) enviados à análise. */
     medications: Array<{ name: string; dosage?: string }>;
     onClose: () => void;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
 }
 
 type Status = 'loading' | 'done' | 'error' | 'nokey';
@@ -24,7 +22,7 @@ const severityChip: Record<InteractionReport['interactions'][number]['severity']
 };
 
 /** Análise educativa de interações/duplicidades; roda sozinha ao abrir. */
-const InteractionsModal: React.FC<Props> = ({ medications, onClose, onOpenSettings }) => {
+const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
 
@@ -73,22 +71,15 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose, onOpenSettin
                     Análise de interações
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    Lista enviada à API da NVIDIA; a resposta é educativa e não substitui um profissional.
+                    A análise é informativa e não substitui a orientação de um profissional de saúde.
                 </p>
 
                 {status === 'nokey' && (
                     <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-6 px-3 text-center">
                         <ShieldIcon className="w-6 h-6 mx-auto text-brand-gray-400" />
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
-                            A análise usa a IA configurada neste dispositivo (proxy de IA ou chave da API NVIDIA).
+                            Este recurso está temporariamente indisponível. Tente novamente mais tarde.
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => onOpenSettings?.()}
-                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
-                        >
-                            Configurar IA (proxy ou chave)
-                        </button>
                     </div>
                 )}
 

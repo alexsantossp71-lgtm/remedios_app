@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan, Exam, LabResult } from './types';
-import { getMedications, AiError } from './services/nvidiaService';
-import { useAiSettings } from './services/settings';
+import { getMedications } from './services/nvidiaService';
 import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray, loadJson, saveJson } from './storage';
 import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/datetime';
@@ -117,9 +116,6 @@ const App: React.FC = () => {
         remindersRef.current = reminders;
     }, [reminders]);
 
-    // Configurações de IA: re-renderiza (e rebusca a lista de medicamentos)
-    // quando a chave/modelos são alterados nas Configurações.
-    const aiSettings = useAiSettings();
 
     useEffect(() => {
         saveJson(STORAGE_KEYS.reminders, reminders);
@@ -152,10 +148,7 @@ const App: React.FC = () => {
                 setMedications(meds);
             } catch (error) {
                 console.error("Failed to fetch medications:", error);
-                const missingKey = error instanceof AiError && error.message.includes('Configure a IA');
-                setMedsError(missingKey
-                    ? "Lista de medicamentos offline em uso. Para a lista completa, configure a IA no botão \"Ajustes\" no topo (proxy ou chave da API NVIDIA)."
-                    : "Lista online indisponível — usando lista offline de medicamentos comuns.");
+                setMedsError("Lista online indisponível — usando lista offline de medicamentos comuns.");
                 setMedications(FALLBACK_MEDICATIONS);
             } finally {
                 setIsLoadingMeds(false);
@@ -163,7 +156,7 @@ const App: React.FC = () => {
         };
 
         fetchMedications();
-    }, [aiSettings.nvidiaApiKey, aiSettings.proxyUrl, aiSettings.textModel]);
+    }, []);
     
     const getNextAlarm = useCallback((): {
         nextAlarmTime: Date | null;
@@ -612,8 +605,8 @@ const App: React.FC = () => {
                     <button
                         onClick={() => setSettingsOpen(true)}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-brand-gray-500 dark:text-brand-gray-300 hover:text-brand-blue hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
-                        aria-label="Configurações (IA, notificações e backup)"
-                        title="Configurações (IA, notificações e backup)"
+                        aria-label="Configurações"
+                        title="Configurações"
                     >
                         <GearIcon className="w-5 h-5" />
                         Ajustes
@@ -647,7 +640,7 @@ const App: React.FC = () => {
                                 onClick={() => setPrescriptionOpen(true)}
                                 className="flex items-center border border-brand-blue text-brand-blue font-semibold px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-200"
                                 aria-label="Importar receita com IA"
-                                title="Importar receita com IA (foto ou texto)"
+                                title="Importar receita por foto ou texto"
                             >
                                 <FileTextIcon className="w-5 h-5 sm:mr-2" />
                                 <span className="hidden sm:inline">Receita</span>
@@ -786,7 +779,6 @@ const App: React.FC = () => {
                     reminder={notification.reminder}
                     time={notification.time}
                     onAction={handleNotificationAction}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -812,7 +804,6 @@ const App: React.FC = () => {
                     onClose={() => setPlanModal({ open: false, editing: null })}
                     onSave={handleSavePlan}
                     editing={planModal.editing}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -830,7 +821,6 @@ const App: React.FC = () => {
                 <PrescriptionImportModal
                     onClose={() => setPrescriptionOpen(false)}
                     onImport={handleImportPrescription}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -864,7 +854,6 @@ const App: React.FC = () => {
                     reminders={reminders}
                     onApply={handleApplySchedule}
                     onClose={() => setScheduleOpen(false)}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
