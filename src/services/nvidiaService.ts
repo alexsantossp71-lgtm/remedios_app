@@ -877,7 +877,88 @@ export function sanitizeInteractionReport(value: unknown): InteractionReport {
     return { summary: clipText(record.summary, 300), duplicates, interactions, sources };
 }
 
-/** Analisa os lembretes ativos quanto a duplicidades e interações. */
+const POLLINATIONS_INTERACTION_MODELS = [
+    'google/gemini-3.8-flash',
+    'openai/gpt-5.4-nano',
+    'deepseek/deepseek-v4-flash',
+    'qwen/qwen3.8-27b',
+];
+
+/** Seleciona no máximo dois modelos Pollinations realmente anunciados no catálogo. */
+export function selectAvailablePollinationsModels(availableIds: string[]): string[] {
+    const available = new Set(availableIds);
+    return POLLINATIONS_INTERACTION_MODELS.filter((model) => available.has(model)).slice(0, 2);
+}
+
+/** Tenta Pollinations primeiro. A chave permanece exclusivamente no Cloudflare Worker. */
+async function pollinationsChatCompletion(
+    messages: ChatMessage[],
+    options: { maxTokens: number; temperature: number; validateResponse: (content: string) => void }
+): Promise<string> {
+    const proxy = effectiveProxyUrl(readAiSettings());
+    if (!proxy) throw new AiError(NO_CREDENTIALS_MESSAGE);
+
+    const catalogController = new AbortController();
+    const catalogTimeout = window.setTimeout(() => catalogController.abort(), 3_000);
+    let models: string[] = [];
+    try {
+        const response = await fetch(`${proxy}/pollinations/models`, {
+            headers: proxyHeaders(),
+            signal: catalogController.signal,
+        });
+        if (!response.ok) throw new AiError(await describeHttpError(response));
+        const catalog = await response.json().catch(() => null) as { data?: Array<{ id?: unknown }> } | null;
+        const availableIds = Array.isArray(catalog?.data)
+            ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
+            : [];
+        models = selectAvailablePollinationsModels(availableIds);
+        if (!models.length) throw new AiError('O catálogo Pollinations não apresentou nenhum dos modelos compatíveis configurados.');
+    } catch (error) {
+        if (catalogController.signal.aborted) throw new AiError('Tempo limite ao consultar os modelos Pollinations (3 segundos).');
+        throw error instanceof Error ? error : new AiError('Não foi possível consultar os modelos Pollinations.');
+    } finally {
+        window.clearTimeout(catalogTimeout);
+    }
+
+    let lastError: unknown;
+    for (const model of models) {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 7_000);
+        try {
+            const response = await fetch(`${proxy}/pollinations/chat/completions`, {
+                method: 'POST',
+                headers: proxyHeaders(),
+                body: JSON.stringify({
+                    model,
+                    messages,
+                    temperature: options.temperature,
+                    max_tokens: options.maxTokens,
+                    stream: false,
+                }),
+                signal: controller.signal,
+            });
+            if (!response.ok) {
+                const error = new AiError(await describeHttpError(response));
+                error.status = response.status;
+                throw error;
+            }
+            const data = await response.json().catch(() => null) as { choices?: ChatChoice[] } | null;
+            const content = extractChatContent(data?.choices?.[0]?.message?.content);
+            if (!content.trim()) throw new AiError(`O modelo Pollinations ${model} respondeu sem conteúdo textual.`);
+            options.validateResponse(content);
+            return content;
+        } catch (error) {
+            lastError = controller.signal.aborted
+                ? new AiError(`O modelo Pollinations ${model} excedeu o limite de 7 segundos.`)
+                : error;
+        } finally {
+            window.clearTimeout(timeout);
+        }
+    }
+    throw lastError instanceof Error ? lastError : new AiError('Nenhum modelo Pollinations conseguiu concluir a análise.');
+}
+
+/** Analisa os lembretes ativos: Pollinations é principal e NVIDIA é fallback. */
 export const analyzeInteractions = async (
     medications: Array<{ name: string; dosage?: string }>
 ): Promise<InteractionReport> => {
@@ -888,21 +969,39 @@ export const analyzeInteractions = async (
         throw new AiError('Cadastre pelo menos dois lembretes para a análise de interações.');
     }
 
-    const { textModel } = readAiSettings();
-    const content = await chatCompletion(
-        [
-            {
-                role: 'user',
-                content: `${INTERACTIONS_PROMPT}\n\nMedicamentos em uso:\n${list
-                    .map((med, index) => `${index + 1}. ${med.name}${med.dosage ? ` — ${med.dosage}` : ''}`)
-                    .join('\n')}`,
-            },
-        ],
-        textModel,
-        { maxTokens: 1800, temperature: 0.1, validateResponse: (value) => { extractJson(value); }, requestTimeoutMs: 9_000, catalogTimeoutMs: 3_000, maxModels: 2 }
-    );
+    const messages: ChatMessage[] = [{
+        role: 'user',
+        content: `${INTERACTIONS_PROMPT}\n\nMedicamentos em uso:\n${list
+            .map((med, index) => `${index + 1}. ${med.name}${med.dosage ? ` — ${med.dosage}` : ''}`)
+            .join('\n')}`,
+    }];
+    const options = {
+        maxTokens: 1800,
+        temperature: 0.1,
+        validateResponse: (value: string) => { extractJson(value); },
+    };
 
-    return sanitizeInteractionReport(extractJson(content));
+    try {
+        const content = await pollinationsChatCompletion(messages, options);
+        return sanitizeInteractionReport(extractJson(content));
+    } catch (pollinationsError) {
+        const pollinationsMessage = pollinationsError instanceof Error
+            ? pollinationsError.message
+            : 'Falha desconhecida no Pollinations.';
+        try {
+            const { textModel } = readAiSettings();
+            const content = await chatCompletion(messages, textModel, {
+                ...options,
+                requestTimeoutMs: 9_000,
+                catalogTimeoutMs: 3_000,
+                maxModels: 2,
+            });
+            return sanitizeInteractionReport(extractJson(content));
+        } catch (nvidiaError) {
+            const nvidiaMessage = nvidiaError instanceof Error ? nvidiaError.message : 'Falha desconhecida na NVIDIA.';
+            throw new AiError(`Pollinations não respondeu (${pollinationsMessage}). A alternativa NVIDIA também falhou (${nvidiaMessage}).`);
+        }
+    }
 };
 
 // ===== Bula simplificada (modelo de texto) =====
