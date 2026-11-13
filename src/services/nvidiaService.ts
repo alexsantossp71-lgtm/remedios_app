@@ -15,7 +15,7 @@ import {
 
 // Cliente interno: o navegador acessa somente o serviço central do sistema.
 
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 12_000;
 const MODEL_CATALOG_TTL_MS = 5 * 60_000;
 let modelCatalogCache: { proxy: string; expiresAt: number; ids: Set<string> } | null = null;
 
@@ -68,10 +68,8 @@ async function chatCompletion(
     const attempt = async (url: string, headers: Record<string, string>, candidateModel: string): Promise<string> => {
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-        let response: Response;
         try {
-            response = await fetch(url, {
+            const response = await fetch(url, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -83,34 +81,37 @@ async function chatCompletion(
                 }),
                 signal: controller.signal,
             });
-        } catch {
-            throw new AiError(
-                'Não foi possível conectar ao serviço. Verifique sua conexão com a internet e tente novamente.'
-            );
+
+            if (!response.ok) {
+                const error = new AiError(await describeHttpError(response));
+                error.status = response.status;
+                throw error;
+            }
+
+            // O prazo permanece ativo também durante a leitura do corpo da resposta.
+            const data = (await response.json().catch(() => null)) as { choices?: ChatChoice[] } | null;
+            const content = data?.choices?.[0]?.message?.content;
+            const validateContent = (value: string): string => {
+                options?.validateResponse?.(value);
+                return value;
+            };
+            if (typeof content === 'string' && content.trim()) return validateContent(content);
+            if (Array.isArray(content)) {
+                const text = content
+                    .map((part) => (typeof part === 'string' ? part : typeof (part as ChatContentPart)?.text === 'string' ? (part as ChatContentPart).text! : ''))
+                    .join('');
+                if (text.trim()) return validateContent(text);
+            }
+            throw new AiError('O modelo respondeu sem conteúdo válido. Tente novamente.');
+        } catch (error) {
+            if (controller.signal.aborted) {
+                throw new AiError(`O modelo ${candidateModel} demorou mais de ${Math.round(REQUEST_TIMEOUT_MS / 1000)} segundos. Tentando outra opção.`);
+            }
+            if (error instanceof AiError) throw error;
+            throw new AiError('Não foi possível conectar ao serviço de IA. Verifique a conexão e tente novamente.');
         } finally {
             window.clearTimeout(timeout);
         }
-
-        if (!response.ok) {
-            const error = new AiError(await describeHttpError(response));
-            error.status = response.status;
-            throw error;
-        }
-
-        const data = (await response.json().catch(() => null)) as { choices?: ChatChoice[] } | null;
-        const content = data?.choices?.[0]?.message?.content;
-        const validateContent = (value: string): string => {
-            options?.validateResponse?.(value);
-            return value;
-        };
-        if (typeof content === 'string' && content.trim()) return validateContent(content);
-        if (Array.isArray(content)) {
-            const text = content
-                .map((part) => (typeof part === 'string' ? part : typeof (part as ChatContentPart)?.text === 'string' ? (part as ChatContentPart).text! : ''))
-                .join('');
-            if (text.trim()) return validateContent(text);
-        }
-        throw new AiError('Não foi possível concluir a leitura. Tente novamente.');
     };
 
     // Lista curada de modelos com endpoint gratuito anunciado pela NVIDIA.
@@ -164,7 +165,9 @@ async function chatCompletion(
     const candidates = availableIds
         ? ordered.filter((candidate) => availableIds!.has(candidate))
         : ordered;
-    const modelsToTry = candidates.length ? candidates : ordered;
+    // No máximo três modelos por operação: mantém a resposta rápida mesmo quando
+    // um endpoint está lento ou indisponível (até ~36 s de geração, além do catálogo). 
+    const modelsToTry = (candidates.length ? candidates : ordered).slice(0, 3);
     let lastError: unknown;
     for (const candidate of modelsToTry) {
         try {
