@@ -80,8 +80,8 @@ export class DailyCounter {
 }
 
 /**
- * Rate limit combinado do proxy: janela curta por IP + teto diário por IP +
- * teto global diário (proteção da chave NVIDIA contra uso descontrolado).
+ * Rate limit combinado dentro deste isolate: janela curta por IP + teto diário
+ * por IP + teto agregado diário local (não é uma cota global entre isolates).
  */
 export class RateLimits {
     private readonly window: SlidingWindowLimiter;
