@@ -49,8 +49,8 @@ com lembrete de 1 hora ou 1 dia antes das consultas. Os dados ficam salvos no
   apagada). Ao reabrir o app, doses de hoje que passaram do horário sem
   resposta aparecem no modal "Doses atrasadas" com botões Tomei / Pular.
 - **Backup dos dados**: exportação e importação de arquivo JSON nas
-  Configurações (lembretes com histórico, médicos, consultas, planos e
-  exames) — a chave da IA não é incluída. Protege contra limpeza do
+  Configurações (lembretes com histórico, médicos, consultas, planos, exames e
+  laudos laboratoriais e laudos laboratoriais) — a chave e o token da IA não são incluídos. Protege contra limpeza do
   navegador e facilita trocar de aparelho.
 - Modo escuro automático e PWA instalável (service worker + manifest).
 
@@ -77,13 +77,13 @@ Hospede o Worker da pasta [`worker/`](worker/README.md) uma vez e a IA passa a
 funcionar "de fábrica" para todos os usuários do app:
 
 1. `cd worker && npx wrangler secret put NVIDIA_API_KEY` (sua chave `nvapi-`).
-2. Ajuste `ALLOWED_ORIGINS` no `wrangler.toml` com a URL do seu Pages.
-3. `npx wrangler deploy`.
+2. Gere um token longo e aleatório e cadastre-o com `npx wrangler secret put PROXY_TOKEN`.
+3. Ajuste `ALLOWED_ORIGINS` no `wrangler.toml` com a URL do seu Pages.
+4. `npx wrangler deploy`.
 4. No app, cole a URL do Worker em **Ajustes → Proxy de IA** — ou defina
    `VITE_DEFAULT_PROXY_URL` no build para já vir configurado.
 
-A chave fica **no servidor** (secret do Worker); o app só conhece a URL
-pública, protegida por CORS por origem, allowlist de modelos e rate limit.
+A chave NVIDIA e o token ficam **nos secrets do Worker**. Cada dispositivo autorizado deve informar o token em Configurações → Proxy de IA. CORS não é autenticação; o token compartilhado é adequado apenas para acesso privado/familiar, pois pode ser extraído por quem usa o app. Para um serviço público, implemente autenticação individual.
 
 ### Opção B — chave por usuário
 
