@@ -892,11 +892,14 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
 const App: React.FC = () => {
     const [unlocked, setUnlocked] = useState(() => isVaultUnlocked());
     const handleUnlock = () => setUnlocked(true);
-    const handleLock = () => {
-        void flushSecureWrites().finally(() => {
+    const handleLock = async () => {
+        try {
+            await flushSecureWrites();
             lockSecureVault();
             setUnlocked(false);
-        });
+        } catch (error) {
+            window.alert(error instanceof Error ? error.message : 'Não foi possível bloquear com segurança. Tente novamente.');
+        }
     };
     return unlocked
         ? <AppContent onLock={handleLock} />
