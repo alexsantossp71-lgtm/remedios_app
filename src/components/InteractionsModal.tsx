@@ -44,7 +44,6 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
     useEffect(() => {
         if (!hasApiKey) return;
         let cancelled = false;
-        setSlowResponse(false);
         const slowTimer = window.setTimeout(() => setSlowResponse(true), 8_000);
         analyzeInteractions(JSON.parse(medicationPayload) as Array<{ name: string; dosage?: string }>)
             .then((result) => {
@@ -106,6 +105,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
                             type="button"
                             onClick={() => {
                                 setStatus('loading');
+                                setSlowResponse(false);
                                 setError(null);
                                 setAttempt((a) => a + 1);
                             }}
