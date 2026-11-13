@@ -52,3 +52,36 @@ describe('acesso ao proxy', () => {
         expect(await response.json()).toEqual({ ok: true });
     });
 });
+
+
+describe('limite independente do diagnóstico NVIDIA', () => {
+    it('permite testar mais de 30 chamadas sintéticas sem consumir a cota normal', async () => {
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url.endsWith('/models')) {
+                return new Response(JSON.stringify({ data: [{ id: 'meta/llama-3.3-70b-instruct' }] }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+            return new Response(JSON.stringify({ choices: [{ message: { content: 'teste sintético' } }] }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        };
+        try {
+            const responses = await Promise.all(Array.from({ length: 31 }, () => worker.fetch(
+                new Request('https://proxy.example/v1/diagnostics/chat/completions', {
+                    method: 'POST',
+                    headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '198.51.100.77' },
+                    body: JSON.stringify({ model: 'meta/llama-3.3-70b-instruct', task: 'interactions' }),
+                }),
+                baseEnv,
+            )));
+            expect(responses.every((response) => response.status === 200)).toBe(true);
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+});
