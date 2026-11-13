@@ -18,10 +18,13 @@ import {
     parseConfig,
 } from './config';
 import { RateLimits, clientIp } from './limiter';
-import { handlePushRequest, sendDuePushes, type PushEnv } from './push';
+import { handlePushRequest, sendDuePushes, type D1DatabaseLike, type PushEnv } from './push';
 
 /** Variáveis ([vars]) e segredos (`wrangler secret put`) do Worker. */
-export interface WorkerEnv extends PushEnv {
+export interface WorkerEnv {
+    PUSH_DB?: D1DatabaseLike;
+    VAPID_PUBLIC_KEY?: string;
+    VAPID_PRIVATE_KEY?: string;
     NVIDIA_API_KEY?: string;
     ALLOWED_ORIGINS?: string;
     ALLOWED_MODELS?: string;
@@ -100,7 +103,8 @@ export default {
             if (!verdict.allowed) {
                 return jsonResponse(429, { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } }, allowedOrigin, { 'Retry-After': String(verdict.retryAfterSec) });
             }
-            const pushResponse = await handlePushRequest(request, env, allowedOrigin);
+            if (!env.PUSH_DB) return jsonResponse(503, { error: { message: 'Banco de notificações indisponível.' } }, allowedOrigin);
+            const pushResponse = await handlePushRequest(request, env as PushEnv, allowedOrigin);
             if (pushResponse) return pushResponse;
         }
 
@@ -190,6 +194,6 @@ export default {
         );
     },
     async scheduled(_controller: { scheduledTime: number; cron: string }, env: WorkerEnv, context: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
-        context.waitUntil(sendDuePushes(env));
+        context.waitUntil(sendDuePushes(env as PushEnv));
     },
 };
