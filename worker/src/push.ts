@@ -60,7 +60,7 @@ export async function handlePushRequest(request: Request, env: PushEnv, origin: 
     let endpointHost = '';
     try { endpointHost = new URL(endpoint).hostname.toLowerCase(); } catch { /* endpoint inválido */ }
     const trustedPushHost = endpointHost === 'fcm.googleapis.com' ||
-      endpointHost.endsWith('.push.services.mozilla.com') || endpointHost === 'web.push.apple.com' ||
+      (endpointHost === 'push.services.mozilla.com' || endpointHost.endsWith('.push.services.mozilla.com')) || endpointHost === 'web.push.apple.com' ||
       endpointHost.endsWith('.notify.windows.com') || endpointHost.endsWith('.wns.windows.com');
     const p256dh = typeof sub?.keys?.p256dh === 'string' ? sub.keys.p256dh : '';
     const auth = typeof sub?.keys?.auth === 'string' ? sub.keys.auth : '';
