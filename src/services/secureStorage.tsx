@@ -39,6 +39,11 @@ const fromBase64 = (value: string): Uint8Array => {
     const binary = atob(value);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 };
+const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    return copy.buffer;
+};
 
 function openDatabase(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
@@ -76,7 +81,7 @@ async function writeEnvelope(envelope: VaultEnvelope): Promise<void> {
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
     const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt: toArrayBuffer(salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
         material,
         { name: 'AES-GCM', length: 256 },
         false,
@@ -148,7 +153,7 @@ export async function unlockSecureVault(password: string): Promise<void> {
         const salt = fromBase64(envelope.salt);
         const iv = fromBase64(envelope.iv);
         const key = await deriveKey(password, salt);
-        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, fromBase64(envelope.ciphertext));
+        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(fromBase64(envelope.ciphertext)));
         const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext));
         if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Dados inválidos.');
         activeKey = key;
