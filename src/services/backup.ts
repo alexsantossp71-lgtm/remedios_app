@@ -89,6 +89,140 @@ export function buildBackup(): BackupFile {
     return { app: APP_ID, version: FORMAT_VERSION, exportedAt: toDateTimeInputValue(new Date()), data };
 }
 
+
+const ENCRYPTED_FORMAT = 'remedio-na-hora-encrypted-backup';
+const ENCRYPTION_VERSION = 1;
+const PBKDF2_ITERATIONS = 310_000;
+const MIN_PASSWORD_LENGTH = 8;
+
+interface EncryptedBackupFile {
+    app: typeof ENCRYPTED_FORMAT;
+    version: number;
+    algorithm: 'AES-GCM';
+    kdf: 'PBKDF2-SHA-256';
+    iterations: number;
+    salt: string;
+    iv: string;
+    ciphertext: string;
+}
+
+function toBase64(bytes: Uint8Array): string {
+    let binary = '';
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return btoa(binary);
+}
+
+function fromBase64(value: string): Uint8Array {
+    const binary = atob(value);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function deriveBackupKey(password: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
+    const material = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        'PBKDF2',
+        false,
+        ['deriveKey'],
+    );
+    return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
+        material,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt'],
+    );
+}
+
+/** Criptografa o backup com AES-256-GCM e chave derivada da senha via PBKDF2. */
+export async function encryptBackup(password: string): Promise<string> {
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new Error('Use uma senha com pelo menos 8 caracteres.');
+    }
+    if (!globalThis.crypto?.subtle) {
+        throw new Error('Este navegador não oferece suporte à proteção necessária. Acesse pelo site seguro (HTTPS) e tente novamente.');
+    }
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveBackupKey(password, salt, PBKDF2_ITERATIONS);
+    const plaintext = new TextEncoder().encode(JSON.stringify(buildBackup()));
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+    const file: EncryptedBackupFile = {
+        app: ENCRYPTED_FORMAT,
+        version: ENCRYPTION_VERSION,
+        algorithm: 'AES-GCM',
+        kdf: 'PBKDF2-SHA-256',
+        iterations: PBKDF2_ITERATIONS,
+        salt: toBase64(salt),
+        iv: toBase64(iv),
+        ciphertext: toBase64(new Uint8Array(encrypted)),
+    };
+    return JSON.stringify(file, null, 2);
+}
+
+/** Abre um backup criptografado. Senha incorreta ou arquivo adulterado falha sem alterar dados. */
+export async function decryptBackup(text: string, password: string): Promise<string> {
+    let file: Partial<EncryptedBackupFile>;
+    try {
+        file = JSON.parse(text) as Partial<EncryptedBackupFile>;
+    } catch {
+        throw new Error('O arquivo não é válido.');
+    }
+    if (
+        file.app !== ENCRYPTED_FORMAT ||
+        file.version !== ENCRYPTION_VERSION ||
+        file.algorithm !== 'AES-GCM' ||
+        file.kdf !== 'PBKDF2-SHA-256' ||
+        !Number.isInteger(file.iterations) ||
+        (file.iterations ?? 0) < 100_000 ||
+        (file.iterations ?? 0) > 1_000_000 ||
+        typeof file.salt !== 'string' ||
+        typeof file.iv !== 'string' ||
+        typeof file.ciphertext !== 'string'
+    ) {
+        throw new Error('Este arquivo não é um backup protegido reconhecido.');
+    }
+    if (!globalThis.crypto?.subtle) {
+        throw new Error('Este navegador não oferece suporte à abertura deste backup.');
+    }
+    try {
+        const salt = fromBase64(file.salt);
+        const iv = fromBase64(file.iv);
+        const ciphertext = fromBase64(file.ciphertext);
+        if (salt.length !== 16 || iv.length !== 12 || ciphertext.length < 17) {
+            throw new Error('invalid');
+        }
+        const key = await deriveBackupKey(password, salt, file.iterations);
+        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+        return new TextDecoder().decode(plaintext);
+    } catch {
+        throw new Error('Não foi possível abrir o backup. Confira a senha e tente novamente.');
+    }
+}
+
+/** Gera e baixa um backup criptografado; a senha não é armazenada no aplicativo. */
+export async function downloadEncryptedBackup(password: string): Promise<void> {
+    const json = await encryptBackup(password);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `remedio-na-hora-backup-protegido-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+export function isEncryptedBackup(text: string): boolean {
+    try {
+        const value = JSON.parse(text) as { app?: string };
+        return value?.app === ENCRYPTED_FORMAT;
+    } catch {
+        return false;
+    }
+}
+
 /** Gera o arquivo e dispara o download (remedio-na-hora-backup-AAAA-MM-DD.json). */
 export function downloadBackup(): void {
     const json = JSON.stringify(buildBackup(), null, 2);

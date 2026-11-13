@@ -3,7 +3,9 @@ import React, { useRef, useState } from 'react';
 import {
     applyBackup,
     describeSummary,
-    downloadBackup,
+    decryptBackup,
+    downloadEncryptedBackup,
+    isEncryptedBackup,
     parseBackup,
 } from '../services/backup';
 import { notificationStatus, NotificationSupport, requestNotificationPermission } from '../utils/notify';
@@ -52,6 +54,17 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
             return;
         }
 
+        if (isEncryptedBackup(text)) {
+            const password = window.prompt('Digite a senha usada para proteger este backup:');
+            if (password === null) return;
+            try {
+                text = await decryptBackup(text, password);
+            } catch (error) {
+                setBackupMessage({ ok: false, text: error instanceof Error ? error.message : 'Não foi possível abrir o backup.' });
+                return;
+            }
+        }
+
         const parsed = parseBackup(text);
         if (!parsed.ok) {
             setBackupMessage({ ok: false, text: parsed.error });
@@ -97,19 +110,30 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
 
             <FormSection title="Backup dos dados">
                 <p className={helperClass}>
-                    Seus dados (lembretes, histórico de doses, médicos, consultas, planos, exames e laudos laboratoriais) ficam salvos apenas neste navegador.
-                    Exporte um arquivo de vez em quando para não perder nada ao limpar o navegador ou trocar de aparelho.
+                    Seus dados ficam salvos neste navegador. O arquivo de backup protegido é criptografado com uma senha escolhida por você. Guarde essa senha: não é possível recuperá-la se você esquecer.
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                     <button
                         type="button"
-                        onClick={() => {
-                            downloadBackup();
-                            setBackupMessage({ ok: true, text: 'Backup gerado. Verifique a pasta de downloads.' });
+                        onClick={async () => {
+                            const password = window.prompt('Crie uma senha para proteger o backup (mínimo de 8 caracteres):');
+                            if (password === null) return;
+                            const confirmation = window.prompt('Digite novamente a senha do backup:');
+                            if (confirmation === null) return;
+                            if (password !== confirmation) {
+                                setBackupMessage({ ok: false, text: 'As senhas não coincidem. O backup não foi gerado.' });
+                                return;
+                            }
+                            try {
+                                await downloadEncryptedBackup(password);
+                                setBackupMessage({ ok: true, text: 'Backup protegido gerado. Guarde a senha em local seguro.' });
+                            } catch (error) {
+                                setBackupMessage({ ok: false, text: error instanceof Error ? error.message : 'Não foi possível gerar o backup.' });
+                            }
                         }}
                         className="flex-1 px-4 py-2 rounded-md text-sm font-semibold border border-brand-blue text-brand-blue hover:bg-blue-50 dark:hover:bg-brand-gray-700 transition-colors"
                     >
-                        Exportar backup
+                        Exportar backup protegido
                     </button>
                     <button
                         type="button"
@@ -135,6 +159,13 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
                         {backupMessage.text}
                     </p>
                 )}
+            </FormSection>
+
+            <FormSection title="Privacidade e segurança">
+                <p className={helperClass}>
+                    O backup protegido usa criptografia AES-GCM e uma chave derivada da sua senha. A senha não é enviada nem salva pelo aplicativo.
+                    Esta proteção se aplica ao arquivo exportado; os dados de uso diário continuam no armazenamento deste navegador.
+                </p>
             </FormSection>
         </FormModalShell>
     );
