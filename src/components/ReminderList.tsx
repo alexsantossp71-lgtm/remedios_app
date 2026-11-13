@@ -36,7 +36,7 @@ const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit, onExplain 
     return (
         <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {reminders.map(reminder => (
-                <div key={reminder.id} className="group relative rounded-2xl border border-slate-200 bg-white p-4 pr-12 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 md:p-5">
+                <div key={reminder.id} className="app-record-card group relative rounded-2xl border border-slate-200 bg-white p-4 pr-12 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 md:p-5">
                     <div className="flex items-start space-x-3">
                         <div className="flex-shrink-0 pt-1">
                             <PillIcon className="w-6 h-6 text-brand-blue" />
