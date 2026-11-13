@@ -40,7 +40,7 @@ interface ChatChoice {
 }
 
 /** Mensagem quando não há proxy nem chave configurados. O App reconhece a
- * frase "Configure a IA" para ajustar o aviso da lista de medicamentos. */
+ * aviso amigável quando o serviço estiver indisponível. */
 const NO_CREDENTIALS_MESSAGE =
     'O serviço de inteligência artificial está temporariamente indisponível. Tente novamente em alguns instantes.';
 
@@ -111,14 +111,7 @@ async function chatCompletion(
         throw new AiError('A API da NVIDIA respondeu em um formato inesperado. Tente novamente.');
     };
 
-    if (proxy) {
-        try {
-            return await attempt(`${proxy}/chat/completions`, proxyHeaders(), true);
-        } catch (error) {
-            throw error;
-        }
-    }
-    throw new AiError(NO_CREDENTIALS_MESSAGE);
+    return attempt(`${proxy}/chat/completions`, proxyHeaders(), true);
 }
 
 /** Traduz erros HTTP da API/proxy para mensagens claras em português. */
@@ -133,7 +126,7 @@ async function describeHttpError(response: Response, viaProxy = false): Promise<
     }
     if (response.status === 401 || response.status === 403) {
         return viaProxy
-            ? 'O proxy de IA recusou o pedido (origem ou token não autorizado). Confira a URL/Token do proxy nas Configurações e o ALLOWED_ORIGINS do Worker.'
+            ? 'O serviço de IA recusou o pedido. Verifique a configuração interna do Worker.'
             : 'Chave da API NVIDIA inválida ou sem permissão. Gere uma chave nova em build.nvidia.com ("Get API Key") e confirme nas Configurações.';
     }
     if (response.status === 404) {
