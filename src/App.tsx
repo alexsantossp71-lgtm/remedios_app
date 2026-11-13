@@ -856,7 +856,6 @@ const App: React.FC = () => {
                     reminders={reminders}
                     onApply={handleApplySchedule}
                     onClose={() => setScheduleOpen(false)}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
