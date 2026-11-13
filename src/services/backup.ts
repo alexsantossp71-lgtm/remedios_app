@@ -19,7 +19,7 @@ import {
 } from '../storage';
 import { Appointment, Doctor, Exam, HealthPlan, LabResult, Reminder } from '../types';
 import { toDateTimeInputValue } from '../utils/datetime';
-import { loadSecureJson, saveSecureJson, isVaultUnlocked, flushSecureWrites } from './secureStorage';
+import { loadSecureJson, saveSecureJson, isVaultUnlocked } from './secureStorage';
 
 /** Marcadores do formato, para rejeitar arquivos de outros apps/versões. */
 const APP_ID = 'remedio-na-hora';
