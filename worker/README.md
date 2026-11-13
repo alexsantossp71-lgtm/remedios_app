@@ -1,9 +1,9 @@
 # Proxy de IA autenticado (Cloudflare Worker)
 
 O GitHub Pages continua **100% estático**; este Worker é um deploy separado que
-mantém a `NVIDIA_API_KEY` no servidor. Assim, os usuários do app **não precisam
-criar a própria chave `nvapi-`**: todos os recursos de IA funcionam assim que o
-app aponta para o proxy (URL fixa nas Configurações ou embutida no build).
+mantém a `NVIDIA_API_KEY` no servidor. Usuários autorizados **não precisam criar
+uma chave NVIDIA própria**, mas devem informar a URL do proxy e o token privado
+recebido do administrador nas Configurações.
 
 ## O que o proxy faz
 
