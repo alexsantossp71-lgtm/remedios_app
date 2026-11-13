@@ -26,10 +26,7 @@ com lembrete de 1 hora ou 1 dia antes das consultas. Os dados ficam salvos no
   respeitando jejum, intervalos prescritos e o sono ("Omeprazol 30 min antes do
   café; mover a dose das 23h para 21h30"), com revisão e aplicação por
   medicamento.
-- **Proxy de IA opcional (Cloudflare Worker):** usuários autorizados podem usar
-  a IA sem criar a própria chave `nvapi-`. O segredo NVIDIA fica no servidor;
-  cada usuário precisa receber o token privado do proxy. CORS, allowlist de
-  modelos e rate limit adicionam camadas de proteção. O GitHub Pages continua estático.
+- **IA integrada:** os recursos de inteligência artificial usam automaticamente o serviço central do sistema. Chaves, tokens, endereço do proxy e modelos não são solicitados nem editáveis pelo usuário; a chave NVIDIA permanece exclusivamente no Cloudflare Worker.
 - **Exames:** registro do pedido à realização, com situação (solicitado,
   agendado, realizado), categoria (laboratório, imagem, cardiológico…), médico
   solicitante, local e resultado/laudo; exames agendados aparecem como ponto
@@ -50,7 +47,7 @@ com lembrete de 1 hora ou 1 dia antes das consultas. Os dados ficam salvos no
   resposta aparecem no modal "Doses atrasadas" com botões Tomei / Pular.
 - **Backup dos dados**: exportação e importação de arquivo JSON nas
   Configurações (lembretes com histórico, médicos, consultas, planos, exames e
-  laudos laboratoriais) — a chave e o token da IA não são incluídos. Protege contra limpeza do
+  laudos laboratoriais) — as credenciais da IA não são incluídas. Protege contra limpeza do
   navegador e facilita trocar de aparelho.
 - Modo escuro automático e PWA instalável (service worker + manifest).
 
@@ -63,42 +60,9 @@ pnpm install
 pnpm dev
 ```
 
-## IA (API NVIDIA) — opcional
+## IA integrada
 
-Os recursos de IA (OCR da carteirinha do plano, OCR do pedido de exame, lista
-online de medicamentos, interações, bula, adesão, resumo de consulta, laudos,
-guardião da dose e agendamento inteligente) usam a API da NVIDIA
-([build.nvidia.com](https://build.nvidia.com)), compatível com o formato
-OpenAI. Há duas formas de ativar:
-
-### Opção A — proxy de IA (sem chave por usuário)
-
-Hospede o Worker da pasta [`worker/`](worker/README.md) uma vez. Usuários
-autorizados poderão usar a IA sem cadastrar uma chave NVIDIA própria:
-
-1. `cd worker && npx wrangler secret put NVIDIA_API_KEY` (sua chave `nvapi-`).
-2. Gere um token longo e aleatório e cadastre-o com `npx wrangler secret put PROXY_TOKEN`.
-3. Ajuste `ALLOWED_ORIGINS` no `wrangler.toml` com a URL do seu Pages.
-4. `npx wrangler deploy`.
-5. No app, cole a URL do Worker e informe o token privado em **Ajustes → Proxy de IA** —
-   `VITE_DEFAULT_PROXY_URL` pode preencher a URL automaticamente.
-
-A chave NVIDIA e o token ficam **nos secrets do Worker**. Cada dispositivo autorizado deve informar o token em Configurações → Proxy de IA. CORS não é autenticação; o token compartilhado é adequado apenas para acesso privado/familiar, pois pode ser extraído por quem usa o app. Para um serviço público, implemente autenticação individual.
-
-### Opção B — chave por usuário
-
-1. Crie uma conta em build.nvidia.com e gere uma chave (botão **Get API Key**,
-   começa com `nvapi-`).
-2. No app, toque no botão **Ajustes** no topo e cole a chave.
-3. Opcionalmente ajuste os modelos:
-   - **Visão (OCR):** `meta/llama-3.2-90b-vision-instruct` (padrão);
-   - **Texto (medicamentos):** `meta/llama-3.3-70b-instruct` (padrão).
-
-A chave fica salva **apenas no dispositivo** (localStorage) e é enviada
-somente para `integrate.api.nvidia.com` — nada é embutido no bundle nem
-publicado no repositório. Se o proxy estiver configurado e cair, o app usa a
-chave direta como reserva. Sem proxy nem chave, o app usa a lista local de
-medicamentos e o cadastro manual da carteirinha e dos exames.
+A aplicação utiliza o Cloudflare Worker configurado internamente para acessar a API NVIDIA. A chave `NVIDIA_API_KEY` fica exclusivamente nos secrets do Worker. O endereço do serviço e os modelos são parâmetros internos do sistema; o navegador não recebe chave NVIDIA nem token compartilhado. O deploy do Worker é feito pelo workflow `.github/workflows/deploy-proxy.yml`.
 
 ## Build de produção
 
