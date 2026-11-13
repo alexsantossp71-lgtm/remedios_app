@@ -12,6 +12,8 @@ const DATA_KEYS = [
     STORAGE_KEYS.plans,
     STORAGE_KEYS.exams,
     STORAGE_KEYS.labs,
+    STORAGE_KEYS.guides,
+    STORAGE_KEYS.adherenceInsights,
 ] as const;
 
 interface VaultEnvelope {
