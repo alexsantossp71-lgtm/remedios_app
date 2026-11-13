@@ -16,6 +16,8 @@ import {
 // Cliente interno: o navegador acessa somente o serviço central do sistema.
 
 const REQUEST_TIMEOUT_MS = 60_000;
+const MODEL_CATALOG_TTL_MS = 5 * 60_000;
+let modelCatalogCache: { proxy: string; expiresAt: number; ids: Set<string> } | null = null;
 
 /** Erro já com mensagem amigável para exibir direto na interface. */
 export class AiError extends Error {
@@ -55,7 +57,7 @@ const proxyHeaders = (): Record<string, string> => ({
 async function chatCompletion(
     messages: ChatMessage[],
     model: string,
-    options?: { maxTokens?: number; temperature?: number }
+    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void }
 ): Promise<string> {
     const settings = readAiSettings();
     const proxy = effectiveProxyUrl(settings);
@@ -63,7 +65,7 @@ async function chatCompletion(
         throw new AiError(NO_CREDENTIALS_MESSAGE);
     }
 
-    const attempt = async (url: string, headers: Record<string, string>): Promise<string> => {
+    const attempt = async (url: string, headers: Record<string, string>, candidateModel: string): Promise<string> => {
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -73,7 +75,7 @@ async function chatCompletion(
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                    model,
+                    model: candidateModel,
                     messages,
                     temperature: options?.temperature ?? 0.2,
                     max_tokens: options?.maxTokens ?? 1024,
@@ -97,17 +99,88 @@ async function chatCompletion(
 
         const data = (await response.json().catch(() => null)) as { choices?: ChatChoice[] } | null;
         const content = data?.choices?.[0]?.message?.content;
-        if (typeof content === 'string' && content.trim()) return content;
+        const validateContent = (value: string): string => {
+            options?.validateResponse?.(value);
+            return value;
+        };
+        if (typeof content === 'string' && content.trim()) return validateContent(content);
         if (Array.isArray(content)) {
             const text = content
                 .map((part) => (typeof part === 'string' ? part : typeof (part as ChatContentPart)?.text === 'string' ? (part as ChatContentPart).text! : ''))
                 .join('');
-            if (text.trim()) return text;
+            if (text.trim()) return validateContent(text);
         }
         throw new AiError('Não foi possível concluir a leitura. Tente novamente.');
     };
 
-    return attempt(`${proxy}/chat/completions`, proxyHeaders());
+    // Lista curada de modelos com endpoint gratuito anunciado pela NVIDIA.
+    // O catálogo /models é consultado para evitar insistir em modelos que a
+    // chave não possui; se o catálogo falhar, tentamos a lista conhecida.
+    const hasImages = messages.some((message) => Array.isArray(message.content)
+        && message.content.some((part) => part.type === 'image_url'));
+    const textFallbacks = [
+        'z-ai/glm-5.3-flash',
+        'stepfun-ai/step-5-preview',
+        'meta/muse-glimmer-30b',
+        'nvidia/nemotron-3.5-super-vl-120b-a12b',
+        'nvidia/nemotron-3.5-lightning-30b-a3b',
+    ];
+    const visionFallbacks = [
+        'meta/muse-glimmer-30b',
+        'stepfun-ai/step-5-preview',
+        'z-ai/glm-5.3-flash',
+        'nvidia/nemotron-3.5-super-vl-120b-a12b',
+    ];
+    const preferred = hasImages ? visionFallbacks : textFallbacks;
+    let availableIds: Set<string> | null = modelCatalogCache?.proxy === proxy && modelCatalogCache.expiresAt > Date.now()
+        ? modelCatalogCache.ids
+        : null;
+    const catalogController = new AbortController();
+    const catalogTimeout = window.setTimeout(() => catalogController.abort(), 8_000);
+    try {
+        if (!availableIds) {
+            const catalogResponse = await fetch(`${proxy}/models`, {
+                headers: proxyHeaders(),
+                signal: catalogController.signal,
+            });
+            if (catalogResponse.ok) {
+                const catalog = await catalogResponse.json().catch(() => null) as { data?: Array<{ id?: unknown }> } | null;
+                const ids = Array.isArray(catalog?.data)
+                    ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
+                    : [];
+                if (ids.length) {
+                    availableIds = new Set(ids);
+                    modelCatalogCache = { proxy, expiresAt: Date.now() + MODEL_CATALOG_TTL_MS, ids: availableIds };
+                }
+            }
+        }
+    } catch {
+        // O fallback estático continua disponível se /models estiver fora do ar.
+    } finally {
+        window.clearTimeout(catalogTimeout);
+    }
+
+    const ordered = [...new Set([model, ...preferred])];
+    const candidates = availableIds
+        ? ordered.filter((candidate) => availableIds!.has(candidate))
+        : ordered;
+    const modelsToTry = candidates.length ? candidates : ordered;
+    let lastError: unknown;
+    for (const candidate of modelsToTry) {
+        try {
+            return await attempt(`${proxy}/chat/completions`, proxyHeaders(), candidate);
+        } catch (error) {
+            lastError = error;
+            const status = error instanceof AiError ? error.status : undefined;
+            const detail = error instanceof Error ? error.message : '';
+            const proxyRateLimited = status === 429 && /limite de uso do proxy|limite de solicitações atingido/i.test(detail);
+            // Falhas de autenticação, corpo grande e limite local não melhoram trocando modelo.
+            const canFallback = !proxyRateLimited && (status === undefined || [403, 404, 410, 429].includes(status) || status >= 500);
+            if (!canFallback) throw error;
+        }
+    }
+    if (lastError instanceof Error) throw lastError;
+    throw new AiError(NO_CREDENTIALS_MESSAGE);
 }
 
 /** Lê a mensagem estruturada devolvida pelo proxy ou pela API, sem expor dados sensíveis. */
@@ -533,7 +606,7 @@ export const analyzeInteractions = async (
             },
         ],
         textModel,
-        { maxTokens: 1800, temperature: 0.1 }
+        { maxTokens: 1800, temperature: 0.1, validateResponse: (value) => { extractJson(value); } }
     );
 
     return sanitizeInteractionReport(extractJson(content));
@@ -796,7 +869,7 @@ export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promis
     const content = await chatCompletion(
         [{ role: 'user', content: `${SCHEDULE_PROMPT}\n\n${buildScheduleDataBlock(medications)}` }],
         textModel,
-        { maxTokens: 1600, temperature: 0.2 }
+        { maxTokens: 1600, temperature: 0.2, validateResponse: (value) => { extractJson(value); } }
     );
     return sanitizeScheduleAdvice(extractJson(content), medications);
 };
