@@ -10,13 +10,14 @@ const baseEnv = {
 
 describe('acesso ao proxy', () => {
     it('aceita chamadas do app sem segredo compartilhado no navegador', async () => {
-        const request = new Request('https://proxy.example/v1/models', {
-            headers: { Origin: origin },
+        const request = new Request('https://proxy.example/v1/chat/completions', {
+            method: 'POST',
+            headers: { Origin: origin, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'not-allowed', messages: [], stream: false }),
         });
         const response = await worker.fetch(request, baseEnv);
-        // A rota passa pela validação de origem e chega ao repasse para NVIDIA.
-        expect(response.status).not.toBe(401);
-        expect(response.status).not.toBe(503);
+        // Sem token, o pedido chega à validação da allowlist (403), não à autenticação (401).
+        expect(response.status).toBe(403);
     });
 
     it('rejeita origem não cadastrada', async () => {
