@@ -7,8 +7,8 @@
 //
 // O app (GitHub Pages) chama https://<nome>.workers.dev/v1/chat/completions
 // sem chave por usuário; o proxy injeta o segredo no servidor. Proteções:
-// CORS por origem exata (não é autenticação), allowlist de
-// modelos, sem streaming, teto de corpo e rate limit em memória por isolate.
+// CORS por origem exata (não é autenticação), allowlist de modelos, sem
+// streaming, teto de corpo e rate limit em memória por isolate.
 
 import {
     MAX_BODY_BYTES,
