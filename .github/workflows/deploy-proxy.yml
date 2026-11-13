@@ -76,3 +76,11 @@ jobs:
         run: |
           echo "Worker deployado. Teste: curl https://remedios-ai-proxy.<sua-conta>.workers.dev/health"
           echo "Confira a URL exata em: dash.cloudflare.com → Workers & Pages → remedios-ai-proxy"
+
+      - name: Publicar secret Pollinations (opcional)
+        if: ${{ secrets.POLLINATIONS_API_KEY != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+        run: printf '%s' "$POLLINATIONS_API_KEY" | npx wrangler@4 secret put POLLINATIONS_API_KEY
