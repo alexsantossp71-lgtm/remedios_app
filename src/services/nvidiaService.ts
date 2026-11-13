@@ -877,6 +877,14 @@ export function sanitizeInteractionReport(value: unknown): InteractionReport {
     return { summary: clipText(record.summary, 300), duplicates, interactions, sources };
 }
 
+/** Exige o formato mínimo do relatório antes de aceitar a resposta de qualquer provedor. */
+export function validateInteractionResponse(content: string): void {
+    const parsed = extractJson(content);
+    if (!Array.isArray(parsed.duplicates) || !Array.isArray(parsed.interactions)) {
+        throw new AiError('A resposta da IA não trouxe as listas de duplicidades e interações no formato esperado.');
+    }
+}
+ 
 const POLLINATIONS_INTERACTION_MODELS = [
     'google/gemini-3.8-flash',
     'openai/gpt-5.4-nano',
@@ -978,7 +986,7 @@ export const analyzeInteractions = async (
     const options = {
         maxTokens: 1800,
         temperature: 0.1,
-        validateResponse: (value: string) => { extractJson(value); },
+        validateResponse: validateInteractionResponse,
     };
 
     try {
