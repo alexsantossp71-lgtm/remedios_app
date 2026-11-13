@@ -113,7 +113,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
         >
             <FormSection title="Diagnóstico dos modelos de IA">
                 <p className={helperClass}>
-                    Compara os modelos disponíveis na sua conexão em duas tarefas fictícias: identificação de uma interação conhecida e preservação de horários de lembretes. Mede o tempo e verifica critérios básicos de qualidade. Nenhum medicamento ou dado cadastrado neste aparelho é enviado neste teste.
+                    Compara NVIDIA e Pollinations.ai em duas tarefas fictícias: identificação de uma interação conhecida e preservação de horários de lembretes. Mede o tempo e verifica critérios básicos de qualidade. Nenhum medicamento ou dado cadastrado neste aparelho é enviado neste teste.
                 </p>
                 <button
                     type="button"
@@ -153,7 +153,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                         {diagnosticResults.map((item) => (
                             <div key={item.model} className="rounded-lg border border-brand-gray-200 dark:border-brand-gray-600 p-3 space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span className="text-sm font-semibold break-all text-brand-gray-800 dark:text-white">{item.model}</span>
+                                    <span className="text-sm font-semibold break-all text-brand-gray-800 dark:text-white">{item.provider} · {item.model}</span>
                                     <span className="text-xs font-semibold text-brand-gray-600 dark:text-brand-gray-300">
                                         {(item.totalMs / 1000).toFixed(1)} s no total
                                     </span>
@@ -177,7 +177,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                             </div>
                         ))}
                         <p className={helperClass}>
-                            A classificação mede apenas estes dois cenários de teste. Não comprova precisão clínica nem garante que o modelo sempre responderá corretamente. Os resultados variam conforme a disponibilidade e os limites gratuitos da NVIDIA.
+                            A classificação mede apenas estes dois cenários de teste. Não comprova precisão clínica nem garante que o modelo sempre responderá corretamente. Os resultados variam conforme disponibilidade, modelos, custos e limites de cada provedor. Pollinations.ai encaminha as solicitações aos provedores/modelos selecionados; confira as regras de privacidade e retenção da conta antes de enviar qualquer dado real.
                         </p>
                     </div>
                 )}
