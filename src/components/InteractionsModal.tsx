@@ -28,7 +28,8 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
 
     // Estados iniciais cobrem os caminhos síncronos (carregando / sem chave);
     // o effect cuida só da busca assíncrona, sem setState direto no corpo.
-    const [status, setStatus] = useState<Status>(hasApiKey ? 'consent' : 'nokey');\n    const [externalDataConsent, setExternalDataConsent] = useState(false);
+    const [status, setStatus] = useState<Status>(hasApiKey ? 'consent' : 'nokey');
+    const [externalDataConsent, setExternalDataConsent] = useState(false);
     const [report, setReport] = useState<InteractionReport | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [attempt, setAttempt] = useState(0);
