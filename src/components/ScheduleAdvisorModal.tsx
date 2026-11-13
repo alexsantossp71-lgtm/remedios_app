@@ -13,7 +13,6 @@ interface Props {
     /** Aplica os horários escolhidos (um item por lembrete selecionado). */
     onApply: (updates: Array<{ id: string; times: string[] }>) => void;
     onClose: () => void;
-    /** Abre a tela de Configurações (sem proxy/chave de IA configurados). */
     onOpenSettings?: () => void;
 }
 
@@ -114,23 +113,15 @@ const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose, on
                     Otimizar horários com IA
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    Horários e instruções são enviados à API da NVIDIA; a resposta é uma sugestão educativa e não
-                    substitui médico ou farmacêutico.
+                    A sugestão considera os horários e as instruções cadastrados. Ela é educativa e não substitui a orientação de um médico ou farmacêutico.
                 </p>
 
                 {status === 'nokey' && (
                     <div className="rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 py-6 px-3 text-center">
                         <ShieldIcon className="w-6 h-6 mx-auto text-brand-gray-400" />
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
-                            A otimização usa a IA configurada neste dispositivo (proxy de IA ou chave da API NVIDIA).
+                            Este recurso está temporariamente indisponível. Tente novamente mais tarde.
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => onOpenSettings?.()}
-                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
-                        >
-                            Configurar IA (proxy ou chave)
-                        </button>
                     </div>
                 )}
 
