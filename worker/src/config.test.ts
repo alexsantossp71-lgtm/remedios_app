@@ -76,3 +76,4 @@ describe('UPSTREAM_BASE', () => {
         expect(UPSTREAM_BASE).toBe('https://integrate.api.nvidia.com/v1');
     });
 });
+
