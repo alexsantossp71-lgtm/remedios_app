@@ -26,10 +26,10 @@ com lembrete de 1 hora ou 1 dia antes das consultas. Os dados ficam salvos no
   respeitando jejum, intervalos prescritos e o sono ("Omeprazol 30 min antes do
   café; mover a dose das 23h para 21h30"), com revisão e aplicação por
   medicamento.
-- **Proxy de IA opcional (Cloudflare Worker):** com o proxy hospedado (pasta
-  `worker/`), a IA funciona para todos sem cada pessoa criar a própria chave
-  `nvapi-` — o segredo fica no servidor, com CORS por origem, allowlist de
-  modelos e rate limit. O GitHub Pages continua 100% estático.
+- **Proxy de IA opcional (Cloudflare Worker):** usuários autorizados podem usar
+  a IA sem criar a própria chave `nvapi-`. O segredo NVIDIA fica no servidor;
+  cada usuário precisa receber o token privado do proxy. CORS, allowlist de
+  modelos e rate limit adicionam camadas de proteção. O GitHub Pages continua estático.
 - **Exames:** registro do pedido à realização, com situação (solicitado,
   agendado, realizado), categoria (laboratório, imagem, cardiológico…), médico
   solicitante, local e resultado/laudo; exames agendados aparecem como ponto
@@ -80,8 +80,8 @@ autorizados poderão usar a IA sem cadastrar uma chave NVIDIA própria:
 2. Gere um token longo e aleatório e cadastre-o com `npx wrangler secret put PROXY_TOKEN`.
 3. Ajuste `ALLOWED_ORIGINS` no `wrangler.toml` com a URL do seu Pages.
 4. `npx wrangler deploy`.
-5. No app, cole a URL do Worker em **Ajustes → Proxy de IA** — ou defina
-   `VITE_DEFAULT_PROXY_URL` no build para já vir configurado.
+5. No app, cole a URL do Worker e informe o token privado em **Ajustes → Proxy de IA** —
+   `VITE_DEFAULT_PROXY_URL` pode preencher a URL automaticamente.
 
 A chave NVIDIA e o token ficam **nos secrets do Worker**. Cada dispositivo autorizado deve informar o token em Configurações → Proxy de IA. CORS não é autenticação; o token compartilhado é adequado apenas para acesso privado/familiar, pois pode ser extraído por quem usa o app. Para um serviço público, implemente autenticação individual.
 
