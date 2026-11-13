@@ -548,6 +548,16 @@ async function describeHttpError(response: Response): Promise<string> {
 }
 
 /** Extrai o primeiro objeto JSON da resposta do modelo (tolerante a blocos de código). */
+/** Valida campos obrigatórios do JSON antes de aceitar a resposta do provedor. */
+function validateJsonFields(content: string, fields: string[], allowError = false): void {
+    const parsed = extractJson(content);
+    if (allowError && typeof parsed.error === 'string') return;
+    const missing = fields.filter((field) => !(field in parsed));
+    if (missing.length) {
+        throw new AiError(`A resposta da IA não trouxe os campos esperados: ${missing.join(', ')}.`);
+    }
+}
+
 export function extractJson(text: string): Record<string, unknown> {
     const cleaned = text.replace(/```(?:json)?/gi, '');
     const start = cleaned.indexOf('{');
@@ -607,7 +617,7 @@ export const scanHealthCard = async (
             },
         ],
         visionModel,
-        { maxTokens: 800, temperature: 0.1 }
+        { maxTokens: 800, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['operator', 'planName', 'cardNumber', 'holder', 'validity', 'phone', 'coverage'], true) }
     );
 
     const parsed = extractJson(content);
@@ -667,7 +677,7 @@ export const scanExamRequest = async (
             },
         ],
         visionModel,
-        { maxTokens: 500, temperature: 0.1 }
+        { maxTokens: 500, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['name', 'category', 'doctorName', 'place', 'date'], true) }
     );
 
     const parsed = extractJson(content);
@@ -700,7 +710,7 @@ export const getMedications = async (): Promise<Medication[]> => {
             },
         ],
         textModel,
-        { maxTokens: 2000, temperature: 0.3 }
+        { maxTokens: 2000, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['medicamentos']) }
     );
 
     const parsed = extractJson(content);
@@ -770,7 +780,7 @@ export const scanPrescription = async (
             },
         ],
         visionModel,
-        { maxTokens: 1500, temperature: 0.1 }
+        { maxTokens: 1500, temperature: 0.1, validateResponse: (value) => { validateJsonFields(value, ['medicamentos']); const parsed = extractJson(value); if (!Array.isArray(parsed.medicamentos) || !parsed.medicamentos.length) throw new AiError('A IA não reconheceu medicamentos nesta receita.'); } }
     );
 
     const entries = ensurePrescriptionEntries(extractJson(content));
@@ -799,7 +809,7 @@ export const parsePrescriptionText = async (text: string): Promise<PrescriptionE
             },
         ],
         textModel,
-        { maxTokens: 1500, temperature: 0.2 }
+        { maxTokens: 1500, temperature: 0.2, validateResponse: (value) => { validateJsonFields(value, ['medicamentos']); const parsed = extractJson(value); if (!Array.isArray(parsed.medicamentos) || !parsed.medicamentos.length) throw new AiError('A IA não encontrou medicamentos no texto da receita.'); } }
     );
 
     const entries = ensurePrescriptionEntries(extractJson(content));
@@ -1103,7 +1113,7 @@ export const explainMedication = async (
     const content = await chatCompletion(
         [{ role: 'user', content: `${GUIDE_PROMPT}\n\nMedicamento: ${context}` }],
         textModel,
-        { maxTokens: 1200, temperature: 0.3 }
+        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['whatFor', 'howToUse', 'commonSideEffects', 'warnings', 'note']) }
     );
 
     return sanitizeMedicationGuide(extractJson(content));
@@ -1139,7 +1149,7 @@ export const analyzeAdherenceInsights = async (report: AdherenceReport): Promise
                 content: `${ADHERENCE_PROMPT}\n\nRelatório de adesão (JSON):\n${JSON.stringify(report)}`,
             },
         ],        textModel,
-        { maxTokens: 1200, temperature: 0.3 }
+        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['summary', 'insights']) }
     );
 
     return sanitizeAdherenceAnalysis(extractJson(content));
@@ -1180,7 +1190,7 @@ export const suggestConsultationQuestions = async (context: ConsultationContext)
     const content = await chatCompletion(
         [{ role: 'user', content: `${QUESTIONS_PROMPT}\n\nDados do paciente:\n${payload}` }],
         textModel,
-        { maxTokens: 700, temperature: 0.4 }
+        { maxTokens: 700, temperature: 0.4, validateResponse: (value) => validateJsonFields(value, ['questions']) }
     );
 
     return sanitizeConsultationQuestions(extractJson(content));
@@ -1222,7 +1232,7 @@ export const extractLabValues = async (
             },
         ],
         visionModel,
-        { maxTokens: 2000, temperature: 0.1 }
+        { maxTokens: 2000, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['labName', 'examDate', 'resultados'], true) }
     );
 
     const parsed = extractJson(content);
@@ -1267,7 +1277,7 @@ export const identifyMedication = async (
             },
         ],
         visionModel,
-        { maxTokens: 300, temperature: 0.1 }
+        { maxTokens: 300, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['medication', 'confidence', 'detail']) }
     );
 
     return sanitizeMedicationId(extractJson(content));
