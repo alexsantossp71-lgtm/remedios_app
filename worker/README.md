@@ -9,13 +9,14 @@ app aponta para o proxy (URL fixa nas Configurações ou embutida no build).
 
 - Repassa `POST /v1/chat/completions` e `GET /v1/models` para
   `https://integrate.api.nvidia.com/v1`, injetando o segredo no servidor.
-- **CORS por origem exata** (`ALLOWED_ORIGINS`) — outros sites não conseguem usar.
+- **CORS por origem exata** (`ALLOWED_ORIGINS`) — controla navegadores, mas não autentica clientes.
 - **Allowlist de modelos** (`ALLOWED_MODELS`) e bloqueio de `stream: true`.
-- **Rate limit**: 30 pedidos por IP a cada 5 min, 200 por IP por dia e um teto
-  global diário (contagem em memória por isolate — suficiente no plano gratuito;
-  para limites estritos use Durable Objects/KV depois).
-- **Token opcional** (`PROXY_TOKEN`): se o segredo existir, o app precisa enviar
-  o mesmo valor no campo "Token do proxy" das Configurações.
+- **Token obrigatório** (`PROXY_TOKEN`): toda chamada à API precisa apresentar
+  o segredo no cabeçalho `x-proxy-token`; sem ele o Worker responde 401 e, se o
+  segredo não estiver configurado no servidor, responde 503.
+- **Rate limit de melhor esforço**: 30 pedidos por IP a cada 5 min e 200 por IP
+  por dia. A contagem é em memória por isolate, não é global nem persistente;
+  para cotas rígidas use Cloudflare Rate Limiting ou Durable Objects.
 
 ## Deploy (uma vez)
 
@@ -23,6 +24,7 @@ app aponta para o proxy (URL fixa nas Configurações ou embutida no build).
 cd worker
 npx wrangler login
 npx wrangler secret put NVIDIA_API_KEY   # cole a chave nvapi-...
+npx wrangler secret put PROXY_TOKEN      # crie um token longo e aleatório e guarde-o em local seguro
 npx wrangler deploy
 ```
 
@@ -31,7 +33,7 @@ Edite `ALLOWED_ORIGINS` no `wrangler.toml` com a URL real do seu Pages
 
 ```bash
 curl https://remedios-ai-proxy.<sua-conta>.workers.dev/health
-# {"ok":true,"hasKey":true}
+# {"ok":true}
 ```
 
 ## Apontar o app para o proxy
@@ -51,8 +53,8 @@ No GitHub Actions a variável já está ligada ao build: basta criar
 `VITE_DEFAULT_PROXY_URL` em **Settings → Secrets and variables → Actions →
 Variables** e rodar o deploy novamente (re-run do workflow ou push).
 
-Segurança: a chave nunca vai para o bundle do app; o que o proxy expõe é só a
-URL pública, protegida por CORS + allowlist + rate limit.
+Segurança: não publique nenhum dos dois secrets. O rate limit em memória é
+apenas uma defesa adicional e pode reiniciar entre isolates.
 
 ## Testes
 
