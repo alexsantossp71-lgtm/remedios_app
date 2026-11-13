@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { STORAGE_KEYS } from '../storage';
 
 export interface AiSettings {
     nvidiaApiKey: string;
@@ -29,6 +30,8 @@ export function hasAiAccess(_settings?: Pick<AiSettings, 'proxyUrl' | 'nvidiaApi
 }
 
 export function readAiSettings(): AiSettings {
+    // Apaga configurações antigas que continham token/chave no navegador.
+    try { localStorage.removeItem(STORAGE_KEYS.settings); } catch { /* armazenamento indisponível */ }
     return {
         nvidiaApiKey: '',
         proxyUrl: DEFAULT_PROXY_URL,
