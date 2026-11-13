@@ -10,7 +10,7 @@ export interface AiSettings {
 }
 
 export const DEFAULT_VISION_MODEL = 'meta/llama-3.2-90b-vision-instruct';
-export const DEFAULT_TEXT_MODEL = 'meta/llama-3.3-70b-instruct';
+export const DEFAULT_TEXT_MODEL = 'z-ai/glm-5.3-flash';
 export const DEFAULT_PROXY_URL = 'https://remedios-ai-proxy.alexsantossp71.workers.dev';
 
 const EVENT_NAME = 'ai-settings-changed';
