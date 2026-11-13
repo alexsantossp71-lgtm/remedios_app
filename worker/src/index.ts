@@ -65,7 +65,7 @@ function passThrough(upstream: Response, origin: string): Response {
 
 export default {
     async fetch(request: Request, env: WorkerEnv): Promise<Response> {
-        const cfg = parseConfig(env);
+        const cfg = parseConfig(env as unknown as Record<string, string | undefined>);
         const origin = request.headers.get('Origin') ?? '';
         const allowedOrigin = isOriginAllowed(origin, cfg.allowedOrigins) ? origin : '';
 
