@@ -908,7 +908,7 @@ async function pollinationsChatCompletion(
 
     const catalogController = new AbortController();
     const catalogTimeout = window.setTimeout(() => catalogController.abort(), 3_000);
-    let models: string[] = [];
+    let models: string[];
     try {
         const response = await fetch(`${proxy}/pollinations/models`, {
             headers: proxyHeaders(),
