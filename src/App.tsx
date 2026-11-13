@@ -4,7 +4,8 @@ import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan, 
 import { getMedications } from './services/nvidiaService';
 import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray } from './storage';
-import { loadSecureJson, saveSecureJson, isVaultUnlocked, lockSecureVault, flushSecureWrites, SecurityGate } from './services/secureStorage';
+import { loadSecureJson, saveSecureJson, isVaultUnlocked, lockSecureVault, flushSecureWrites } from './services/secureStorage';
+import SecurityGate from './components/SecurityGate';
 import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/datetime';
 import { showSystemNotification, vibrateAlarm } from './utils/notify';
 import MissedDosesModal from './components/MissedDosesModal';
