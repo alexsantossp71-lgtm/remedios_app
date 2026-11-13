@@ -98,7 +98,7 @@ const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
                             Antes de iniciar, saiba como os dados serão usados
                         </p>
                         <p className="mt-2 text-sm text-brand-gray-600 dark:text-brand-gray-300">
-                            Os nomes e as dosagens informados serão enviados ao Pollinations.ai para gerar a análise. Se esse serviço falhar, os mesmos dados poderão ser enviados à NVIDIA como alternativa. A transmissão ocorre por provedores externos de IA; não inclua informações pessoais além dos dados dos medicamentos.
+                            Os nomes e as dosagens informados serão enviados a um provedor externo de IA. Se o Pollinations.ai estiver ativado nas Configurações, ele será tentado primeiro e a NVIDIA será a alternativa; se estiver desativado, somente a NVIDIA será usada. Não inclua informações pessoais além dos dados dos medicamentos.
                         </p>
                         <label className="mt-3 flex items-start gap-2 text-sm text-brand-gray-700 dark:text-brand-gray-200">
                             <input
