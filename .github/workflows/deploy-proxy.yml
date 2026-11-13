@@ -1,10 +1,11 @@
 name: Deploy AI Proxy (Cloudflare Worker)
 
 # Deploy do proxy de IA para o Cloudflare, sem terminal local.
-# Requer dois secrets no repositório (Settings → Secrets → Actions):
-#   CLOUDFLARE_API_TOKEN   — token com o template "Edit Cloudflare Workers"
+# Requer estes secrets no repositório (Settings → Secrets → Actions):
+#   CLOUDFLARE_API_TOKEN   — token com permissão de editar Workers
 #   CLOUDFLARE_ACCOUNT_ID  — Account ID do painel do Cloudflare
-# E reaproveita o secret NVIDIA_API_KEY já existente no repositório.
+#   NVIDIA_API_KEY         — chave nvapi- da NVIDIA
+#   PROXY_TOKEN            — token privado longo e aleatório para autenticar os clientes.
 
 on:
   push:
@@ -25,6 +26,19 @@ jobs:
       run:
         working-directory: worker
     steps:
+      - name: Validar secrets obrigatórios
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          PROXY_TOKEN: ${{ secrets.PROXY_TOKEN }}
+        run: |
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID NVIDIA_API_KEY PROXY_TOKEN; do
+            if [ -z "${!name}" ]; then echo "::error::Secret obrigatório ausente: $name"; missing=1; fi
+          done
+          exit "$missing"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -50,6 +64,13 @@ jobs:
             exit 1
           fi
           printf '%s' "$NVIDIA_API_KEY" | npx wrangler@4 secret put NVIDIA_API_KEY
+
+      - name: Publicar o secret PROXY_TOKEN no Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROXY_TOKEN: ${{ secrets.PROXY_TOKEN }}
+        run: printf '%s' "$PROXY_TOKEN" | npx wrangler@4 secret put PROXY_TOKEN
 
       - name: Resumo
         run: |
