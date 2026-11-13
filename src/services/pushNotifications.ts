@@ -12,16 +12,6 @@ const base64UrlToBytes = (value: string): Uint8Array => {
 const bytesToBase64Url = (bytes: Uint8Array): string =>
     btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-const getToken = (): string => {
-    let token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-        const bytes = crypto.getRandomValues(new Uint8Array(32));
-        token = bytesToBase64Url(bytes);
-        localStorage.setItem(TOKEN_KEY, token);
-    }
-    return token;
-};
-
 const apiRequest = async (path: string, token: string, body: unknown): Promise<void> => {
     const response = await fetch(`${API_BASE}${path}`, {
         method: 'POST',
