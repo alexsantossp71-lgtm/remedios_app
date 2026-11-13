@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from '../storage';
+import { STORAGE_KEYS, loadJson, saveJson } from '../storage';
 
 const VAULT_DB = 'remedio-na-hora-secure-vault';
 const VAULT_STORE = 'vault';
@@ -165,6 +165,28 @@ export async function unlockSecureVault(password: string): Promise<void> {
     }
 }
 
+/** Desativa a senha, preservando os registros no armazenamento local sem criptografia. */
+export async function disableSecureVault(): Promise<void> {
+    if (!activeData) throw new Error('Desbloqueie o aplicativo antes de desativar a proteção.');
+    await flushSecureWrites();
+    for (const key of DATA_KEYS) {
+        const raw = activeData[key];
+        if (raw !== undefined && !saveJson(key, JSON.parse(raw))) {
+            throw new Error('Não foi possível salvar todos os dados sem criptografia. A proteção foi mantida.');
+        }
+    }
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(VAULT_STORE, 'readwrite');
+        transaction.objectStore(VAULT_STORE).delete(VAULT_ID);
+        transaction.oncomplete = () => { db.close(); resolve(); };
+        transaction.onerror = () => { db.close(); reject(transaction.error ?? new Error('Não foi possível desativar a proteção.')); };
+        transaction.onabort = () => { db.close(); reject(transaction.error ?? new Error('A operação foi cancelada.')); };
+    });
+    activeKey = null;
+    activeData = null;
+}
+
 export function isVaultUnlocked(): boolean {
     return activeKey !== null && activeData !== null;
 }
@@ -175,7 +197,7 @@ export function lockSecureVault(): void {
 }
 
 export function loadSecureJson<T>(key: string, isValid: (value: unknown) => boolean): T | null {
-    if (!activeData) return null;
+    if (!activeData) return loadJson<T>(key, isValid);
     try {
         const raw = activeData[key];
         if (raw === undefined) return null;
@@ -188,7 +210,7 @@ export function loadSecureJson<T>(key: string, isValid: (value: unknown) => bool
 
 /** Atualiza a cópia em memória e persiste o cofre inteiro criptografado no IndexedDB. */
 export function saveSecureJson(key: string, value: unknown): boolean {
-    if (!activeData || !activeKey) return false;
+    if (!activeData || !activeKey) return saveJson(key, value);
     activeData[key] = JSON.stringify(value);
     const snapshot = { ...activeData };
     const keySnapshot = activeKey;

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createSecureVault, inspectSecureStorage, unlockSecureVault } from '../services/secureStorage';
 
 export function SecurityGate({ onUnlock }: { onUnlock: () => void }) {
-    const [mode, setMode] = useState<'loading' | 'setup' | 'unlock'>('loading');
+    const [mode, setMode] = useState<'loading' | 'setup' | 'unlock' | 'optional'>('loading');
     const [hasLegacyData, setHasLegacyData] = useState(false);
     const [password, setPassword] = useState('');
     const [confirmation, setConfirmation] = useState('');
@@ -12,7 +12,8 @@ export function SecurityGate({ onUnlock }: { onUnlock: () => void }) {
     useEffect(() => {
         inspectSecureStorage().then((status) => {
             setHasLegacyData(status.hasLegacyData);
-            setMode(status.configured ? 'unlock' : 'setup');
+            if (status.configured) setMode('unlock');
+            else { setMode('optional'); onUnlock(); }
         }).catch(() => {
             setError('Não foi possível acessar o armazenamento seguro deste navegador.');
             setMode('setup');
@@ -37,6 +38,8 @@ export function SecurityGate({ onUnlock }: { onUnlock: () => void }) {
             setBusy(false);
         }
     };
+
+    if (mode === 'optional') return null;
 
     if (mode === 'loading') {
         return <main className="min-h-screen grid place-items-center p-6 text-brand-gray-600">Verificando proteção dos dados…</main>;
