@@ -352,38 +352,6 @@ export async function runAiModelDiagnostics(
         window.clearTimeout(catalogTimeout);
     }
 
-    const results: ModelDiagnosticResult[] = [];
-    for (const [index, model] of models.entries()) {
-        const started = performance.now();
-        const [interactionResult, scheduleResult] = await Promise.all([
-            (async (): Promise<ModelDiagnosticTask> => {
-                const taskStarted = performance.now();
-                try {
-                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_INTERACTIONS_PROMPT);
-                    return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticInteractions(response.content) };
-                } catch (error) {
-                    return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
-                }
-            })(),
-            (async (): Promise<ModelDiagnosticTask> => {
-                const taskStarted = performance.now();
-                try {
-                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_SCHEDULE_PROMPT);
-                    return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticSchedule(response.content) };
-                } catch (error) {
-                    return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
-                }
-            })(),
-        ]);        results.push({
-            provider: 'NVIDIA',
-            model,
-            interactions: interactionResult,
-            schedule: scheduleResult,
-            totalMs: Math.round(performance.now() - started),
-        });
-        onProgress?.({ completed: index + 1, total: models.length, model });
-    }
-
     // Pollinations é testado separadamente; sua chave nunca é enviada pelo navegador.
     // A lista pública de modelos é consultada pelo Worker, que injeta o secret.
     const pollinationsCandidates = [
@@ -415,6 +383,39 @@ export async function runAiModelDiagnostics(
         pollinationsUnavailable = error instanceof Error ? error.message : 'Não foi possível consultar o catálogo Pollinations.';
     } finally {
         window.clearTimeout(pollinationsCatalogTimeout);
+    }
+
+
+    const results: ModelDiagnosticResult[] = [];
+    for (const [index, model] of models.entries()) {
+        const started = performance.now();
+        const [interactionResult, scheduleResult] = await Promise.all([
+            (async (): Promise<ModelDiagnosticTask> => {
+                const taskStarted = performance.now();
+                try {
+                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_INTERACTIONS_PROMPT);
+                    return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticInteractions(response.content) };
+                } catch (error) {
+                    return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
+                }
+            })(),
+            (async (): Promise<ModelDiagnosticTask> => {
+                const taskStarted = performance.now();
+                try {
+                    const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_SCHEDULE_PROMPT);
+                    return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticSchedule(response.content) };
+                } catch (error) {
+                    return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
+                }
+            })(),
+        ]);        results.push({
+            provider: 'NVIDIA',
+            model,
+            interactions: interactionResult,
+            schedule: scheduleResult,
+            totalMs: Math.round(performance.now() - started),
+        });
+        onProgress?.({ completed: index + 1, total: models.length + (pollinationsUnavailable ? 1 : pollinationsModels.length), model: `NVIDIA / ${model}` });
     }
 
     if (pollinationsUnavailable) {
