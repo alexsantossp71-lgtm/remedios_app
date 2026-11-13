@@ -141,7 +141,7 @@ const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport }) => {
                     Importar receita com IA
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    Fotografe ou cole a receita para identificar os medicamentos e revisar os lembretes antes de adicioná-los.
+                    A IA transcreve os campos que consegue reconhecer. Compare cada item com a receita original; nunca use a leitura como prescrição.
                 </p>
 
                 {entries ? (
@@ -194,6 +194,9 @@ const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport }) => {
                                                 {draft.dosage}
                                             </span>
                                         )}
+                                        {!entries[index]?.dosage && <span className="block text-xs font-semibold text-amber-700 dark:text-amber-300">Dosagem não reconhecida na receita — confira e preencha manualmente.</span>}
+                                        {!entries[index]?.intervalHours && !entries[index]?.timesPerDay && !entries[index]?.times.length && <span className="block text-xs font-semibold text-amber-700 dark:text-amber-300">Frequência/horário não reconhecido. O horário exibido é apenas um padrão inicial do aplicativo, não uma orientação da receita.</span>}
+                                        {!entries[index]?.durationDays && <span className="block text-xs text-amber-700 dark:text-amber-300">Duração não reconhecida — confirme se o uso é contínuo ou por prazo determinado.</span>}
                                         {draft.instructions && (
                                             <span className="block text-xs text-brand-gray-500 dark:text-brand-gray-400">
                                                 {draft.instructions}
