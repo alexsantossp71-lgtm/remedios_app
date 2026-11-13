@@ -26,6 +26,34 @@ interface Props {
     reminders: Reminder[];
 }
 
+type DiagnosticStatus = 'aprovado' | 'parcial' | 'timeout' | 'incompativel' | 'falhou';
+
+const diagnosticStatus = (item: ModelDiagnosticResult): DiagnosticStatus => {
+    const passed = Number(item.interactions.ok) + Number(item.schedule.ok);
+    if (passed === 2) return 'aprovado';
+    if (passed === 1) return 'parcial';
+    const details = `${item.interactions.detail} ${item.schedule.detail}`.toLowerCase();
+    if (/tempo limite|timeout|demorou mais de|segundos excedido/.test(details)) return 'timeout';
+    if (/não foi encontrado|nao foi encontrado|modelo.*não.*encontrado|modelo.*nao.*encontrado|endpoint.*não|endpoint.*nao|não suporta|nao suporta/.test(details)) return 'incompativel';
+    return 'falhou';
+};
+
+const DIAGNOSTIC_STATUS_LABELS: Record<DiagnosticStatus, string> = {
+    aprovado: 'Aprovado nos dois testes',
+    parcial: 'Aprovado em um teste',
+    timeout: 'Tempo esgotado',
+    incompativel: 'Modelo incompatível/indisponível',
+    falhou: 'Falhou nos testes',
+};
+
+const DIAGNOSTIC_STATUS_STYLES: Record<DiagnosticStatus, string> = {
+    aprovado: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+    parcial: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    timeout: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+    incompativel: 'bg-brand-gray-200 text-brand-gray-700 dark:bg-brand-gray-700 dark:text-brand-gray-200',
+    falhou: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+};
+
 const PERMISSION_LABELS: Record<NotificationSupport, string> = {
     granted: 'Permissão do navegador concedida. Para receber avisos com o navegador fechado, ative o Push abaixo.',
     default: 'Não configuradas. Ative para receber o aviso da dose fora do app.',
@@ -147,16 +175,48 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                 {diagnosticError && <p className="text-sm text-brand-red" role="alert">{diagnosticError}</p>}
                 {diagnosticResults && (
                     <div className="space-y-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            {(['aprovado', 'parcial', 'timeout', 'incompativel', 'falhou'] as DiagnosticStatus[]).map(status => (
+                                <div key={status} className="rounded-lg bg-brand-gray-100 dark:bg-brand-gray-700 p-2">
+                                    <p className="font-semibold">{DIAGNOSTIC_STATUS_LABELS[status]}</p>
+                                    <p className="text-lg font-bold tabular-nums">{diagnosticResults.filter(item => diagnosticStatus(item) === status).length}</p>
+                                </div>
+                            ))}
+                        </div>
                         <p className="text-sm font-semibold text-brand-gray-700 dark:text-brand-gray-200">
-                            Resultado: {diagnosticResults.filter(item => item.interactions.ok && item.schedule.ok).length} modelo(s) passaram nos dois testes.
+                            {diagnosticResults.filter(item => item.interactions.ok && item.schedule.ok).length} de {diagnosticResults.length} modelo(s) passaram nos dois testes.
                         </p>
-                        {diagnosticResults.map((item) => (
-                            <div key={item.model} className="rounded-lg border border-brand-gray-200 dark:border-brand-gray-600 p-3 space-y-2">
+                        {(['interactions', 'schedule'] as const).map(task => {
+                            const best = diagnosticResults
+                                .filter(item => item[task].ok)
+                                .sort((a, b) => a[task].durationMs - b[task].durationMs)[0];
+                            return (
+                                <div key={task} className="rounded-lg border border-brand-blue/30 bg-blue-50 dark:bg-brand-gray-700 p-3">
+                                    <p className="text-xs font-semibold text-brand-blue dark:text-blue-300">
+                                        Melhor resultado em {task === 'interactions' ? 'análise de interações' : 'preservação de horários'}
+                                    </p>
+                                    {best ? (
+                                        <p className="mt-1 text-sm font-semibold text-brand-gray-800 dark:text-white break-all">
+                                            {best.provider} · {best.model} — {(best[task].durationMs / 1000).toFixed(1)} s
+                                        </p>
+                                    ) : <p className="mt-1 text-sm text-brand-gray-700 dark:text-brand-gray-200">Nenhum modelo passou neste teste.</p>}
+                                </div>
+                            );
+                        })}
+                        {diagnosticResults.map((item) => {
+                            const status = diagnosticStatus(item);
+                            return (
+                            <div key={item.provider + item.model} className="rounded-lg border border-brand-gray-200 dark:border-brand-gray-600 p-3 space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="text-sm font-semibold break-all text-brand-gray-800 dark:text-white">{item.provider} · {item.model}</span>
-                                    <span className="text-xs font-semibold text-brand-gray-600 dark:text-brand-gray-300">
-                                        {(item.totalMs / 1000).toFixed(1)} s no total
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${DIAGNOSTIC_STATUS_STYLES[status]}`}>
+                                            {DIAGNOSTIC_STATUS_LABELS[status]}
+                                        </span>
+                                        <span className="text-xs font-semibold text-brand-gray-600 dark:text-brand-gray-300">
+                                            {(item.totalMs / 1000).toFixed(1)} s no total
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                     <div className="rounded bg-brand-gray-100 dark:bg-brand-gray-700 p-2">
@@ -175,7 +235,8 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                         <p className={helperClass}>
                             A classificação mede apenas estes dois cenários de teste. Não comprova precisão clínica nem garante que o modelo sempre responderá corretamente. Os resultados variam conforme disponibilidade, modelos, custos e limites de cada provedor. Pollinations.ai encaminha as solicitações aos provedores/modelos selecionados; confira as regras de privacidade e retenção da conta antes de enviar qualquer dado real.
                         </p>
