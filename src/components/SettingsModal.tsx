@@ -113,7 +113,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
         >
             <FormSection title="Diagnóstico dos modelos de IA">
                 <p className={helperClass}>
-                    Compara NVIDIA e Pollinations.ai em duas tarefas fictícias: identificação de uma interação conhecida e preservação de horários de lembretes. Mede o tempo e verifica critérios básicos de qualidade. Nenhum medicamento ou dado cadastrado neste aparelho é enviado neste teste.
+                    Consulta todos os modelos que a API NVIDIA retorna para a chave configurada e testa cada um em duas tarefas fictícias: identificação de uma interação conhecida e preservação de horários. Também compara os modelos habilitados no Pollinations.ai. O diagnóstico NVIDIA usa uma rota separada, com apenas esses dois textos de teste fixos; nenhum medicamento ou dado cadastrado neste aparelho é enviado.
                 </p>
                 <button
                     type="button"
