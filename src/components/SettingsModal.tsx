@@ -186,14 +186,14 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
                     />
                     <p className={helperClass}>
                         Se você hospedou o Worker do repositório (pasta <code>worker/</code>), cole a URL dele aqui:
-                        a IA funciona <span className="font-semibold">sem chave por pessoa</span>, com rate-limit no servidor.
+                        a IA funciona <span className="font-semibold">sem chave NVIDIA por pessoa</span>; cada chamada exige o token privado do proxy.
                         {DEFAULT_PROXY_URL
                             ? ' Vazio = usa a URL padrão deste build.'
                             : ' Vazio = desativado (a IA exige a chave da NVIDIA acima).'}
                     </p>
                 </div>
                 <div>
-                    <label htmlFor="settings-proxy-token" className={labelClass}>Token do proxy (obrigatório)</label>
+                    <label htmlFor="settings-proxy-token" className={labelClass}>Token do proxy (obrigatório para usar o proxy)</label>
                     <input
                         id="settings-proxy-token"
                         type="password"
