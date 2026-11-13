@@ -240,10 +240,16 @@ const DIAGNOSTIC_SCHEDULE_PROMPT = `Você está sendo avaliado em uma tarefa de 
 {"summary":"...","suggestions":[{"medicationId":"TESTE-A","medicationName":"Medicamento Alfa","suggestedTimes":["08:00","20:00"],"reason":"...","warnings":[]},{"medicationId":"TESTE-B","medicationName":"Medicamento Beta","suggestedTimes":["07:00"],"reason":"...","warnings":[]}]}
 Não crie nem remova medicamentos ou doses. Preserve os IDs e todos os horários exatamente. Caso falte informação, diga que não é possível otimizar com segurança. Dados fictícios: TESTE-A Medicamento Alfa, dose não informada, horários atuais 08:00 e 20:00; TESTE-B Medicamento Beta, dose não informada, horário atual 07:00.`;
 
+// O diagnóstico usa um prazo maior que as operações normais do app: alguns
+// modelos NVIDIA demoram mais para iniciar a geração. Isso não altera o timeout
+// das funcionalidades clínicas nem envia dados reais.
+const DIAGNOSTIC_TIMEOUT_MS = 30_000;
+const DIAGNOSTIC_MAX_TOKENS = 1_500;
+
 async function diagnosticRequest(proxy: string, model: string, prompt: string, provider: 'NVIDIA' | 'Pollinations.ai' = 'NVIDIA'): Promise<{ content: string; durationMs: number }> {
     const controller = new AbortController();
     const started = performance.now();
-    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = window.setTimeout(() => controller.abort(), DIAGNOSTIC_TIMEOUT_MS);
     try {
         const endpoint = provider === 'Pollinations.ai' ? `${proxy}/pollinations/chat/completions` : `${proxy}/chat/completions`;
         const response = await fetch(endpoint, {
@@ -253,7 +259,7 @@ async function diagnosticRequest(proxy: string, model: string, prompt: string, p
                 model,
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0,
-                max_tokens: 700,
+                max_tokens: DIAGNOSTIC_MAX_TOKENS,
                 stream: false,
             }),
             signal: controller.signal,
@@ -267,11 +273,11 @@ async function diagnosticRequest(proxy: string, model: string, prompt: string, p
         if (!content.trim()) {
             const choice = data.choices?.[0] as (ChatChoice & { finish_reason?: string }) | undefined;
             const finishReason = choice?.finish_reason ? ` (motivo: ${choice.finish_reason})` : '';
-            throw new AiError(`O modelo respondeu sem conteúdo textual${finishReason}.`);
+            throw new AiError(`O modelo respondeu sem conteúdo textual${finishReason}. Verifique o limite de geração ou a compatibilidade do endpoint.`);
         }
         return { content, durationMs: Math.round(performance.now() - started) };
     } catch (error) {
-        if (controller.signal.aborted) throw new AiError('Tempo limite de 12 segundos excedido.');
+        if (controller.signal.aborted) throw new AiError(`Tempo limite de ${Math.round(DIAGNOSTIC_TIMEOUT_MS / 1000)} segundos excedido.`);
         throw error instanceof Error ? error : new AiError('Falha desconhecida na chamada.');
     } finally {
         window.clearTimeout(timeout);
