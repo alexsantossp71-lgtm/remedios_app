@@ -56,7 +56,9 @@ const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport }) => {
 
     const applyEntries = (list: PrescriptionEntry[]) => {
         setEntries(list);
-        setChecked(list.map(() => true));
+        // Itens sem dose ou sem frequência/horário identificável começam desmarcados.
+        // O usuário pode selecioná-los após conferir manualmente a receita original.
+        setChecked(list.map((entry) => Boolean(entry.dosage && (entry.intervalHours > 0 || entry.timesPerDay > 0 || entry.times.length > 0))));
         setStatus('idle');
         setError(null);
     };
