@@ -83,3 +83,5 @@ export function SecurityGate({ onUnlock }: { onUnlock: () => void }) {
         </main>
     );
 }
+
+export default SecurityGate;
