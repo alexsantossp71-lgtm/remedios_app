@@ -1,4 +1,4 @@
-# Proxy de IA (Cloudflare Worker) — "IA funcionando de fábrica"
+# Proxy de IA autenticado (Cloudflare Worker)
 
 O GitHub Pages continua **100% estático**; este Worker é um deploy separado que
 mantém a `NVIDIA_API_KEY` no servidor. Assim, os usuários do app **não precisam
