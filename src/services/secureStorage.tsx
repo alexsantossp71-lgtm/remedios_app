@@ -165,6 +165,28 @@ export async function unlockSecureVault(password: string): Promise<void> {
     }
 }
 
+/** Desativa a senha, preservando os registros no armazenamento local sem criptografia. */
+export async function disableSecureVault(): Promise<void> {
+    if (!activeData) throw new Error('Desbloqueie o aplicativo antes de desativar a proteção.');
+    await flushSecureWrites();
+    for (const key of DATA_KEYS) {
+        const raw = activeData[key];
+        if (raw !== undefined && !saveJson(key, JSON.parse(raw))) {
+            throw new Error('Não foi possível salvar todos os dados sem criptografia. A proteção foi mantida.');
+        }
+    }
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(VAULT_STORE, 'readwrite');
+        transaction.objectStore(VAULT_STORE).delete(VAULT_ID);
+        transaction.oncomplete = () => { db.close(); resolve(); };
+        transaction.onerror = () => { db.close(); reject(transaction.error ?? new Error('Não foi possível desativar a proteção.')); };
+        transaction.onabort = () => { db.close(); reject(transaction.error ?? new Error('A operação foi cancelada.')); };
+    });
+    activeKey = null;
+    activeData = null;
+}
+
 export function isVaultUnlocked(): boolean {
     return activeKey !== null && activeData !== null;
 }
