@@ -134,7 +134,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                     }}
                     className="w-full rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white disabled:opacity-60"
                 >
-                    {diagnosticBusy ? 'Testando modelos…' : 'Testar velocidade e qualidade dos modelos'}
+                    {diagnosticBusy ? 'Testando modelos…' : 'Comparar NVIDIA e Pollinations.ai'}
                 </button>
                 {diagnosticBusy && (
                     <p className="text-sm text-brand-blue" role="status">
