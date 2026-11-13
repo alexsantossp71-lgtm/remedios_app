@@ -133,7 +133,7 @@ async function deriveBackupKey(password: string, salt: Uint8Array, iterations: n
         ['deriveKey'],
     );
     return crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt: toArrayBuffer(salt), iterations, hash: 'SHA-256' },
         material,
         { name: 'AES-GCM', length: 256 },
         false,
