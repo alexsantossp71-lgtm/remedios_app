@@ -779,7 +779,6 @@ const App: React.FC = () => {
                     reminder={notification.reminder}
                     time={notification.time}
                     onAction={handleNotificationAction}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
