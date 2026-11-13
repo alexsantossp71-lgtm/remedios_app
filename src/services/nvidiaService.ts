@@ -76,12 +76,27 @@ export function extractChatContent(value: unknown): string {
 async function chatCompletion(
     messages: ChatMessage[],
     model: string,
-    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void; requestTimeoutMs?: number; catalogTimeoutMs?: number; maxModels?: number }
+    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void; requestTimeoutMs?: number; catalogTimeoutMs?: number; maxModels?: number; provider?: 'auto' | 'nvidia-only'; pollinationsConsentOverride?: boolean }
 ): Promise<string> {
     const settings = readAiSettings();
     const proxy = effectiveProxyUrl(settings);
     if (!proxy) {
         throw new AiError(NO_CREDENTIALS_MESSAGE);
+    }
+
+    // Pollinations é o provedor principal quando habilitado; NVIDIA permanece como fallback.
+    let pollinationsFailure = '';
+    if (options?.provider !== 'nvidia-only') {
+        try {
+            return await pollinationsChatCompletion(messages, {
+                maxTokens: options?.maxTokens ?? 1024,
+                temperature: options?.temperature ?? 0.2,
+                validateResponse: options?.validateResponse ?? ((value) => { extractJson(value); }),
+                allowWithoutPreference: options?.pollinationsConsentOverride === true,
+            });
+        } catch (error) {
+            pollinationsFailure = error instanceof Error ? error.message : 'Falha desconhecida no Pollinations.';
+        }
     }
 
     const attempt = async (url: string, headers: Record<string, string>, candidateModel: string): Promise<string> => {
@@ -196,7 +211,11 @@ async function chatCompletion(
             if (!canFallback) throw error;
         }
     }
-    if (lastError instanceof Error) throw lastError;
+    if (lastError instanceof Error) {
+        if (pollinationsFailure) throw new AiError(`Pollinations não respondeu (${pollinationsFailure}). A alternativa NVIDIA também falhou (${lastError.message}).`);
+        throw lastError;
+    }
+    if (pollinationsFailure) throw new AiError(`Pollinations não respondeu (${pollinationsFailure}) e a NVIDIA não está disponível.`);
     throw new AiError(NO_CREDENTIALS_MESSAGE);
 }
 
@@ -893,17 +912,23 @@ const POLLINATIONS_INTERACTION_MODELS = [
 ];
 
 /** Seleciona no máximo dois modelos Pollinations realmente anunciados no catálogo. */
-export function selectAvailablePollinationsModels(availableIds: string[]): string[] {
+export function selectAvailablePollinationsModels(availableIds: string[], hasImages = false): string[] {
     const available = new Set(availableIds);
+    // Só tentamos imagens com Gemini; se não estiver anunciado, usamos NVIDIA Vision.
+    if (hasImages) return available.has('google/gemini-3.8-flash') ? ['google/gemini-3.8-flash'] : [];
     return POLLINATIONS_INTERACTION_MODELS.filter((model) => available.has(model)).slice(0, 2);
 }
 
 /** Tenta Pollinations primeiro. A chave permanece exclusivamente no Cloudflare Worker. */
 async function pollinationsChatCompletion(
     messages: ChatMessage[],
-    options: { maxTokens: number; temperature: number; validateResponse: (content: string) => void }
+    options: { maxTokens: number; temperature: number; validateResponse: (content: string) => void; allowWithoutPreference?: boolean }
 ): Promise<string> {
-    const proxy = effectiveProxyUrl(readAiSettings());
+    const settings = readAiSettings();
+    if (!settings.pollinationsConsent && !options.allowWithoutPreference) {
+        throw new AiError('O uso do Pollinations.ai está desativado nas configurações de privacidade.');
+    }
+    const proxy = effectiveProxyUrl(settings);
     if (!proxy) throw new AiError(NO_CREDENTIALS_MESSAGE);
 
     const catalogController = new AbortController();
@@ -919,8 +944,12 @@ async function pollinationsChatCompletion(
         const availableIds = Array.isArray(catalog?.data)
             ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
             : [];
-        models = selectAvailablePollinationsModels(availableIds);
-        if (!models.length) throw new AiError('O catálogo Pollinations não apresentou nenhum dos modelos compatíveis configurados.');
+        const hasImages = messages.some((message) => Array.isArray(message.content)
+            && message.content.some((part) => part.type === 'image_url'));
+        models = selectAvailablePollinationsModels(availableIds, hasImages);
+        if (!models.length) throw new AiError(hasImages
+            ? 'Pollinations não anunciou um modelo de visão compatível; a operação será encaminhada à alternativa NVIDIA.'
+            : 'O catálogo Pollinations não apresentou nenhum dos modelos compatíveis configurados.');
     } catch (error) {
         if (catalogController.signal.aborted) throw new AiError('Tempo limite ao consultar os modelos Pollinations (3 segundos).');
         throw error instanceof Error ? error : new AiError('Não foi possível consultar os modelos Pollinations.');
@@ -987,6 +1016,7 @@ export const analyzeInteractions = async (
         maxTokens: 1800,
         temperature: 0.1,
         validateResponse: validateInteractionResponse,
+        allowWithoutPreference: true,
     };
 
     try {
@@ -1003,6 +1033,7 @@ export const analyzeInteractions = async (
                 requestTimeoutMs: 9_000,
                 catalogTimeoutMs: 3_000,
                 maxModels: 2,
+                provider: 'nvidia-only',
             });
             return sanitizeInteractionReport(extractJson(content));
         } catch (nvidiaError) {
