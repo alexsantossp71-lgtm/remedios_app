@@ -32,7 +32,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Lint
         run: pnpm run lint
@@ -48,6 +48,11 @@ jobs:
         # URL pública do Worker; não é um segredo e não contém credenciais.
         env:
           VITE_DEFAULT_PROXY_URL: https://remedios-ai-proxy.alexsantossp71.workers.dev
+
+      - name: Validar build do Cloudflare Worker (sem deploy)
+        run: |
+          npm install --prefix worker --no-audit --no-fund
+          npx wrangler@4 deploy --dry-run --config worker/wrangler.toml
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

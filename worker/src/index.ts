@@ -18,10 +18,13 @@ import {
     parseConfig,
 } from './config';
 import { RateLimits, clientIp } from './limiter';
+import { handlePushRequest, sendDuePushes, type D1DatabaseLike, type PushEnv } from './push';
 
 /** Variáveis ([vars]) e segredos (`wrangler secret put`) do Worker. */
 export interface WorkerEnv {
-    [key: string]: string | undefined;
+    PUSH_DB?: D1DatabaseLike;
+    VAPID_PUBLIC_KEY?: string;
+    VAPID_PRIVATE_KEY?: string;
     NVIDIA_API_KEY?: string;
     ALLOWED_ORIGINS?: string;
     ALLOWED_MODELS?: string;
@@ -33,7 +36,7 @@ export interface WorkerEnv {
 /** Os vars podem mudar entre deploys: recria os limitadores quando mudarem. */
 let cachedLimits: { key: string; limits: RateLimits } | null = null;
 function limitsFor(env: WorkerEnv): RateLimits {
-    const cfg = parseConfig(env);
+    const cfg = parseConfig(env as unknown as Record<string, string | undefined>);
     const key = `${cfg.windowMs}|${cfg.windowMax}|${cfg.dayMax}`;
     if (!cachedLimits || cachedLimits.key !== key) {
         cachedLimits = { key, limits: new RateLimits(cfg) };
@@ -65,7 +68,7 @@ function passThrough(upstream: Response, origin: string): Response {
 
 export default {
     async fetch(request: Request, env: WorkerEnv): Promise<Response> {
-        const cfg = parseConfig(env);
+        const cfg = parseConfig(env as unknown as Record<string, string | undefined>);
         const origin = request.headers.get('Origin') ?? '';
         const allowedOrigin = isOriginAllowed(origin, cfg.allowedOrigins) ? origin : '';
 
@@ -78,7 +81,7 @@ export default {
                 status: 204,
                 headers: corsHeaders(allowedOrigin, {
                     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Accept',
+                    'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization',
                     'Access-Control-Max-Age': '86400',
                 }),
             });
@@ -91,6 +94,18 @@ export default {
 
         if (!allowedOrigin) {
             return jsonResponse(403, { error: { message: 'Origem não autorizada para usar este proxy.' } }, '');
+        }
+
+        // Rotas de Web Push são independentes da chave NVIDIA e não recebem
+        // dados clínicos. A autenticação é feita por token aleatório do dispositivo.
+        if (pathname.startsWith('/push/')) {
+            const verdict = limitsFor(env).hit(clientIp(request), Date.now());
+            if (!verdict.allowed) {
+                return jsonResponse(429, { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } }, allowedOrigin, { 'Retry-After': String(verdict.retryAfterSec) });
+            }
+            if (!env.PUSH_DB) return jsonResponse(503, { error: { message: 'Banco de notificações indisponível.' } }, allowedOrigin);
+            const pushResponse = await handlePushRequest(request, env as PushEnv, allowedOrigin);
+            if (pushResponse) return pushResponse;
         }
 
         if (!(env.NVIDIA_API_KEY ?? '').trim()) {
@@ -177,5 +192,8 @@ export default {
             { error: { message: 'Rota ou método não permitido. Use /v1/chat/completions (POST), /v1/models (GET) ou /health (GET).' } },
             allowedOrigin
         );
+    },
+    async scheduled(_controller: { scheduledTime: number; cron: string }, env: WorkerEnv, context: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+        context.waitUntil(sendDuePushes(env as PushEnv));
     },
 };

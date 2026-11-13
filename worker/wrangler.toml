@@ -5,7 +5,16 @@
 
 name = "remedios-ai-proxy"
 main = "src/index.ts"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-11-13"
+
+# Banco técnico do Web Push: somente inscrições e horários UTC, sem dados clínicos.
+[[d1_databases]]
+binding = "PUSH_DB"
+database_name = "remedios-push"
+database_id = "c36f1475-4259-4c86-8d23-afb5fef066ed"
+
+[triggers]
+crons = ["* * * * *"]
 
 [vars]
 # Origens autorizadas a chamar o proxy (CORS, exact match, separadas por vírgula).
@@ -17,6 +26,9 @@ ALLOWED_ORIGINS = "https://alexsantossp71-lgtm.github.io,http://localhost:5173,h
 # Use '*' para liberar todos os modelos da sua conta.
 ALLOWED_MODELS = "meta/llama-3.3-70b-instruct,meta/llama-3.2-90b-vision-instruct,meta/llama-3.2-11b-vision-instruct"
 
+# Chave pública VAPID (não é segredo; a privada fica em VAPID_PRIVATE_KEY).
+VAPID_PUBLIC_KEY = "BAjbR16MfNGcHnruGzW1fhYem5k4Dk1VvxT5jj7qZjui6C5DDFnfZY_sz-EtKEgTMeHlc0OvWGtTYJAVafzGSQs"
+
 # Rate limit: 30 pedidos por IP a cada 5 minutos; 200 por IP por dia.
 RATE_LIMIT_WINDOW_MS = "300000"
 RATE_LIMIT_MAX = "30"
@@ -24,5 +36,6 @@ RATE_LIMIT_DAY_MAX = "200"
 
 # SEGREDOS (não definidos aqui):
 #   NVIDIA_API_KEY — obrigatória (nvapi-... da sua conta build.nvidia.com)
+#   VAPID_PRIVATE_KEY — chave privada VAPID em Base64URL (32 bytes), já cadastrada no Worker
 # A API é protegida por allowlist de origem, allowlist de modelos e limites por IP.
 # NVIDIA_API_KEY permanece exclusivamente como secret do Worker.
