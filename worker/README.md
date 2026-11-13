@@ -1,63 +1,43 @@
-# Proxy de IA autenticado (Cloudflare Worker)
+# Proxy interno de IA (Cloudflare Worker)
 
-O GitHub Pages continua **100% estático**; este Worker é um deploy separado que
-mantém a `NVIDIA_API_KEY` no servidor. Usuários autorizados **não precisam criar
-uma chave NVIDIA própria**, mas devem informar a URL do proxy e o token privado
-recebido do administrador nas Configurações.
+O GitHub Pages continua estático. Este Worker mantém a chave NVIDIA_API_KEY
+exclusivamente no servidor e atende automaticamente o aplicativo Remédio na Hora.
+O usuário final não precisa cadastrar chave, URL, token ou modelo.
 
-## O que o proxy faz
+## Proteções
 
-- Repassa `POST /v1/chat/completions` e `GET /v1/models` para
-  `https://integrate.api.nvidia.com/v1`, injetando o segredo no servidor.
-- **CORS por origem exata** (`ALLOWED_ORIGINS`) — controla navegadores, mas não autentica clientes.
-- **Allowlist de modelos** (`ALLOWED_MODELS`) e bloqueio de `stream: true`.
-- **Token obrigatório** (`PROXY_TOKEN`): toda chamada à API precisa apresentar
-  o segredo no cabeçalho `x-proxy-token`; sem ele o Worker responde 401 e, se o
-  segredo não estiver configurado no servidor, responde 503.
-- **Rate limit de melhor esforço**: 30 pedidos por IP a cada 5 min e 200 por IP
-  por dia. A contagem é em memória por isolate, não é global nem persistente;
-  para cotas rígidas use Cloudflare Rate Limiting ou Durable Objects.
+- A chave NVIDIA é um secret do Cloudflare Worker e nunca é enviada ao navegador.
+- CORS permite apenas as origens listadas em ALLOWED_ORIGINS; isso restringe
+  navegadores, mas não é autenticação contra chamadas feitas fora do navegador.
+- Allowlist de modelos e bloqueio de streaming.
+- Limite de tamanho do corpo e rate limit por IP (melhor esforço, em memória por
+  isolate; para cotas rígidas use Cloudflare Rate Limiting ou Durable Objects).
 
-## Deploy (uma vez)
+**Importante:** como o aplicativo é público e não possui login, o endpoint do
+proxy também é acessível publicamente por clientes que contornem CORS. Os limites
+atuais reduzem abuso, mas não equivalem a autenticação. Para uso público com
+controle mais forte, adicione Cloudflare Turnstile ou autenticação de usuário e
+limites de cobrança no provedor.
 
-```bash
-cd worker
-npx wrangler login
-npx wrangler secret put NVIDIA_API_KEY   # cole a chave nvapi-...
-npx wrangler secret put PROXY_TOKEN      # crie um token longo e aleatório e guarde-o em local seguro
-npx wrangler deploy
-```
+## Secrets necessários
 
-Edite `ALLOWED_ORIGINS` no `wrangler.toml` com a URL real do seu Pages
-(`https://<usuario>.github.io`) antes do deploy. Depois confira:
+Somente:
+- NVIDIA_API_KEY — chave da conta NVIDIA.
+- CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID — para o deploy via GitHub Actions.
 
-```bash
-curl https://remedios-ai-proxy.<sua-conta>.workers.dev/health
-# {"ok":true}
-```
+O workflow publica automaticamente NVIDIA_API_KEY no Worker. Não crie nem
+distribua token compartilhado para os usuários.
 
-## Apontar o app para o proxy
+## Deploy e teste
 
-1. **Por dispositivo:** Configurações → "Proxy de IA" → cole a URL do Worker.
-2. **Padrão para todos (recomendado):** defina a URL em tempo de build:
+O workflow .github/workflows/deploy-proxy.yml publica o Worker quando alterações
+na pasta worker/ chegam à branch main. O endereço já está configurado no build
+do frontend:
 
-```bash
-# .env.local (ou variable de ambiente no CI)
-VITE_DEFAULT_PROXY_URL=https://remedios-ai-proxy.<sua-conta>.workers.dev
-```
+https://remedios-ai-proxy.alexsantossp71.workers.dev
 
-Com `VITE_DEFAULT_PROXY_URL` definido, a URL já vem preenchida; cada usuário
-autorizado ainda precisa informar o token em Configurações. Quem quiser usar
-sua própria chave NVIDIA pode informá-la em vez do proxy.
-
-No GitHub Actions a variável já está ligada ao build: basta criar
-`VITE_DEFAULT_PROXY_URL` em **Settings → Secrets and variables → Actions →
-Variables** e rodar o deploy novamente (re-run do workflow ou push).
-
-Segurança: não publique nenhum dos dois secrets. O rate limit em memória é
-apenas uma defesa adicional e pode reiniciar entre isolates.
+Teste a disponibilidade em /health, que deve responder {"ok":true}.
 
 ## Testes
 
-Os módulos `config.ts` e `limiter.ts` são puros e testados pelo Vitest do
-repositório (`pnpm test` inclui `worker/src/*.test.ts`).
+pnpm test inclui os testes unitários do Worker.
