@@ -1,6 +1,6 @@
 import { buildPushPayload, type PushSubscription, type VapidKeys } from '@block65/webcrypto-web-push';
 
-interface PushEnv {
+export interface PushEnv {
   PUSH_DB: D1DatabaseLike;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
@@ -13,7 +13,7 @@ interface D1Statement {
   all<T = Record<string, unknown>>(): Promise<D1Result<T>>;
   run(): Promise<D1Result>;
 }
-interface D1DatabaseLike {
+export interface D1DatabaseLike {
   prepare(query: string): D1Statement;
   batch<T = unknown>(statements: D1Statement[]): Promise<D1Result<T>[]>;
 }
