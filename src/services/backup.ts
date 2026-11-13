@@ -1,10 +1,10 @@
 
 // Backup dos dados de saúde: exportação e importação de um arquivo JSON.
 //
-// Todos os cadastros do app vivem no localStorage deste dispositivo, então
+// Os cadastros do app são protegidos no armazenamento local deste dispositivo, então
 // "limpar dados de navegação" ou trocar de aparelho apagaria tudo. O backup
 // cobre lembretes (com o histórico de doses), médicos, consultas, planos,
-// exames e laudos laboratoriais. A chave da API NVIDIA NUNCA é incluída (dado sensível do usuário).
+// exames e laudos laboratoriais. Configurações e credenciais internas nunca são incluídas.
 
 import {
     STORAGE_KEYS,
@@ -19,6 +19,7 @@ import {
 } from '../storage';
 import { Appointment, Doctor, Exam, HealthPlan, LabResult, Reminder } from '../types';
 import { toDateTimeInputValue } from '../utils/datetime';
+import { loadSecureJson, saveSecureJson, isVaultUnlocked } from './secureStorage';
 
 /** Marcadores do formato, para rejeitar arquivos de outros apps/versões. */
 const APP_ID = 'remedio-na-hora';
@@ -79,12 +80,12 @@ const LABELS: Record<BackupCategory, string> = {
 /** Monta o objeto de backup a partir dos dados válidos atuais. */
 export function buildBackup(): BackupFile {
     const data: BackupData = {
-        reminders: loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [],
-        doctors: loadJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray) ?? [],
-        appointments: loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? [],
-        plans: loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? [],
-        exams: loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? [],
-        labs: loadJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? [],
+        reminders: (isVaultUnlocked() ? loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) : null) ?? loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [],
+        doctors: (isVaultUnlocked() ? loadSecureJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray) : null) ?? loadJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray) ?? [],
+        appointments: (isVaultUnlocked() ? loadSecureJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) : null) ?? loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? [],
+        plans: (isVaultUnlocked() ? loadSecureJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) : null) ?? loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? [],
+        exams: (isVaultUnlocked() ? loadSecureJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) : null) ?? loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? [],
+        labs: (isVaultUnlocked() ? loadSecureJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) : null) ?? loadJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? [],
     };
     return { app: APP_ID, version: FORMAT_VERSION, exportedAt: toDateTimeInputValue(new Date()), data };
 }
@@ -288,10 +289,28 @@ export function describeSummary(summary: BackupSummary): string {
 export function applyBackup(data: Partial<Required<BackupData>>): void {
     // Só substitui categorias presentes no arquivo. Isso preserva os laudos
     // (e demais dados) ao importar backups antigos que ainda não os incluíam.
-    if (data.reminders !== undefined) saveJson(STORAGE_KEYS.reminders, data.reminders);
-    if (data.doctors !== undefined) saveJson(STORAGE_KEYS.doctors, data.doctors);
-    if (data.appointments !== undefined) saveJson(STORAGE_KEYS.appointments, data.appointments);
-    if (data.plans !== undefined) saveJson(STORAGE_KEYS.plans, data.plans);
-    if (data.exams !== undefined) saveJson(STORAGE_KEYS.exams, data.exams);
-    if (data.labs !== undefined) saveJson(STORAGE_KEYS.labs, data.labs);
+    if (data.reminders !== undefined) {
+        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.reminders, data.reminders);
+        else saveJson(STORAGE_KEYS.reminders, data.reminders);
+    }
+    if (data.doctors !== undefined) {
+        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.doctors, data.doctors);
+        else saveJson(STORAGE_KEYS.doctors, data.doctors);
+    }
+    if (data.appointments !== undefined) {
+        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.appointments, data.appointments);
+        else saveJson(STORAGE_KEYS.appointments, data.appointments);
+    }
+    if (data.plans !== undefined) {
+        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.plans, data.plans);
+        else saveJson(STORAGE_KEYS.plans, data.plans);
+    }
+    if (data.exams !== undefined) {
+        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.exams, data.exams);
+        else saveJson(STORAGE_KEYS.exams, data.exams);
+    }
+    if (data.labs !== undefined) {
+        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.labs, data.labs);
+        else saveJson(STORAGE_KEYS.labs, data.labs);
+    }
 }
