@@ -422,18 +422,20 @@ const stringList = (raw: unknown, maxItems: number, maxLen: number): string[] =>
               .slice(0, maxItems)
         : [];
 
-const INTERACTIONS_PROMPT = `Você é um farmacêutico clínico. Analise a lista de medicamentos de um paciente e identifique duplicidades de princípio ativo e interações medicamentosas relevantes.
+const INTERACTIONS_PROMPT = `Analise a lista de medicamentos de um paciente para apontar possíveis duplicidades de princípio ativo e interações medicamentosas relevantes. Você é um assistente informativo, não um farmacêutico responsável pelo paciente.
 
 Responda APENAS com um JSON válido, sem nenhum texto antes ou depois, neste formato:
-{"summary":"...","duplicates":[{"activeIngredient":"...","medications":["..."],"note":"..."}],"interactions":[{"severity":"alta","medications":["..."],"description":"...","recommendation":"..."}],"sources":[{"name":"fonte identificável consultada","date":"AAAA-MM-DD ou data da edição"}]}
+{"summary":"...","duplicates":[{"activeIngredient":"...","medications":["..."],"note":"..."}],"interactions":[{"severity":"alta","medications":["..."],"description":"...","recommendation":"..."}],"sources":[{"name":"fonte identificável consultada","date":"data da edição ou AAAA-MM-DD"}]}
 
 Regras:
-- Considere nomes comerciais e genéricos (ex.: Tylenol e Paracetamol têm o mesmo princípio ativo).
-- duplicates: grupos da lista que compartilham princípio ativo ou classe terapêutica com risco de dose dupla.
-- interactions: combinações da lista clinicamente reconhecidas como relevantes. severity deve ser exatamente "alta", "moderada" ou "baixa".
-- description: o que pode acontecer, em 1-2 frases de linguagem simples. recommendation: o que o paciente deve fazer, em 1 frase.
-- summary: uma frase resumindo o resultado geral. Se a lista for segura, devolva listas vazias e um summary tranquilizador.
-- Só inclua combinações clinicamente reconhecidas; não invente. Português do Brasil, para paciente leigo.`;
+- Considere nomes comerciais e genéricos, mas sinalize incerteza quando nomes semelhantes puderem ser confundidos.
+- duplicates: grupos da lista que compartilham princípio ativo com risco de duplicidade; não afirme equivalência sem segurança.
+- interactions: somente combinações clinicamente reconhecidas; severity exatamente "alta", "moderada" ou "baixa".
+- description: possível consequência em linguagem simples. recommendation: orientar a confirmar com médico ou farmacêutico.
+- Nunca recomende iniciar, suspender, substituir, aumentar ou reduzir medicamento, dose ou frequência.
+- Nunca declare que uma combinação é "segura" nem que "não há risco". Ausência de alertas não exclui interações.
+- sources: inclua apenas fontes clínicas realmente consultadas e identificáveis. Informe data/edição apenas se conhecida. Nunca invente fonte ou data; se não houver, devolva [].
+- Esta é uma análise preliminar e educativa, NÃO uma verificação farmacêutica definitiva. Português do Brasil.`;
 
 /** Normaliza a resposta da IA; nunca lança — entrada estranha vira relatório vazio. */
 export function sanitizeInteractionReport(value: unknown): InteractionReport {
