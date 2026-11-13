@@ -310,6 +310,9 @@ const PRESCRIPTION_JSON_RULES = `Regras:
 - times: horários de dose explícitos na receita em HH:MM (24h, ex.: "07:30"); [] se não houver horários escritos.
 - startDate: data de início escrita na receita em AAAA-MM-DD; string vazia se não houver.
 - Um item por medicamento. Campo ilegível ou ausente → vazio/0/[] conforme o tipo. NÃO invente dados.
+- Nunca deduza nem complete dose, frequência, duração ou horário. Extraia somente o que estiver escrito.
+- Se um campo estiver ilegível ou ausente, deixe-o vazio/0/[]; nunca substitua por um esquema padrão.
+- A saída é uma transcrição assistida, não uma prescrição ou recomendação clínica.
 - Se não houver receita com medicamentos, responda apenas {"medicamentos":[]}.`;
 
 const PRESCRIPTION_PHOTO_PROMPT = `Analise a foto de uma receita/prescrição médica brasileira e extraia TODOS os medicamentos prescritos.
