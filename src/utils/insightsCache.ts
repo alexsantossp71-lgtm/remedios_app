@@ -1,6 +1,7 @@
 
 import type { AdherenceAnalysis } from './adherenceInsights';
 import { loadJson, saveJson, STORAGE_KEYS } from '../storage';
+import { isVaultUnlocked, loadSecureJson, saveSecureJson } from '../services/secureStorage';
 
 // ===== Cache das análises de adesão geradas por IA =====
 // Chave = fingerprint do relatório (muda quando o histórico muda), então o
@@ -22,18 +23,19 @@ const isInsightMap = (value: unknown): boolean =>
 /** Devolve a análise em cache para o fingerprint; `null` quando não há. */
 export function getCachedAnalysis(fingerprint: string): AdherenceAnalysis | null {
     if (!fingerprint) return null;
-    const map = loadJson<InsightMap>(STORAGE_KEYS.adherenceInsights, isInsightMap);
+    const map = isVaultUnlocked() ? loadSecureJson<InsightMap>(STORAGE_KEYS.adherenceInsights, isInsightMap) : loadJson<InsightMap>(STORAGE_KEYS.adherenceInsights, isInsightMap);
     return map && map[fingerprint] ? map[fingerprint] : null;
 }
 
 /** Salva/atualiza a análise, descartando as mais antigas acima do teto. */
 export function storeAnalysis(fingerprint: string, analysis: AdherenceAnalysis): void {
     if (!fingerprint) return;
-    const map = loadJson<InsightMap>(STORAGE_KEYS.adherenceInsights, isInsightMap) ?? {};
+    const map = (isVaultUnlocked() ? loadSecureJson<InsightMap>(STORAGE_KEYS.adherenceInsights, isInsightMap) : loadJson<InsightMap>(STORAGE_KEYS.adherenceInsights, isInsightMap)) ?? {};
     map[fingerprint] = analysis;
     const keys = Object.keys(map);
     if (keys.length > MAX_ENTRIES) {
         for (const oldKey of keys.slice(0, keys.length - MAX_ENTRIES)) delete map[oldKey];
     }
-    saveJson(STORAGE_KEYS.adherenceInsights, map);
+    if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.adherenceInsights, map);
+    else saveJson(STORAGE_KEYS.adherenceInsights, map);
 }
