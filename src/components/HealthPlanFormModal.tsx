@@ -32,7 +32,7 @@ type ScanStatus = 'idle' | 'scanning' | 'success' | 'error';
 const SCAN_ERROR_MESSAGE =
     'Não foi possível ler a carteirinha automaticamente. Preencha os campos manualmente ou tente outra foto com melhor luz e enquadramento.';
 
-const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpenSettings }) => {
+const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
     const [operator, setOperator] = useState(editing?.operator ?? '');
