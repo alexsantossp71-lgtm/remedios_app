@@ -178,7 +178,7 @@ const LabFormModal: React.FC<Props> = ({ onClose, onSave }) => {
                     Registrar laudo
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    A foto é enviada à API da NVIDIA apenas para leitura; o laudo fica salvo somente neste dispositivo.
+                    A foto é usada para ler os dados do laudo. Confira os valores reconhecidos antes de salvar.
                 </p>
 
                 {/* Foto do laudo */}
@@ -230,7 +230,7 @@ const LabFormModal: React.FC<Props> = ({ onClose, onSave }) => {
                     </section>
                 ) : (
                     <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4 rounded-lg border-2 border-dashed border-brand-gray-300 dark:border-brand-gray-600 p-3">
-                        Sem IA configurada: preencha os valores manualmente (a leitura por foto precisa do proxy ou da chave da NVIDIA nas Configurações).
+                        A leitura automática está temporariamente indisponível. Você pode preencher os valores manualmente.
                     </p>
                 )}
 
