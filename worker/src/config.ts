@@ -13,7 +13,7 @@ export interface ProxyConfig {
     windowMax: number;
     /** Máximo de pedidos por IP por dia (UTC). */
     dayMax: number;
-    /** Segredo PROXY_TOKEN definido? Se sim, exige cabeçalho x-proxy-token. */
+    /** O proxy sempre exige autenticação por token, além da checagem CORS. */
     requiresToken: boolean;
 }
 
@@ -47,7 +47,7 @@ export function parseConfig(env: Record<string, string | undefined>): ProxyConfi
         windowMs: positiveInt(env.RATE_LIMIT_WINDOW_MS, DEFAULT_WINDOW_MS),
         windowMax: positiveInt(env.RATE_LIMIT_MAX, DEFAULT_WINDOW_MAX),
         dayMax: positiveInt(env.RATE_LIMIT_DAY_MAX, DEFAULT_DAY_MAX),
-        requiresToken: Boolean((env.PROXY_TOKEN ?? '').trim()),
+        requiresToken: true,
     };
 }
 
@@ -65,10 +65,12 @@ export function isModelAllowed(model: string, allowed: string[] | '*'): boolean 
 
 /** Comparação em tempo constante para o token opcional do proxy. */
 export function constantTimeEquals(a: string, b: string): boolean {
-    if (a.length !== b.length) return false;
-    let diff = 0;
-    for (let i = 0; i < a.length; i++) {
-        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    const left = new TextEncoder().encode(a);
+    const right = new TextEncoder().encode(b);
+    const length = Math.max(left.length, right.length);
+    let diff = left.length ^ right.length;
+    for (let i = 0; i < length; i++) {
+        diff |= (left[i] ?? 0) ^ (right[i] ?? 0);
     }
     return diff === 0;
 }
