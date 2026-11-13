@@ -51,6 +51,25 @@ const proxyHeaders = (): Record<string, string> => ({
 });
 
 /**
+ * Normaliza message.content no formato OpenAI: alguns provedores devolvem
+ * texto como string; outros devolvem uma lista de partes text/image.
+ * Partes sem texto (por exemplo, imagens) são ignoradas.
+ */
+export function extractChatContent(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (!Array.isArray(value)) return '';
+    return value
+        .map((part) => {
+            if (typeof part === 'string') return part;
+            if (typeof part === 'object' && part !== null && typeof (part as { text?: unknown }).text === 'string') {
+                return (part as { text: string }).text;
+            }
+            return '';
+        })
+        .join('');
+}
+
+/**
  * Chamada única de chat completions; devolve o texto da primeira resposta.
  * O endereço e as credenciais são gerenciados internamente.
  */
@@ -90,18 +109,12 @@ async function chatCompletion(
 
             // O prazo permanece ativo também durante a leitura do corpo da resposta.
             const data = (await response.json().catch(() => null)) as { choices?: ChatChoice[] } | null;
-            const content = data?.choices?.[0]?.message?.content;
+            const content = extractChatContent(data?.choices?.[0]?.message?.content);
             const validateContent = (value: string): string => {
                 options?.validateResponse?.(value);
                 return value;
             };
-            if (typeof content === 'string' && content.trim()) return validateContent(content);
-            if (Array.isArray(content)) {
-                const text = content
-                    .map((part) => (typeof part === 'string' ? part : typeof (part as ChatContentPart)?.text === 'string' ? (part as ChatContentPart).text! : ''))
-                    .join('');
-                if (text.trim()) return validateContent(text);
-            }
+            if (content.trim()) return validateContent(content);
             throw new AiError('O modelo respondeu sem conteúdo válido. Tente novamente.');
         } catch (error) {
             if (controller.signal.aborted) {
@@ -177,8 +190,7 @@ async function chatCompletion(
             const status = error instanceof AiError ? error.status : undefined;
             const detail = error instanceof Error ? error.message : '';
             const proxyRateLimited = status === 429 && /limite de uso do proxy|limite de solicitações atingido/i.test(detail);
-            // Falhas de autenticação, corpo grande e limite local não melhoram trocando modelo.
-            const canFallback = !proxyRateLimited && (status === undefined || [403, 404, 410, 429].includes(status) || status >= 500);
+            // Falhas de autenticação, corpo grande e limite local não melhoram trocando modelo.            const canFallback = !proxyRateLimited && (status === undefined || [403, 404, 410, 429].includes(status) || status >= 500);
             if (!canFallback) throw error;
         }
     }
@@ -248,9 +260,11 @@ async function diagnosticRequest(proxy: string, model: string, prompt: string): 
             throw new AiError(detail);
         }
         const data = await response.json() as { choices?: ChatChoice[] };
-        const content = data.choices?.[0]?.message?.content;
-        if (typeof content !== 'string' || !content.trim()) {
-            throw new AiError('O modelo respondeu sem texto.');
+        const content = extractChatContent(data.choices?.[0]?.message?.content);
+        if (!content.trim()) {
+            const choice = data.choices?.[0] as (ChatChoice & { finish_reason?: string }) | undefined;
+            const finishReason = choice?.finish_reason ? ` (motivo: ${choice.finish_reason})` : '';
+            throw new AiError(`O modelo respondeu sem conteúdo textual${finishReason}.`);
         }
         return { content, durationMs: Math.round(performance.now() - started) };
     } catch (error) {
@@ -357,8 +371,7 @@ export async function runAiModelDiagnostics(
                     return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
                 }
             })(),
-        ]);
-        results.push({
+        ]);        results.push({
             model,
             interactions: interactionResult,
             schedule: scheduleResult,
@@ -537,8 +550,7 @@ export const scanExamRequest = async (
         [
             {
                 role: 'user',
-                content: [
-                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+                content: [                    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
                     { type: 'text', text: EXAM_SCAN_PROMPT },
                 ],
             },
@@ -717,8 +729,7 @@ const stringList = (raw: unknown, maxItems: number, maxLen: number): string[] =>
     Array.isArray(raw)
         ? raw
               .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-              .map((item) => item.trim().slice(0, maxLen))
-              .slice(0, maxItems)
+              .map((item) => item.trim().slice(0, maxLen))              .slice(0, maxItems)
         : [];
 
 const INTERACTIONS_PROMPT = `Analise a lista de medicamentos de um paciente para apontar possíveis duplicidades de princípio ativo e interações medicamentosas relevantes. Você é um assistente informativo, não um farmacêutico responsável pelo paciente.
@@ -897,8 +908,7 @@ export const analyzeAdherenceInsights = async (report: AdherenceReport): Promise
                 role: 'user',
                 content: `${ADHERENCE_PROMPT}\n\nRelatório de adesão (JSON):\n${JSON.stringify(report)}`,
             },
-        ],
-        textModel,
+        ],        textModel,
         { maxTokens: 1200, temperature: 0.3 }
     );
 
@@ -1077,8 +1087,7 @@ export const testConnection = async (): Promise<string> => {
     let response: Response;
     try {
         response = await fetch(`${proxy}/models`, {
-            headers: proxyHeaders(),
-            signal: controller.signal,
+            headers: proxyHeaders(),            signal: controller.signal,
         });
     } catch {
         throw new AiError('Não foi possível conectar ao serviço de IA. Verifique sua internet e tente novamente.');
