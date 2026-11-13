@@ -1,6 +1,6 @@
 
 import { Medication, EXAM_CATEGORIES } from '../types';
-import { effectiveProxyUrl, readAiSettings, type AiSettings } from './settings';
+import { effectiveProxyUrl, readAiSettings } from './settings';
 import { sanitizePrescriptionEntries, type PrescriptionEntry } from '../utils/prescription';
 import { sanitizeAdherenceAnalysis, type AdherenceAnalysis, type AdherenceReport } from '../utils/adherenceInsights';
 import { sanitizeConsultationQuestions } from '../utils/consultationSummary';
@@ -13,10 +13,8 @@ import {
     type ScheduleAdvisorMed,
 } from '../utils/scheduleAdvisor';
 
-// ===== Cliente da API NVIDIA (build.nvidia.com) =====
-// A API da NVIDIA segue o formato OpenAI: POST {base}/chat/completions com
-// cabeçalho Bearer. Modelos de visão recebem a imagem como data URL base64
-// dentro de `image_url` (docs: NIM for Vision Language Models).
+// Cliente interno de IA: o navegador chama somente o Worker do sistema.
+// A credencial NVIDIA permanece exclusivamente no ambiente do servidor.
 
 const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -61,15 +59,8 @@ interface ChatChoice {
 const NO_CREDENTIALS_MESSAGE =
     'O serviço de inteligência artificial está temporariamente indisponível. Tente novamente em alguns instantes.';
 
-/** Cabeçalhos do pedido direto (chave do usuário). */
-const directHeaders = (apiKey: string): Record<string, string> => ({
-    Authorization: `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-});
-
-/** Cabeçalhos do pedido via proxy (sem chave NVIDIA; token de acesso obrigatório). */
-const proxyHeaders = (_settings: AiSettings): Record<string, string> => ({
+/** Cabeçalhos do serviço interno; nenhuma credencial é enviada pelo navegador. */
+const proxyHeaders = (): Record<string, string> => ({
     'Content-Type': 'application/json',
     Accept: 'application/json',
 });
@@ -80,8 +71,7 @@ const canFallbackToKey = (error: unknown): boolean =>
 
 /**
  * Chamada única de chat completions; devolve o texto da primeira resposta.
- * Caminho preferencial: proxy configurado (sem chave por usuário). Se o proxy
- * falhar por rede/5xx e existir uma chave própria, repete direto na NVIDIA.
+ * O endpoint e a credencial de upstream são gerenciados pelo servidor.
  */
 async function chatCompletion(
     messages: ChatMessage[],
@@ -143,13 +133,13 @@ async function chatCompletion(
 
     if (proxy) {
         try {
-            return await attempt(`${proxy}/chat/completions`, proxyHeaders(settings), true);
+            return await attempt(`${proxy}/chat/completions`, proxyHeaders(), true);
         } catch (error) {
             if (!apiKey || !canFallbackToKey(error)) throw error;
             // Cai para a chave direta abaixo (instabilidade momentânea do proxy).
         }
     }
-    return attempt(`${baseUrl()}/chat/completions`, directHeaders(apiKey), false);
+    throw new AiError(NO_CREDENTIALS_MESSAGE);
 }
 
 /** Traduz erros HTTP da API/proxy para mensagens claras em português. */
