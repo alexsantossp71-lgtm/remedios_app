@@ -1,9 +1,8 @@
 
-// Rate limit em memória do proxy, por isolate do Worker.
-// No plano gratuito (e para uso pessoal/familiar) isso é suficiente: cada
-// isolate mantém a própria contagem e a janela é curta, então qualquer abuso
-// esbarra no limite por IP e, no pior caso, no teto global do dia.
-// Para limites estritos entre isolates, trocar por Durable Objects/KV depois.
+// Rate limit em memória por isolate do Worker. É uma defesa adicional de
+// melhor esforço, NÃO um limite global: contadores reiniciam e não são
+// compartilhados entre isolates. Para cotas rígidas, usar Durable Objects ou
+// Cloudflare Rate Limiting antes de disponibilizar o proxy publicamente.
 
 export interface RateVerdict {
     allowed: boolean;
@@ -109,6 +108,7 @@ export class RateLimits {
 export function clientIp(request: Request): string {
     const cf = request.headers.get('CF-Connecting-IP')?.trim();
     if (cf) return cf;
-    const forwarded = request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim();
-    return forwarded || 'unknown';
+    // X-Forwarded-For pode ser forjado em chamadas fora da infraestrutura
+    // Cloudflare. Sem CF-Connecting-IP, agrupa em uma única chave segura.
+    return 'unknown';
 }
