@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 
-// Configuração interna: a URL e os modelos são definidos pelo sistema.
-// Nenhuma credencial é enviada ao navegador ou armazenada no localStorage.
 export interface AiSettings {
     nvidiaApiKey: string;
     proxyUrl: string;
@@ -17,9 +15,9 @@ export const DEFAULT_PROXY_URL = 'https://remedios-ai-proxy.alexsantossp71.worke
 const EVENT_NAME = 'ai-settings-changed';
 
 export function normalizeProxyUrl(raw: string): string {
-    const value = raw.trim().replace(/\\/+$/, '');
-    if (!/^https?:\\/\\/.+/i.test(value)) return '';
-    return /\\/v1$/i.test(value) ? value : `${value}/v1`;
+    const value = raw.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\/.+/i.test(value)) return '';
+    return /\/v1$/i.test(value) ? value : \`\${value}/v1\`;
 }
 
 export function effectiveProxyUrl(_settings?: Pick<AiSettings, 'proxyUrl'>): string {
@@ -40,7 +38,7 @@ export function readAiSettings(): AiSettings {
     };
 }
 
-// Mantido por compatibilidade com componentes antigos; credenciais nunca são persistidas.
+// Compatibilidade com chamadas antigas; nenhum segredo é persistido no navegador.
 export function saveAiSettings(_next: AiSettings): void {
     window.dispatchEvent(new Event(EVENT_NAME));
 }
