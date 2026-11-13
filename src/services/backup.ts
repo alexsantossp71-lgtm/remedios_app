@@ -1,10 +1,10 @@
 
 // Backup dos dados de saúde: exportação e importação de um arquivo JSON.
 //
-// Todos os cadastros do app vivem no localStorage deste dispositivo, então
+// Os cadastros do app são protegidos no armazenamento local deste dispositivo, então
 // "limpar dados de navegação" ou trocar de aparelho apagaria tudo. O backup
 // cobre lembretes (com o histórico de doses), médicos, consultas, planos,
-// exames e laudos laboratoriais. A chave da API NVIDIA NUNCA é incluída (dado sensível do usuário).
+// exames e laudos laboratoriais. Configurações e credenciais internas nunca são incluídas.
 
 import {
     STORAGE_KEYS,
@@ -19,6 +19,7 @@ import {
 } from '../storage';
 import { Appointment, Doctor, Exam, HealthPlan, LabResult, Reminder } from '../types';
 import { toDateTimeInputValue } from '../utils/datetime';
+import { loadSecureJson, saveSecureJson, isVaultUnlocked, flushSecureWrites } from './secureStorage';
 
 /** Marcadores do formato, para rejeitar arquivos de outros apps/versões. */
 const APP_ID = 'remedio-na-hora';
