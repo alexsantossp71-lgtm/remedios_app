@@ -12,8 +12,8 @@ import {
 import { createSecureVault, disableSecureVault, flushSecureWrites, inspectSecureStorage } from '../services/secureStorage';
 import { notificationStatus, NotificationSupport, requestNotificationPermission } from '../utils/notify';
 import type { Reminder } from '../types';
+import { runAiModelDiagnostics, type ModelDiagnosticProgress, type ModelDiagnosticResult } from '../services/nvidiaService';
 import { disablePush, enablePush, isPushEnabled } from '../services/pushNotifications';
-import AiDiagnosticsModal from './AiDiagnosticsModal';
 import {
     FormModalShell,
     FormSection,
@@ -41,7 +41,10 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
     const [pushEnabled, setPushEnabled] = useState(() => isPushEnabled());
     const [pushBusy, setPushBusy] = useState(false);
     const [pushMessage, setPushMessage] = useState<{ ok: boolean; text: string } | null>(null);
-    const [aiDiagnosticsOpen, setAiDiagnosticsOpen] = useState(false);
+    const [diagnosticBusy, setDiagnosticBusy] = useState(false);
+    const [diagnosticProgress, setDiagnosticProgress] = useState<ModelDiagnosticProgress | null>(null);
+    const [diagnosticResults, setDiagnosticResults] = useState<ModelDiagnosticResult[] | null>(null);
+    const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
 
     React.useEffect(() => { inspectSecureStorage().then(status => setIsProtected(status.configured)).catch(() => setIsProtected(false)); }, []);
 
@@ -108,6 +111,78 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
             onSubmit={handleSave}
             submitLabel="Salvar"
         >
+            <FormSection title="Diagnóstico dos modelos de IA">
+                <p className={helperClass}>
+                    Compara os modelos disponíveis na sua conexão em duas tarefas fictícias: identificação de uma interação conhecida e preservação de horários de lembretes. Mede o tempo e verifica critérios básicos de qualidade. Nenhum medicamento ou dado cadastrado neste aparelho é enviado neste teste.
+                </p>
+                <button
+                    type="button"
+                    disabled={diagnosticBusy}
+                    onClick={async () => {
+                        setDiagnosticBusy(true);
+                        setDiagnosticProgress(null);
+                        setDiagnosticResults(null);
+                        setDiagnosticError(null);
+                        try {
+                            const results = await runAiModelDiagnostics(setDiagnosticProgress);
+                            setDiagnosticResults(results);
+                        } catch (error) {
+                            setDiagnosticError(error instanceof Error ? error.message : 'Não foi possível executar o diagnóstico.');
+                        } finally {
+                            setDiagnosticBusy(false);
+                        }
+                    }}
+                    className="w-full rounded-lg bg-brand-blue px-4 py-2 font-semibold text-white disabled:opacity-60"
+                >
+                    {diagnosticBusy ? 'Testando modelos…' : 'Testar velocidade e qualidade dos modelos'}
+                </button>
+                {diagnosticBusy && (
+                    <p className="text-sm text-brand-blue" role="status">
+                        {diagnosticProgress
+                            ? `Concluídos ${diagnosticProgress.completed} de ${diagnosticProgress.total} modelos. Testando: ${diagnosticProgress.model}`
+                            : 'Consultando os modelos disponíveis…'}
+                        {' '}Cada modelo recebe dois testes independentes; a análise pode levar até cerca de 1 minuto.
+                    </p>
+                )}
+                {diagnosticError && <p className="text-sm text-brand-red" role="alert">{diagnosticError}</p>}
+                {diagnosticResults && (
+                    <div className="space-y-3">
+                        <p className="text-sm font-semibold text-brand-gray-700 dark:text-brand-gray-200">
+                            Resultado: {diagnosticResults.filter(item => item.interactions.ok && item.schedule.ok).length} modelo(s) passaram nos dois testes.
+                        </p>
+                        {diagnosticResults.map((item) => (
+                            <div key={item.model} className="rounded-lg border border-brand-gray-200 dark:border-brand-gray-600 p-3 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-sm font-semibold break-all text-brand-gray-800 dark:text-white">{item.model}</span>
+                                    <span className="text-xs font-semibold text-brand-gray-600 dark:text-brand-gray-300">
+                                        {(item.totalMs / 1000).toFixed(1)} s no total
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded bg-brand-gray-100 dark:bg-brand-gray-700 p-2">
+                                        <p className="font-semibold">Interações · {(item.interactions.durationMs / 1000).toFixed(1)} s</p>
+                                        <p className={item.interactions.ok ? 'text-green-700 dark:text-green-400' : 'text-brand-red'}>
+                                            {item.interactions.ok ? 'Passou' : 'Não passou'}
+                                        </p>
+                                        <p className="mt-1 text-brand-gray-600 dark:text-brand-gray-300">{item.interactions.detail}</p>
+                                    </div>
+                                    <div className="rounded bg-brand-gray-100 dark:bg-brand-gray-700 p-2">
+                                        <p className="font-semibold">Horários · {(item.schedule.durationMs / 1000).toFixed(1)} s</p>
+                                        <p className={item.schedule.ok ? 'text-green-700 dark:text-green-400' : 'text-brand-red'}>
+                                            {item.schedule.ok ? 'Passou' : 'Não passou'}
+                                        </p>
+                                        <p className="mt-1 text-brand-gray-600 dark:text-brand-gray-300">{item.schedule.detail}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        <p className={helperClass}>
+                            A classificação mede apenas estes dois cenários de teste. Não comprova precisão clínica nem garante que o modelo sempre responderá corretamente. Os resultados variam conforme a disponibilidade e os limites gratuitos da NVIDIA.
+                        </p>
+                    </div>
+                )}
+            </FormSection>
+
             {/* Configurações da IA são internas e não aparecem para o usuário. */}
 
             <FormSection title="Notificações">
@@ -240,7 +315,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                 )}
             </FormSection>
 
-            <FormSection title="Diagnóstico da inteligência artificial">\n                <p className={helperClass}>Compare os modelos disponíveis no serviço NVIDIA. O teste usa somente exemplos fictícios e não envia os medicamentos ou horários cadastrados neste aparelho.</p>\n                <button type="button" onClick={() => setAiDiagnosticsOpen(true)} className="w-full rounded-lg border border-brand-blue px-4 py-2.5 text-sm font-semibold text-brand-blue hover:bg-blue-50 dark:hover:bg-brand-gray-700">Testar velocidade e qualidade dos modelos</button>\n            </FormSection>\n            {aiDiagnosticsOpen && <AiDiagnosticsModal onClose={() => setAiDiagnosticsOpen(false)} />}\n\n            <FormSection title="Privacidade e segurança">
+            <FormSection title="Privacidade e segurança">
                 <div className={helperClass}>
                     <p>Medicamentos, horários, histórico de doses, médicos, consultas, carteirinha, exames, fotos e laudos ficam armazenados neste dispositivo. Se você ativar a senha, esses registros serão criptografados. O aplicativo não mantém uma conta nem sincroniza esses registros com um servidor próprio.</p>
                     <p className="mt-2">Quando você escolhe usar recursos de leitura ou análise inteligente, o conteúdo necessário para aquela função — que pode incluir texto, fotos ou dados de medicamentos — é enviado a um serviço externo para processamento. Não use esses recursos se não concordar com esse envio.</p>
