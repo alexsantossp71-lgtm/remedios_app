@@ -76,7 +76,7 @@ export function extractChatContent(value: unknown): string {
 async function chatCompletion(
     messages: ChatMessage[],
     model: string,
-    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void; requestTimeoutMs?: number; catalogTimeoutMs?: number; maxModels?: number; provider?: 'auto' | 'nvidia-only'; pollinationsConsentOverride?: boolean }
+    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void; requestTimeoutMs?: number; catalogTimeoutMs?: number; maxModels?: number; provider?: 'auto' | 'nvidia-only' }
 ): Promise<string> {
     const settings = readAiSettings();
     const proxy = effectiveProxyUrl(settings);
@@ -86,13 +86,12 @@ async function chatCompletion(
 
     // Pollinations é o provedor principal quando habilitado; NVIDIA permanece como fallback.
     let pollinationsFailure = '';
-    if (options?.provider !== 'nvidia-only' && (readAiSettings().pollinationsConsent || options?.pollinationsConsentOverride === true)) {
+    if (options?.provider !== 'nvidia-only' && readAiSettings().pollinationsConsent) {
         try {
             return await pollinationsChatCompletion(messages, {
                 maxTokens: options?.maxTokens ?? 1024,
                 temperature: options?.temperature ?? 0.2,
                 validateResponse: options?.validateResponse ?? ((value) => { extractJson(value); }),
-                allowWithoutPreference: options?.pollinationsConsentOverride === true,
             });
         } catch (error) {
             pollinationsFailure = error instanceof Error ? error.message : 'Falha desconhecida no Pollinations.';
@@ -932,10 +931,10 @@ export function selectAvailablePollinationsModels(availableIds: string[], hasIma
 /** Tenta Pollinations primeiro. A chave permanece exclusivamente no Cloudflare Worker. */
 async function pollinationsChatCompletion(
     messages: ChatMessage[],
-    options: { maxTokens: number; temperature: number; validateResponse: (content: string) => void; allowWithoutPreference?: boolean }
+    options: { maxTokens: number; temperature: number; validateResponse: (content: string) => void }
 ): Promise<string> {
     const settings = readAiSettings();
-    if (!settings.pollinationsConsent && !options.allowWithoutPreference) {
+    if (!settings.pollinationsConsent) {
         throw new AiError('O uso do Pollinations.ai está desativado nas configurações de privacidade.');
     }
     const proxy = effectiveProxyUrl(settings);
@@ -1026,7 +1025,6 @@ export const analyzeInteractions = async (
         maxTokens: 1800,
         temperature: 0.1,
         validateResponse: validateInteractionResponse,
-        allowWithoutPreference: true,
     };
 
     try {
