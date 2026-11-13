@@ -118,6 +118,12 @@ function fromBase64(value: string): Uint8Array {
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    return copy.buffer;
+}
+
 async function deriveBackupKey(password: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
     const material = await crypto.subtle.importKey(
         'raw',
@@ -193,8 +199,9 @@ export async function decryptBackup(text: string, password: string): Promise<str
         if (salt.length !== 16 || iv.length !== 12 || ciphertext.length < 17) {
             throw new Error('invalid');
         }
-        const key = await deriveBackupKey(password, salt, file.iterations);
-        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+        const iterations = file.iterations ?? 0;
+        const key = await deriveBackupKey(password, salt, iterations);
+        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(ciphertext));
         return new TextDecoder().decode(plaintext);
     } catch {
         throw new Error('Não foi possível abrir o backup. Confira a senha e tente novamente.');
