@@ -5,7 +5,16 @@
 
 name = "remedios-ai-proxy"
 main = "src/index.ts"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-11-13"
+
+# Banco técnico do Web Push: somente inscrições e horários UTC, sem dados clínicos.
+[[d1_databases]]
+binding = "PUSH_DB"
+database_name = "remedios-push"
+database_id = "c36f1475-4259-4c86-8d23-afb5fef066ed"
+
+[triggers]
+crons = ["* * * * *"]
 
 [vars]
 # Origens autorizadas a chamar o proxy (CORS, exact match, separadas por vírgula).
