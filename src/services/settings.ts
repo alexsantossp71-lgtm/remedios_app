@@ -17,7 +17,7 @@ const EVENT_NAME = 'ai-settings-changed';
 export function normalizeProxyUrl(raw: string): string {
     const value = raw.trim().replace(/\/+$/, '');
     if (!/^https?:\/\/.+/i.test(value)) return '';
-    return /\/v1$/i.test(value) ? value : \`\${value}/v1\`;
+    return /\/v1$/i.test(value) ? value : value + '/v1';
 }
 
 export function effectiveProxyUrl(_settings?: Pick<AiSettings, 'proxyUrl'>): string {
