@@ -16,27 +16,12 @@ import {
 // Cliente interno de IA: o navegador chama somente o Worker do sistema.
 // A credencial NVIDIA permanece exclusivamente no ambiente do servidor.
 
-const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
 
 /** Erro já com mensagem amigável para exibir direto na interface. */
 export class AiError extends Error {
     /** Status HTTP quando o erro veio de uma resposta (undefined em falha de rede). */
     status?: number;
-}
-
-/**
- * Endpoint base da API. Pode ser sobrescrito gravando "nvidiaBaseUrl" no
- * localStorage (recurso de teste/debug; usuários normais nunca setam isso).
- */
-function baseUrl(): string {
-    try {
-        const override = localStorage.getItem('nvidiaBaseUrl')?.trim();
-        if (override) return override.replace(/\/+$/, '');
-    } catch {
-        // localStorage indisponível: segue com o endpoint oficial
-    }
-    return DEFAULT_BASE_URL;
 }
 
 interface ChatContentPart {
@@ -65,10 +50,6 @@ const proxyHeaders = (): Record<string, string> => ({
     Accept: 'application/json',
 });
 
-/** Erro permite cair do proxy para a chave direta? Só rede/instabilidade. */
-const canFallbackToKey = (error: unknown): boolean =>
-    error instanceof AiError && (error.status === undefined || error.status >= 500);
-
 /**
  * Chamada única de chat completions; devolve o texto da primeira resposta.
  * O endpoint e a credencial de upstream são gerenciados pelo servidor.
@@ -79,9 +60,8 @@ async function chatCompletion(
     options?: { maxTokens?: number; temperature?: number }
 ): Promise<string> {
     const settings = readAiSettings();
-    const apiKey = settings.nvidiaApiKey.trim();
     const proxy = effectiveProxyUrl(settings);
-    if (!apiKey && !proxy) {
+    if (!proxy) {
         throw new AiError(NO_CREDENTIALS_MESSAGE);
     }
 
@@ -135,8 +115,7 @@ async function chatCompletion(
         try {
             return await attempt(`${proxy}/chat/completions`, proxyHeaders(), true);
         } catch (error) {
-            if (!apiKey || !canFallbackToKey(error)) throw error;
-            // Cai para a chave direta abaixo (instabilidade momentânea do proxy).
+            throw error;
         }
     }
     throw new AiError(NO_CREDENTIALS_MESSAGE);
