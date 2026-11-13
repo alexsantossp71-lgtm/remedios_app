@@ -165,8 +165,8 @@ const LabFormModal: React.FC<Props> = ({ onClose, onSave }) => {
     const scanning = scanStatus === 'scanning';
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-            <div className="bg-white dark:bg-brand-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 relative max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation">
+            <div className="relative max-h-[94dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-white/70 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:max-h-[90dvh] sm:rounded-3xl sm:p-7" role="dialog" aria-modal="true" aria-label="Registrar laudo">
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-brand-gray-400 hover:text-brand-gray-600 dark:hover:text-brand-gray-200"
@@ -174,7 +174,7 @@ const LabFormModal: React.FC<Props> = ({ onClose, onSave }) => {
                 >
                     <XIcon className="w-6 h-6" />
                 </button>
-                <h3 className="text-lg font-medium leading-6 text-brand-gray-900 dark:text-white mb-1 pr-8">
+                <h3 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-1 pr-8">
                     Registrar laudo
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
@@ -350,14 +350,14 @@ const LabFormModal: React.FC<Props> = ({ onClose, onSave }) => {
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 bg-brand-gray-200 dark:bg-brand-gray-600 rounded-md hover:bg-brand-gray-300 dark:hover:bg-brand-gray-500 text-sm font-semibold"
+                        className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     >
                         Cancelar
                     </button>
                     <button
                         type="button"
                         onClick={handleSave}
-                        className="px-4 py-2 bg-brand-green text-white rounded-md hover:bg-green-600 text-sm font-semibold"
+                        className="min-h-11 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800"
                     >
                         Salvar laudo
                     </button>
