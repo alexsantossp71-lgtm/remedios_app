@@ -5,7 +5,7 @@ import {
     extractJson,
     extractChatContent,
     sanitizeInteractionReport,
-    sanitizeMedicationGuide,\n    selectAvailablePollinationsModels,
+    sanitizeMedicationGuide,\n    selectAvailablePollinationsModels,\n    validateInteractionResponse,
 } from './nvidiaService';
 
 describe('extractChatContent', () => {
@@ -165,5 +165,20 @@ describe('selectAvailablePollinationsModels', () => {
             'deepseek/deepseek-v4-flash',
             'qwen/qwen3.8-27b',
         ])).toHaveLength(2);
+    });
+});
+
+
+describe('validateInteractionResponse', () => {
+    it('aceita relatório JSON com as listas esperadas', () => {
+        expect(() => validateInteractionResponse('{"summary":"Análise concluída","duplicates":[],"interactions":[]}')).not.toThrow();
+    });
+
+    it('rejeita JSON válido sem a estrutura de relatório', () => {
+        expect(() => validateInteractionResponse('{"summary":"texto"}')).toThrow(AiError);
+    });
+
+    it('rejeita texto que não seja JSON', () => {
+        expect(() => validateInteractionResponse('Não foi possível analisar.')).toThrow(AiError);
     });
 });
