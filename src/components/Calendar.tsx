@@ -143,8 +143,8 @@ const Calendar: React.FC<Props> = ({ reminders, appointments, exams }) => {
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-4">
-                <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-brand-gray-200 dark:hover:bg-brand-gray-700">
+            <div className="mb-5 flex items-center justify-between gap-3">
+                <button onClick={() => changeMonth(-1)} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 shadow-sm transition hover:border-teal-200 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:text-teal-300">
                     <ChevronLeftIcon className="w-6 h-6" />
                 </button>
                 <h3 className="text-lg font-semibold capitalize">
@@ -154,9 +154,9 @@ const Calendar: React.FC<Props> = ({ reminders, appointments, exams }) => {
                     <ChevronRightIcon className="w-6 h-6" />
                 </button>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-center">
+            <div className="grid grid-cols-7 gap-1.5 text-center sm:gap-2">
                 {weekdays.map(day => (
-                    <div key={day} className="font-medium text-sm text-brand-gray-500 dark:text-brand-gray-400 py-2">{day}</div>
+                    <div key={day} className="py-2 text-xs font-bold uppercase tracking-wide text-brand-gray-500 dark:text-brand-gray-400">{day}</div>
                 ))}
                 {monthData.map((day, index) => (
                     <div key={index} className={`py-2 rounded-lg ${day ? '' : 'bg-transparent'}`}>
