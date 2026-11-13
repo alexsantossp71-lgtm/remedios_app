@@ -35,6 +35,29 @@ export interface WorkerEnv {
     RATE_LIMIT_DAY_MAX?: string;
 }
 
+const NVIDIA_DIAGNOSTIC_PROMPTS = {
+    interactions: `Você está sendo avaliado em uma tarefa educativa de identificação de interação medicamentosa. Use somente conhecimento geral; não alegue ter consultado fontes externas.
+Caso fictício de teste: varfarina e ibuprofeno.
+Responda em português do Brasil e APENAS JSON válido:
+{"summary":"...","duplicates":[],"interactions":[{"severity":"alta","medications":["varfarina","ibuprofeno"],"description":"...","recommendation":"..."}],"sources":[]}
+Critérios: identificar que a combinação pode elevar o risco de sangramento; recomendar confirmação imediata com médico ou farmacêutico; não orientar iniciar, suspender ou alterar doses; não afirmar que a combinação é segura; não inventar fontes. Este caso é sintético e não representa um paciente real.`,
+    schedule: `Você está sendo avaliado em uma tarefa de organização de horários. Os dados abaixo são fictícios. Não há autorização para alterar os horários, doses, frequência ou duração; apenas reproduza exatamente os horários fornecidos. Responda em português do Brasil e APENAS JSON válido:
+{"summary":"...","suggestions":[{"medicationId":"TESTE-A","medicationName":"Medicamento Alfa","suggestedTimes":["08:00","20:00"],"reason":"...","warnings":[]},{"medicationId":"TESTE-B","medicationName":"Medicamento Beta","suggestedTimes":["07:00"],"reason":"...","warnings":[]}]}
+Não crie nem remova medicamentos ou doses. Preserve os IDs e todos os horários exatamente. Caso falte informação, diga que não é possível otimizar com segurança. Dados fictícios: TESTE-A Medicamento Alfa, dose não informada, horários atuais 08:00 e 20:00; TESTE-B Medicamento Beta, dose não informada, horário atual 07:00.`,
+} as const;
+
+let cachedNvidiaCatalog: { expiresAt: number; ids: Set<string> } | null = null;
+
+async function nvidiaCatalogIds(authHeaders: Record<string, string>): Promise<Set<string>> {
+    if (cachedNvidiaCatalog && cachedNvidiaCatalog.expiresAt > Date.now()) return cachedNvidiaCatalog.ids;
+    const response = await fetch(`${UPSTREAM_BASE}/models`, { headers: { ...authHeaders, Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`A NVIDIA não permitiu consultar o catálogo (HTTP ${response.status}).`);
+    const payload = await response.json() as { data?: Array<{ id?: unknown }> };
+    const ids = new Set((payload.data ?? []).map((item) => typeof item.id === 'string' ? item.id : '').filter(Boolean));
+    cachedNvidiaCatalog = { expiresAt: Date.now() + 60_000, ids };
+    return ids;
+}
+
 /** Os vars podem mudar entre deploys: recria os limitadores quando mudarem. */
 let cachedLimits: { key: string; limits: RateLimits } | null = null;
 function limitsFor(env: WorkerEnv): RateLimits {
@@ -195,6 +218,50 @@ export default {
             if (pathname === '/v1/models' && request.method === 'GET') {
                 const upstream = await fetch(`${UPSTREAM_BASE}/models`, {
                     headers: { ...upstreamAuth, Accept: 'application/json' },
+                });
+                return passThrough(upstream, allowedOrigin);
+            }
+
+            // Diagnóstico público restrito a dois prompts sintéticos fixos. Assim o app
+            // pode testar o catálogo inteiro da conta sem abrir o proxy para prompts
+            // arbitrários nem alterar a allowlist das funcionalidades normais.
+            if (pathname === '/v1/diagnostics/chat/completions' && request.method === 'POST') {
+                const contentType = request.headers.get('Content-Type') ?? '';
+                if (!/^application\\/json(?:\\s*;|$)/i.test(contentType)) {
+                    return jsonResponse(415, { error: { message: 'Envie o corpo como application/json.' } }, allowedOrigin);
+                }
+                const raw = await request.text();
+                if (new TextEncoder().encode(raw).byteLength > 2_000) {
+                    return jsonResponse(413, { error: { message: 'Pedido de diagnóstico grande demais.' } }, allowedOrigin);
+                }
+                let parsed: { model?: unknown; task?: unknown } = {};
+                try {
+                    const decoded: unknown = JSON.parse(raw);
+                    if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) {
+                        return jsonResponse(400, { error: { message: 'O corpo deve ser um objeto JSON.' } }, allowedOrigin);
+                    }
+                    parsed = decoded as { model?: unknown; task?: unknown };
+                } catch {
+                    return jsonResponse(400, { error: { message: 'Corpo não é um JSON válido.' } }, allowedOrigin);
+                }
+                if (typeof parsed.model !== 'string' || parsed.model.length > 200 ||
+                    (parsed.task !== 'interactions' && parsed.task !== 'schedule')) {
+                    return jsonResponse(400, { error: { message: 'Informe um modelo e uma tarefa de diagnóstico válida.' } }, allowedOrigin);
+                }
+                const catalog = await nvidiaCatalogIds(upstreamAuth);
+                if (!catalog.has(parsed.model)) {
+                    return jsonResponse(403, { error: { message: 'Este modelo não consta no catálogo acessível por esta chave NVIDIA.' } }, allowedOrigin);
+                }
+                const upstream = await fetch(`${UPSTREAM_BASE}/chat/completions`, {
+                    method: 'POST',
+                    headers: { ...upstreamAuth, 'Content-Type': 'application/json', Accept: 'application/json' },
+                    body: JSON.stringify({
+                        model: parsed.model,
+                        messages: [{ role: 'user', content: NVIDIA_DIAGNOSTIC_PROMPTS[parsed.task] }],
+                        temperature: 0,
+                        max_tokens: 1_500,
+                        stream: false,
+                    }),
                 });
                 return passThrough(upstream, allowedOrigin);
             }
