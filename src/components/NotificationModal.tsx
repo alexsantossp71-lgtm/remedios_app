@@ -25,7 +25,7 @@ type GuardianState =
 const GuardianCheck: React.FC<{
     reminder: Reminder;
     onOpenSettings?: () => void;
-}> = ({ reminder, onOpenSettings }) => {
+}> = ({ reminder }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
     const [state, setState] = useState<GuardianState>({ kind: 'hidden' });
@@ -200,7 +200,7 @@ const NotificationModal: React.FC<Props> = ({ reminder, time, onAction, onOpenSe
                     )}
                 </div>
 
-                <GuardianCheck reminder={reminder} onOpenSettings={onOpenSettings} />
+                <GuardianCheck reminder={reminder} />
                 
                 <div className="flex flex-col space-y-3 mt-3">
                     <button
