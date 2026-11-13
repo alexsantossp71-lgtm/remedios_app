@@ -26,6 +26,9 @@ jobs:
       run:
         working-directory: worker
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Validar secrets obrigatórios
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -38,9 +41,6 @@ jobs:
             if [ -z "${!name}" ]; then echo "::error::Secret obrigatório ausente: $name"; missing=1; fi
           done
           exit "$missing"
-
-      - name: Checkout
-        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
