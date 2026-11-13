@@ -18,8 +18,8 @@ interface Props {
  */
 const MissedDosesModal: React.FC<Props> = ({ doses, onMark, onClose }) => {
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-brand-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 animate-slide-up">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4 animate-fade-in">
+            <div className="w-full max-w-md rounded-t-3xl border border-white/70 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:rounded-3xl animate-slide-up">
                 <div className="flex items-center gap-3 mb-1">
                     <ClockIcon className="w-8 h-8 text-brand-yellow flex-shrink-0" />
                     <h2 className="text-xl font-bold text-brand-gray-900 dark:text-white">

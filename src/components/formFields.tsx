@@ -4,21 +4,21 @@ import { XIcon } from '../constants';
 
 // ===== Classes compartilhadas pelos formulários de cadastro =====
 
-export const labelClass = 'block text-sm font-medium text-brand-gray-700 dark:text-brand-gray-300';
-export const helperClass = 'text-xs text-brand-gray-500 dark:text-brand-gray-400 mt-1';
+export const labelClass = 'mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-200';
+export const helperClass = 'mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400';
 
 export const inputClass = (hasError = false): string =>
-    `mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+    `block w-full rounded-xl border bg-slate-50 px-3.5 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-4 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-950 sm:text-sm ${
         hasError
-            ? 'border-brand-red dark:border-brand-red focus:border-brand-red focus:ring-brand-red dark:bg-brand-gray-700 text-brand-red dark:text-brand-red'
-            : 'border-brand-gray-300 focus:border-brand-blue focus:ring-brand-blue dark:bg-brand-gray-700 dark:border-brand-gray-600'
+            ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-100 dark:border-rose-500 dark:focus:ring-rose-950/50'
+            : 'border-slate-200 focus:border-teal-600 focus:ring-teal-100 dark:border-slate-700 dark:focus:border-teal-500 dark:focus:ring-teal-950/50'
     }`;
 
 export const cancelBtnClass =
-    'px-4 py-2 bg-brand-gray-200 dark:bg-brand-gray-600 rounded-md hover:bg-brand-gray-300 dark:hover:bg-brand-gray-500 transition-colors';
+    'inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700';
 
 export const saveBtnClass =
-    'px-4 py-2 bg-brand-green text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed';
+    'inline-flex min-h-11 items-center justify-center rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus:outline-none focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-teal-600 dark:hover:bg-teal-500 dark:focus:ring-teal-950/60';
 
 // ===== Máscaras =====
 // Implementação em utils/masks.ts (funções puras testadas); reexportada
@@ -38,11 +38,11 @@ export const FieldError: React.FC<{ id: string; message?: string }> = ({ id, mes
 
 /** Título de seção dentro do formulário, para agrupar campos relacionados. */
 export const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <section>
-        <h4 className="text-xs font-bold uppercase tracking-wider text-brand-gray-400 dark:text-brand-gray-500 mb-2">
+    <section className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-slate-700/80 dark:bg-slate-900/40 sm:p-5">
+        <h4 className="mb-4 text-xs font-extrabold uppercase tracking-[0.12em] text-teal-800 dark:text-teal-300">
             {title}
         </h4>
-        <div className="space-y-3">{children}</div>
+        <div className="space-y-4">{children}</div>
     </section>
 );
 
@@ -73,16 +73,27 @@ interface ShellProps {
 export const FormModalShell: React.FC<ShellProps> = ({ title, onClose, onSubmit, submitLabel = 'Salvar', children }) => {
     useEscapeToClose(onClose);
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-            <div className="bg-white dark:bg-brand-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 relative max-h-[92vh] overflow-y-auto">
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-brand-gray-400 hover:text-brand-gray-600 dark:hover:text-brand-gray-200"
-                    aria-label="Fechar"
-                >
-                    <XIcon className="w-6 h-6" />
-                </button>
-                <h3 className="text-lg font-medium leading-6 text-brand-gray-900 dark:text-white mb-4">{title}</h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation">
+            <div
+                className="relative max-h-[94dvh] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-white/70 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:max-h-[90dvh] sm:rounded-3xl sm:p-7"
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
+            >
+                <div className="mb-6 flex items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-700">
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-teal-700 dark:text-teal-300">Remédios na Hora</p>
+                        <h3 className="mt-1 text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">{title}</h3>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        aria-label="Fechar"
+                    >
+                        <XIcon className="h-5 w-5" />
+                    </button>
+                </div>
                 <form
                     onSubmit={(event) => {
                         event.preventDefault();
@@ -91,7 +102,7 @@ export const FormModalShell: React.FC<ShellProps> = ({ title, onClose, onSubmit,
                     noValidate
                 >
                     <div className="space-y-4">{children}</div>
-                    <div className="mt-6 flex justify-end space-x-2">
+                    <div className="sticky bottom-0 mt-6 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white/95 pt-4 backdrop-blur sm:flex-row sm:justify-end dark:border-slate-700 dark:bg-slate-900/95">
                         <button type="button" onClick={onClose} className={cancelBtnClass}>
                             Cancelar
                         </button>

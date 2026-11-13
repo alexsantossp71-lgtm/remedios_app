@@ -14,7 +14,7 @@ interface Props {
 
 const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit, onExplain }) => {
     if (reminders.length === 0) {
-        return <div className="text-center py-10 text-brand-gray-500">
+        return <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 py-10 text-center text-brand-gray-500 dark:border-slate-600 dark:bg-slate-800/50">
             <PillIcon className="w-12 h-12 mx-auto mb-2"/>
             <p>Nenhum lembrete adicionado.</p>
             <p className="text-sm">Clique em "Adicionar" para começar.</p>
@@ -34,9 +34,9 @@ const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit, onExplain 
     };
 
     return (
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             {reminders.map(reminder => (
-                <div key={reminder.id} className="bg-brand-gray-100 dark:bg-brand-gray-700 p-4 rounded-lg shadow-sm relative">
+                <div key={reminder.id} className="group relative rounded-2xl border border-slate-200 bg-white p-4 pr-12 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 md:p-5">
                     <div className="flex items-start space-x-3">
                         <div className="flex-shrink-0 pt-1">
                             <PillIcon className="w-6 h-6 text-brand-blue" />
@@ -67,7 +67,7 @@ const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit, onExplain 
                     <div className="absolute top-2 right-2 flex flex-col items-center">
                         <button
                             onClick={() => onEdit(reminder)}
-                            className="p-1 text-brand-gray-400 hover:text-brand-blue dark:hover:text-brand-blue transition-colors"
+                            className="rounded-lg p-1.5 text-brand-gray-400 transition-colors hover:bg-teal-50 hover:text-brand-blue dark:hover:bg-slate-700 dark:hover:text-teal-300"
                             aria-label={`Editar lembrete para ${reminder.medicationName}`}
                             title="Editar lembrete"
                         >
@@ -85,7 +85,7 @@ const ReminderList: React.FC<Props> = ({ reminders, onDelete, onEdit, onExplain 
                         )}
                         <button
                             onClick={() => onDelete(reminder.id)}
-                            className="p-1 text-brand-gray-400 hover:text-brand-red dark:hover:text-brand-red transition-colors"
+                            className="rounded-lg p-1.5 text-brand-gray-400 transition-colors hover:bg-rose-50 hover:text-brand-red dark:hover:bg-rose-950/40"
                             aria-label={`Deletar lembrete para ${reminder.medicationName}`}
                         >
                             <TrashIcon className="w-5 h-5" />

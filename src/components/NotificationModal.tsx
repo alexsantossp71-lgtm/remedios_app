@@ -170,8 +170,8 @@ const GuardianCheck: React.FC<{
 
 const NotificationModal: React.FC<Props> = ({ reminder, time, onAction }) => {
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-brand-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 text-center transform transition-all animate-slide-up">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4 animate-fade-in">
+            <div className="w-full max-w-md rounded-t-3xl border border-white/70 bg-white p-6 text-center shadow-2xl transition-all dark:border-slate-700 dark:bg-slate-900 sm:rounded-3xl animate-slide-up">
                 <BellIcon className="w-16 h-16 text-brand-yellow mx-auto mb-4 animate-pulse" />
 
                 <h2 className="text-2xl font-bold text-brand-gray-900 dark:text-white">Hora do Remédio!</h2>
