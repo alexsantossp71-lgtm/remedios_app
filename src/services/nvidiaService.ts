@@ -63,7 +63,7 @@ async function chatCompletion(
         throw new AiError(NO_CREDENTIALS_MESSAGE);
     }
 
-    const attempt = async (url: string, headers: Record<string, string>): Promise<string> => {
+    const attempt = async (url: string, headers: Record<string, string>, candidateModel: string): Promise<string> => {
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -73,7 +73,7 @@ async function chatCompletion(
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                    model,
+                    model: candidateModel,
                     messages,
                     temperature: options?.temperature ?? 0.2,
                     max_tokens: options?.maxTokens ?? 1024,
@@ -107,7 +107,65 @@ async function chatCompletion(
         throw new AiError('Não foi possível concluir a leitura. Tente novamente.');
     };
 
-    return attempt(`${proxy}/chat/completions`, proxyHeaders());
+    // Lista curada de modelos com endpoint gratuito anunciado pela NVIDIA.
+    // O catálogo /models é consultado para evitar insistir em modelos que a
+    // chave não possui; se o catálogo falhar, tentamos a lista conhecida.
+    const hasImages = messages.some((message) => Array.isArray(message.content)
+        && message.content.some((part) => part.type === 'image_url'));
+    const textFallbacks = [
+        'z-ai/glm-5.3-flash',
+        'stepfun-ai/step-5-preview',
+        'meta/muse-glimmer-30b',
+        'nvidia/nemotron-3.5-super-vl-120b-a12b',
+        'nvidia/nemotron-3.5-lightning-30b-a3b',
+    ];
+    const visionFallbacks = [
+        'meta/muse-glimmer-30b',
+        'stepfun-ai/step-5-preview',
+        'z-ai/glm-5.3-flash',
+        'nvidia/nemotron-3.5-super-vl-120b-a12b',
+    ];
+    const preferred = hasImages ? visionFallbacks : textFallbacks;
+    const catalogController = new AbortController();
+    const catalogTimeout = window.setTimeout(() => catalogController.abort(), 8_000);
+    let availableIds: Set<string> | null = null;
+    try {
+        const catalogResponse = await fetch(`${proxy}/models`, {
+            headers: proxyHeaders(),
+            signal: catalogController.signal,
+        });
+        if (catalogResponse.ok) {
+            const catalog = await catalogResponse.json().catch(() => null) as { data?: Array<{ id?: unknown }> } | null;
+            const ids = Array.isArray(catalog?.data)
+                ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
+                : [];
+            if (ids.length) availableIds = new Set(ids);
+        }
+    } catch {
+        // O fallback estático continua disponível se /models estiver fora do ar.
+    } finally {
+        window.clearTimeout(catalogTimeout);
+    }
+
+    const ordered = [...new Set([model, ...preferred])];
+    const candidates = availableIds
+        ? ordered.filter((candidate) => availableIds!.has(candidate))
+        : ordered;
+    const modelsToTry = candidates.length ? candidates : ordered;
+    let lastError: unknown;
+    for (const candidate of modelsToTry) {
+        try {
+            return await attempt(`${proxy}/chat/completions`, proxyHeaders(), candidate);
+        } catch (error) {
+            lastError = error;
+            const status = error instanceof AiError ? error.status : undefined;
+            // Falhas de autenticação ou corpo grande não melhoram trocando modelo.
+            const canFallback = status === undefined || [403, 404, 410, 429].includes(status) || status >= 500;
+            if (!canFallback) throw error;
+        }
+    }
+    if (lastError instanceof Error) throw lastError;
+    throw new AiError(NO_CREDENTIALS_MESSAGE);
 }
 
 /** Lê a mensagem estruturada devolvida pelo proxy ou pela API, sem expor dados sensíveis. */
