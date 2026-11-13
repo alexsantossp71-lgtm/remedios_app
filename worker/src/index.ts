@@ -59,6 +59,16 @@ async function nvidiaCatalogIds(authHeaders: Record<string, string>): Promise<Se
 }
 
 /** Os vars podem mudar entre deploys: recria os limitadores quando mudarem. */
+let cachedDiagnosticLimits: RateLimits | null = null;
+function diagnosticLimitsFor(): RateLimits {
+    // O diagnóstico usa somente dois prompts fixos e dados fictícios. A cota
+    // separada permite avaliar catálogos maiores sem elevar o limite do proxy clínico.
+    if (!cachedDiagnosticLimits) {
+        cachedDiagnosticLimits = new RateLimits({ windowMs: 5 * 60_000, windowMax: 250, dayMax: 1_000 });
+    }
+    return cachedDiagnosticLimits;
+}
+
 let cachedLimits: { key: string; limits: RateLimits } | null = null;
 function limitsFor(env: WorkerEnv): RateLimits {
     const cfg = parseConfig(env as unknown as Record<string, string | undefined>);
@@ -124,7 +134,9 @@ export default {
         // Rotas de Web Push são independentes da chave NVIDIA e não recebem
         // dados clínicos. A autenticação é feita por token aleatório do dispositivo.
         if (pathname.startsWith('/push/')) {
-            const verdict = limitsFor(env).hit(clientIp(request), Date.now());
+            const verdict = (pathname === '/v1/diagnostics/chat/completions'
+            ? diagnosticLimitsFor()
+            : limitsFor(env)).hit(clientIp(request), Date.now());
             if (!verdict.allowed) {
                 return jsonResponse(429, { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } }, allowedOrigin, { 'Retry-After': String(verdict.retryAfterSec) });
             }
@@ -320,7 +332,7 @@ export default {
 
         return jsonResponse(
             pathname === '/v1/models' || pathname === '/v1/chat/completions' ? 405 : 404,
-            { error: { message: 'Rota ou método não permitido. Use /v1/chat/completions (POST), /v1/models (GET) ou /health (GET).' } },
+            { error: { message: 'Rota ou método não permitido. Use /v1/chat/completions (POST), /v1/diagnostics/chat/completions (POST), /v1/models (GET) ou /health (GET).' } },
             allowedOrigin
         );
     },
