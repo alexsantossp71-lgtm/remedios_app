@@ -548,12 +548,23 @@ async function describeHttpError(response: Response): Promise<string> {
 
 /** Extrai o primeiro objeto JSON da resposta do modelo (tolerante a blocos de código). */
 /** Valida campos obrigatórios do JSON antes de aceitar a resposta do provedor. */
-function validateJsonFields(content: string, fields: string[], allowError = false): void {
+function validateJsonFields(
+    content: string,
+    fields: string[],
+    allowError = false,
+    arrayFields: string[] = [],
+    stringFields: string[] = [],
+): void {
     const parsed = extractJson(content);
     if (allowError && typeof parsed.error === 'string') return;
     const missing = fields.filter((field) => !(field in parsed));
     if (missing.length) {
         throw new AiError(`A resposta da IA não trouxe os campos esperados: ${missing.join(', ')}.`);
+    }
+    const invalidArrays = arrayFields.filter((field) => !Array.isArray(parsed[field]));
+    const invalidStrings = stringFields.filter((field) => typeof parsed[field] !== 'string');
+    if (invalidArrays.length || invalidStrings.length) {
+        throw new AiError('A IA devolveu campos em formato inválido. A resposta será solicitada a outro provedor.');
     }
 }
 
@@ -616,7 +627,7 @@ export const scanHealthCard = async (
             },
         ],
         visionModel,
-        { maxTokens: 800, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['operator', 'planName', 'cardNumber', 'holder', 'validity', 'phone', 'coverage'], true) }
+        { maxTokens: 800, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['operator', 'planName', 'cardNumber', 'holder', 'validity', 'phone', 'coverage'], true, [], ['operator', 'planName', 'cardNumber', 'holder', 'validity', 'phone', 'coverage']) }
     );
 
     const parsed = extractJson(content);
@@ -676,7 +687,7 @@ export const scanExamRequest = async (
             },
         ],
         visionModel,
-        { maxTokens: 500, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['name', 'category', 'doctorName', 'place', 'date'], true) }
+        { maxTokens: 500, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['name', 'category', 'doctorName', 'place', 'date'], true, [], ['name', 'category', 'doctorName', 'place', 'date']) }
     );
 
     const parsed = extractJson(content);
@@ -709,7 +720,7 @@ export const getMedications = async (): Promise<Medication[]> => {
             },
         ],
         textModel,
-        { maxTokens: 2000, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['medicamentos']) }
+        { maxTokens: 2000, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['medicamentos'], false, ['medicamentos']) }
     );
 
     const parsed = extractJson(content);
@@ -1111,7 +1122,7 @@ export const explainMedication = async (
     const content = await chatCompletion(
         [{ role: 'user', content: `${GUIDE_PROMPT}\n\nMedicamento: ${context}` }],
         textModel,
-        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['whatFor', 'howToUse', 'commonSideEffects', 'warnings', 'note']) }
+        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['whatFor', 'howToUse', 'commonSideEffects', 'warnings', 'note'], false, ['commonSideEffects', 'warnings'], ['whatFor', 'howToUse', 'note']) }
     );
 
     return sanitizeMedicationGuide(extractJson(content));
@@ -1147,7 +1158,7 @@ export const analyzeAdherenceInsights = async (report: AdherenceReport): Promise
                 content: `${ADHERENCE_PROMPT}\n\nRelatório de adesão (JSON):\n${JSON.stringify(report)}`,
             },
         ],        textModel,
-        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['summary', 'insights']) }
+        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['summary', 'insights'], false, ['insights'], ['summary']) }
     );
 
     return sanitizeAdherenceAnalysis(extractJson(content));
@@ -1188,7 +1199,7 @@ export const suggestConsultationQuestions = async (context: ConsultationContext)
     const content = await chatCompletion(
         [{ role: 'user', content: `${QUESTIONS_PROMPT}\n\nDados do paciente:\n${payload}` }],
         textModel,
-        { maxTokens: 700, temperature: 0.4, validateResponse: (value) => validateJsonFields(value, ['questions']) }
+        { maxTokens: 700, temperature: 0.4, validateResponse: (value) => validateJsonFields(value, ['questions'], false, ['questions']) }
     );
 
     return sanitizeConsultationQuestions(extractJson(content));
@@ -1230,7 +1241,7 @@ export const extractLabValues = async (
             },
         ],
         visionModel,
-        { maxTokens: 2000, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['labName', 'examDate', 'resultados'], true) }
+        { maxTokens: 2000, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['labName', 'examDate', 'resultados'], true, ['resultados'], ['labName', 'examDate']) }
     );
 
     const parsed = extractJson(content);
@@ -1275,7 +1286,7 @@ export const identifyMedication = async (
             },
         ],
         visionModel,
-        { maxTokens: 300, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['medication', 'confidence', 'detail']) }
+        { maxTokens: 300, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['medication', 'confidence', 'detail'], false, [], ['medication', 'confidence', 'detail']) }
     );
 
     return sanitizeMedicationId(extractJson(content));
