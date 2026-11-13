@@ -14,7 +14,6 @@ interface Props {
     doctors: Doctor[];
     /** Exame em edição; `null`/ausente = novo cadastro. */
     editing?: Exam | null;
-    onOpenSettings?: () => void;
 }
 
 /** Anexo: máx. 900px e qualidade 0.72 — ~80 KB por foto no localStorage. */
