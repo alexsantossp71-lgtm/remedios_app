@@ -227,7 +227,7 @@ export default {
             // arbitrários nem alterar a allowlist das funcionalidades normais.
             if (pathname === '/v1/diagnostics/chat/completions' && request.method === 'POST') {
                 const contentType = request.headers.get('Content-Type') ?? '';
-                if (!/^application\\/json(?:\\s*;|$)/i.test(contentType)) {
+                if (!/^application\/json(?:\s*;|$)/i.test(contentType)) {
                     return jsonResponse(415, { error: { message: 'Envie o corpo como application/json.' } }, allowedOrigin);
                 }
                 const raw = await request.text();
