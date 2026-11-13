@@ -5,7 +5,9 @@ import {
     extractJson,
     extractChatContent,
     sanitizeInteractionReport,
-    sanitizeMedicationGuide,\n    selectAvailablePollinationsModels,\n    validateInteractionResponse,
+    sanitizeMedicationGuide,
+    selectAvailablePollinationsModels,
+    validateInteractionResponse,
 } from './nvidiaService';
 
 describe('extractChatContent', () => {
