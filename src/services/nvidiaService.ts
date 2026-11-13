@@ -139,20 +139,20 @@ async function chatCompletion(
     const catalogTimeout = window.setTimeout(() => catalogController.abort(), 8_000);
     try {
         if (!availableIds) {
-        const catalogResponse = await fetch(`${proxy}/models`, {
-            headers: proxyHeaders(),
-            signal: catalogController.signal,
-        });
-        if (catalogResponse.ok) {
-            const catalog = await catalogResponse.json().catch(() => null) as { data?: Array<{ id?: unknown }> } | null;
-            const ids = Array.isArray(catalog?.data)
-                ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
-                : [];
-            if (ids.length) {
-                availableIds = new Set(ids);
-                modelCatalogCache = { proxy, expiresAt: Date.now() + MODEL_CATALOG_TTL_MS, ids: availableIds };
+            const catalogResponse = await fetch(`${proxy}/models`, {
+                headers: proxyHeaders(),
+                signal: catalogController.signal,
+            });
+            if (catalogResponse.ok) {
+                const catalog = await catalogResponse.json().catch(() => null) as { data?: Array<{ id?: unknown }> } | null;
+                const ids = Array.isArray(catalog?.data)
+                    ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
+                    : [];
+                if (ids.length) {
+                    availableIds = new Set(ids);
+                    modelCatalogCache = { proxy, expiresAt: Date.now() + MODEL_CATALOG_TTL_MS, ids: availableIds };
+                }
             }
-        }
         }
     } catch {
         // O fallback estático continua disponível se /models estiver fora do ar.
@@ -172,8 +172,10 @@ async function chatCompletion(
         } catch (error) {
             lastError = error;
             const status = error instanceof AiError ? error.status : undefined;
-            // Falhas de autenticação ou corpo grande não melhoram trocando modelo.
-            const canFallback = status === undefined || [403, 404, 410, 429].includes(status) || status >= 500;
+            const detail = error instanceof Error ? error.message : '';
+            const proxyRateLimited = status === 429 && /limite de uso do proxy|limite de solicitações atingido/i.test(detail);
+            // Falhas de autenticação, corpo grande e limite local não melhoram trocando modelo.
+            const canFallback = !proxyRateLimited && (status === undefined || [403, 404, 410, 429].includes(status) || status >= 500);
             if (!canFallback) throw error;
         }
     }
