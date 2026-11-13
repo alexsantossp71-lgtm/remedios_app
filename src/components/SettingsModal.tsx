@@ -11,8 +11,6 @@ import {
     FormModalShell,
     FormSection,
     helperClass,
-    inputClass,
-    labelClass,
 } from './formFields';
 
 interface Props {
@@ -26,11 +24,7 @@ const PERMISSION_LABELS: Record<NotificationSupport, string> = {
     unsupported: 'Este navegador não suporta notificações (no iPhone, instale o app na tela de início para habilitar).',
 };
 
-/**
- * Configurações do app: chave da API NVIDIA (OCR e lista de medicamentos),
- * notificações do sistema e backup/exportação dos dados.
- * Tudo fica no localStorage local deste dispositivo.
- */
+/** Configurações visíveis ao usuário: notificações e backup dos dados. */
 const SettingsModal: React.FC<Props> = ({ onClose }) => {
     const [permission, setPermission] = useState<NotificationSupport>(() => notificationStatus());
 
