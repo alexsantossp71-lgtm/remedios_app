@@ -1,7 +1,7 @@
 # Proxy da API NVIDIA para o app "Remédio na Hora" (deploy separado do Pages).
 # Configure com `npx wrangler`:
 #   npx wrangler secret put NVIDIA_API_KEY   # chave nvapi-... (obrigatória)
-#   npx wrangler secret put PROXY_TOKEN      # opcional: exige x-proxy-token igual
+#   npx wrangler secret put PROXY_TOKEN      # obrigatório: token privado para cada chamada
 #   npx wrangler deploy
 
 name = "remedios-ai-proxy"
@@ -25,5 +25,6 @@ RATE_LIMIT_DAY_MAX = "200"
 
 # SEGREDOS (não definidos aqui):
 #   NVIDIA_API_KEY — obrigatória (nvapi-... da sua conta build.nvidia.com)
-#   PROXY_TOKEN    — opcional; se definido, o app deve enviar o mesmo valor
-#                    no campo "Token do proxy" das Configurações.
+#   PROXY_TOKEN    — obrigatório; o app deve enviar o mesmo valor no campo
+#                    "Token do proxy" das Configurações. Nunca coloque esse valor
+#                    em arquivos do repositório ou no bundle público do frontend.
