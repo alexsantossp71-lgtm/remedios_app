@@ -190,7 +190,8 @@ async function chatCompletion(
             const status = error instanceof AiError ? error.status : undefined;
             const detail = error instanceof Error ? error.message : '';
             const proxyRateLimited = status === 429 && /limite de uso do proxy|limite de solicitações atingido/i.test(detail);
-            // Falhas de autenticação, corpo grande e limite local não melhoram trocando modelo.            const canFallback = !proxyRateLimited && (status === undefined || [403, 404, 410, 429].includes(status) || status >= 500);
+            // Falhas de autenticação, corpo grande e limite local não melhoram trocando modelo.
+            const canFallback = !proxyRateLimited && (status === undefined || [403, 404, 410, 429].includes(status) || status >= 500);
             if (!canFallback) throw error;
         }
     }
