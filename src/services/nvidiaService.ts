@@ -777,7 +777,7 @@ export const testConnection = async (): Promise<string> => {
     } finally {
         window.clearTimeout(timeout);
     }
-    if (!response.ok) throw new AiError(await describeHttpError(response, true));
+    if (!response.ok) throw new AiError(await describeHttpError(response));
 
     const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
     const ids = Array.isArray(data?.data)
