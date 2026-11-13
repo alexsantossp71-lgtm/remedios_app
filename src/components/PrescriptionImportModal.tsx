@@ -215,7 +215,7 @@ const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport }) => {
                             </button>
                             <button
                                 type="button"
-                                onClick={handleAdd}
+                                onClick={() => { if (window.confirm('Você conferiu cada medicamento, dose, frequência, duração e horário com a receita original? A leitura por IA pode conter erros. Deseja cadastrar os lembretes selecionados?')) handleAdd(); }}
                                 disabled={selectedCount === 0}
                                 className="px-4 py-2 bg-brand-green text-white rounded-md hover:bg-green-600 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
