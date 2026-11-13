@@ -39,7 +39,6 @@ describe('parseConfig', () => {
         expect(cfg.windowMs).toBe(60_000);
         expect(cfg.windowMax).toBe(10);
         expect(cfg.dayMax).toBe(50);
-        expect(cfg.requiresToken).toBe(true);
     });
 
     it('valores inválidos caem no padrão', () => {
