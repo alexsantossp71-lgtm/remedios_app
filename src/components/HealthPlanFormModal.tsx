@@ -22,7 +22,6 @@ interface Props {
     onSave: (plan: Omit<HealthPlan, 'id'>) => void;
     /** Plano em edição; `null`/ausente = novo cadastro. */
     editing?: HealthPlan | null;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
     onOpenSettings?: () => void;
 }
 
