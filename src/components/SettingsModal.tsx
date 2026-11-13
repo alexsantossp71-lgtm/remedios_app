@@ -11,6 +11,8 @@ import {
 } from '../services/backup';
 import { createSecureVault, disableSecureVault, flushSecureWrites, inspectSecureStorage } from '../services/secureStorage';
 import { notificationStatus, NotificationSupport, requestNotificationPermission } from '../utils/notify';
+import type { Reminder } from '../types';
+import { disablePush, enablePush, isPushEnabled } from '../services/pushNotifications';
 import {
     FormModalShell,
     FormSection,
@@ -20,6 +22,7 @@ import {
 interface Props {
     onClose: () => void;
     onLock: () => void;
+    reminders: Reminder[];
 }
 
 const PERMISSION_LABELS: Record<NotificationSupport, string> = {
@@ -30,10 +33,13 @@ const PERMISSION_LABELS: Record<NotificationSupport, string> = {
 };
 
 /** Configurações visíveis ao usuário: notificações e backup dos dados. */
-const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
+const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
     const [permission, setPermission] = useState<NotificationSupport>(() => notificationStatus());
     const [isProtected, setIsProtected] = useState(false);
     const [passwordBusy, setPasswordBusy] = useState(false);
+    const [pushEnabled, setPushEnabled] = useState(() => isPushEnabled());
+    const [pushBusy, setPushBusy] = useState(false);
+    const [pushMessage, setPushMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
     React.useEffect(() => { inspectSecureStorage().then(status => setIsProtected(status.configured)).catch(() => setIsProtected(false)); }, []);
 
@@ -118,6 +124,63 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
                 <p className={helperClass}>
                     As notificações avisam da dose quando o app está em segundo plano. Com o app aberto, o alarme sonoro toca normalmente.
                 </p>
+            </FormSection>
+
+            <FormSection title="Avisos Push — mesmo com o app fechado">
+                <p className={helperClass}>
+                    Opcional. Ao ativar, este dispositivo compartilha com o servidor somente o endereço técnico de notificações e os horários futuros em UTC. Nomes de medicamentos, doses, diagnósticos e histórico permanecem neste aparelho. O aviso recebido será genérico.
+                </p>
+                <p className={helperClass}>
+                    A entrega depende do navegador, da conexão e do sistema operacional; não substitui o alarme local nem garante aviso em todas as situações.
+                </p>
+                {!pushEnabled ? (
+                    <button
+                        type="button"
+                        disabled={pushBusy}
+                        onClick={async () => {
+                            setPushBusy(true);
+                            setPushMessage(null);
+                            try {
+                                await enablePush(reminders);
+                                setPushEnabled(true);
+                                setPushMessage({ ok: true, text: 'Notificações Push ativadas neste dispositivo.' });
+                            } catch (error) {
+                                setPushMessage({ ok: false, text: error instanceof Error ? error.message : 'Não foi possível ativar as notificações Push.' });
+                            } finally {
+                                setPushBusy(false);
+                            }
+                        }}
+                        className="w-full px-4 py-2 rounded-md text-sm font-semibold bg-brand-blue text-white disabled:opacity-50"
+                    >
+                        {pushBusy ? 'Ativando…' : 'Ativar avisos Push neste dispositivo'}
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        disabled={pushBusy}
+                        onClick={async () => {
+                            setPushBusy(true);
+                            setPushMessage(null);
+                            try {
+                                await disablePush();
+                                setPushEnabled(false);
+                                setPushMessage({ ok: true, text: 'Avisos Push desativados neste dispositivo.' });
+                            } catch (error) {
+                                setPushMessage({ ok: false, text: error instanceof Error ? error.message : 'Não foi possível desativar os avisos Push.' });
+                            } finally {
+                                setPushBusy(false);
+                            }
+                        }}
+                        className="w-full px-4 py-2 rounded-md text-sm font-semibold border border-brand-gray-400 text-brand-gray-700 dark:text-brand-gray-200 disabled:opacity-50"
+                    >
+                        {pushBusy ? 'Aguarde…' : 'Desativar avisos Push'}
+                    </button>
+                )}
+                {pushMessage && (
+                    <p role={pushMessage.ok ? 'status' : 'alert'} className={pushMessage.ok ? 'text-sm text-green-700 dark:text-green-400' : 'text-sm text-brand-red'}>
+                        {pushMessage.text}
+                    </p>
+                )}
             </FormSection>
 
             <FormSection title="Backup dos dados">
