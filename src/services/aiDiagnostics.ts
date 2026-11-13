@@ -30,7 +30,7 @@ const MODEL_CANDIDATES = [
 const INTERACTION_TEST = `Você é um assistente informativo de saúde. Avalie somente o cenário fictício abaixo.
 Medicamentos: varfarina e ibuprofeno.
 Responda APENAS JSON válido neste formato:
-{"summary":"...","duplicates":[],"interactions":[{"severity":"alta|moderada|baixa","medications":["varfarina","ibuprofeno"],"description":"...","recommendation":"..."}],"sources":[]}
+{"summary":"...","duplicates":[],"interactions":[{"severity":"alta","medications":["varfarina","ibuprofeno"],"description":"...","recommendation":"..."}],"sources":[]}
 Regras: identifique a possível interação e o risco de sangramento; não declare a combinação segura; recomende confirmar com médico ou farmacêutico; não recomende iniciar, suspender ou alterar medicamentos; não invente fontes consultadas, portanto sources deve ser []. Português brasileiro.`;
 
 const SCHEDULE_TEST = `Você é um assistente que organiza horários de lembretes, sem prescrever.
