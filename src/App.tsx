@@ -3,7 +3,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan, Exam, LabResult } from './types';
 import { getMedications } from './services/nvidiaService';
 import { FALLBACK_MEDICATIONS } from './data/medications';
-import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray, loadJson, saveJson } from './storage';
+import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray } from './storage';
+import { loadSecureJson, saveSecureJson, isVaultUnlocked, lockSecureVault, flushSecureWrites } from './services/secureStorage';
+import SecurityGate from './components/SecurityGate';
 import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/datetime';
 import { showSystemNotification, vibrateAlarm } from './utils/notify';
 import MissedDosesModal from './components/MissedDosesModal';
@@ -60,24 +62,24 @@ const NavButton: React.FC<{ active: boolean; onClick: () => void; label: string;
 );
 
 const ALARM_SOUND_B64 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTSEUAAAAMAEduaXgtbGFtZSAzLjk5LjUAAAAAAAAAAAAAAD43eAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/x/EQoA8ADhyQREAMU3bW3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//-";
-const App: React.FC = () => {
+const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
     // Dados lidos do localStorage uma única vez, nos initializers (app 100%
     // cliente, sem SSR): o primeiro render já traz tudo, sem cascade de effect.
     const [reminders, setReminders] = useState<Reminder[]>(
-        () => loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? []
+        () => loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? []
     );
     const [medications, setMedications] = useState<Medication[]>([]);
     const [isLoadingMeds, setIsLoadingMeds] = useState(true);
     const [medsError, setMedsError] = useState<string | null>(null);
 
     // Cadastros de "Minha Saúde"
-    const [doctors, setDoctors] = useState<Doctor[]>(() => loadJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray) ?? []);
+    const [doctors, setDoctors] = useState<Doctor[]>(() => loadSecureJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray) ?? []);
     const [appointments, setAppointments] = useState<Appointment[]>(
-        () => loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? []
+        () => loadSecureJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? []
     );
-    const [plans, setPlans] = useState<HealthPlan[]>(() => loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? []);
-    const [exams, setExams] = useState<Exam[]>(() => loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? []);
-    const [labs, setLabs] = useState<LabResult[]>(() => loadJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? []);
+    const [plans, setPlans] = useState<HealthPlan[]>(() => loadSecureJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? []);
+    const [exams, setExams] = useState<Exam[]>(() => loadSecureJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? []);
+    const [labs, setLabs] = useState<LabResult[]>(() => loadSecureJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? []);
 
     // Navegação por abas
     const [mainTab, setMainTab] = useState<MainTab>('meds');
@@ -103,7 +105,7 @@ const App: React.FC = () => {
     const [scheduleOpen, setScheduleOpen] = useState(false);
     // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
     const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(
-        () => findMissedDoses(loadJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
+        () => findMissedDoses(loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
     );
 
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -118,27 +120,27 @@ const App: React.FC = () => {
 
 
     useEffect(() => {
-        saveJson(STORAGE_KEYS.reminders, reminders);
+        saveSecureJson(STORAGE_KEYS.reminders, reminders);
     }, [reminders]);
 
     useEffect(() => {
-        saveJson(STORAGE_KEYS.doctors, doctors);
+        saveSecureJson(STORAGE_KEYS.doctors, doctors);
     }, [doctors]);
 
     useEffect(() => {
-        saveJson(STORAGE_KEYS.appointments, appointments);
+        saveSecureJson(STORAGE_KEYS.appointments, appointments);
     }, [appointments]);
 
     useEffect(() => {
-        saveJson(STORAGE_KEYS.plans, plans);
+        saveSecureJson(STORAGE_KEYS.plans, plans);
     }, [plans]);
 
     useEffect(() => {
-        saveJson(STORAGE_KEYS.exams, exams);
+        saveSecureJson(STORAGE_KEYS.exams, exams);
     }, [exams]);
 
     useEffect(() => {
-        saveJson(STORAGE_KEYS.labs, labs);
+        saveSecureJson(STORAGE_KEYS.labs, labs);
     }, [labs]);
 
     useEffect(() => {
@@ -813,7 +815,6 @@ const App: React.FC = () => {
                     onSave={handleSaveExam}
                     doctors={doctors}
                     editing={examModal.editing}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -828,7 +829,6 @@ const App: React.FC = () => {
                 <InteractionsModal
                     medications={reminders.map(reminder => ({ name: reminder.medicationName, dosage: reminder.dosage }))}
                     onClose={() => setInteractionsOpen(false)}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -836,7 +836,6 @@ const App: React.FC = () => {
                 <BulaModal
                     reminder={bulaReminder}
                     onClose={() => setBulaReminder(null)}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -865,7 +864,7 @@ const App: React.FC = () => {
             )}
 
             {isSettingsOpen && (
-                <SettingsModal onClose={() => setSettingsOpen(false)} />
+                <SettingsModal onClose={() => setSettingsOpen(false)} onLock={onLock} />
             )}
 
             {examNotification && (
@@ -886,6 +885,23 @@ const App: React.FC = () => {
             <audio ref={audioRef} src={ALARM_SOUND_B64} loop />
         </div>
     );
+};
+
+const App: React.FC = () => {
+    const [unlocked, setUnlocked] = useState(() => isVaultUnlocked());
+    const handleUnlock = () => setUnlocked(true);
+    const handleLock = async () => {
+        try {
+            await flushSecureWrites();
+            lockSecureVault();
+            setUnlocked(false);
+        } catch (error) {
+            window.alert(error instanceof Error ? error.message : 'Não foi possível bloquear com segurança. Tente novamente.');
+        }
+    };
+    return unlocked
+        ? <AppContent onLock={handleLock} />
+        : <SecurityGate onUnlock={handleUnlock} />;
 };
 
 export default App;
