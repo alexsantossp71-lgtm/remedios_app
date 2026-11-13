@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '../storage';
 
 const VAULT_DB = 'remedio-na-hora-secure-vault';
