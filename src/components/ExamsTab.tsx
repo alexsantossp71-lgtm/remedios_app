@@ -41,7 +41,7 @@ const ExamItem: React.FC<{ exam: Exam; onEdit: () => void; onDelete: () => void;
         : formatDateBR(exam.date);
 
     return (
-        <div className={`relative rounded-lg border-l-4 ${meta.border} bg-brand-gray-100 dark:bg-brand-gray-700 p-4 shadow-sm`}>
+        <div className={`app-record-card relative rounded-xl border-l-4 ${meta.border} bg-brand-gray-100 dark:bg-brand-gray-700 p-4 shadow-sm`}>
             <div className="flex items-start space-x-3">
                 {exam.photo ? (
                     <button

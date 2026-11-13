@@ -20,7 +20,7 @@ const AppointmentItem: React.FC<{
     const when = parseLocalDateTime(appointment.dateTime);
     const dayMonth = when ? formatDateTimeBR(appointment.dateTime).slice(0, 5) : '—';
     return (
-    <div className="bg-brand-gray-100 dark:bg-brand-gray-700 p-4 rounded-lg shadow-sm relative">
+    <div className="app-record-card bg-brand-gray-100 dark:bg-brand-gray-700 p-4 rounded-xl shadow-sm relative">
         <div className="flex items-start space-x-3">
             <div className="flex-shrink-0 w-14 text-center bg-white dark:bg-brand-gray-600 rounded-lg py-1.5 shadow-sm">
                 <div className="text-xs uppercase text-brand-gray-500 dark:text-brand-gray-300">{formatWeekdayBR(appointment.dateTime)}</div>
