@@ -134,9 +134,12 @@ export default {
         // Rotas de Web Push são independentes da chave NVIDIA e não recebem
         // dados clínicos. A autenticação é feita por token aleatório do dispositivo.
         if (pathname.startsWith('/push/')) {
-            const verdict = (pathname === '/v1/diagnostics/chat/completions'
+            // O diagnóstico tem cota própria para permitir avaliar catálogos extensos
+        // sem consumir o limite das funcionalidades normais do aplicativo.
+        const limiter = pathname === '/v1/diagnostics/chat/completions'
             ? diagnosticLimitsFor()
-            : limitsFor(env)).hit(clientIp(request), Date.now());
+            : limitsFor(env);
+        const verdict = limiter.hit(clientIp(request), Date.now());
             if (!verdict.allowed) {
                 return jsonResponse(429, { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } }, allowedOrigin, { 'Retry-After': String(verdict.retryAfterSec) });
             }
