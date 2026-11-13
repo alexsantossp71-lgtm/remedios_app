@@ -210,13 +210,6 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing }) => {
                         <p className="text-sm text-brand-gray-500 dark:text-brand-gray-400 mt-1.5">
                             Escanear com a câmera e preencher os campos automaticamente com IA.
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => onOpenSettings?.()}
-                            className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
-                        >
-                            Tentar novamente
-                        </button>
                     </div>
                 )}
             </FormSection>
