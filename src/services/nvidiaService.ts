@@ -1,6 +1,6 @@
 
 import { Medication, EXAM_CATEGORIES } from '../types';
-import { effectiveProxyUrl, readAiSettings, type AiSettings } from './settings';
+import { effectiveProxyUrl, readAiSettings } from './settings';
 import { sanitizePrescriptionEntries, type PrescriptionEntry } from '../utils/prescription';
 import { sanitizeAdherenceAnalysis, type AdherenceAnalysis, type AdherenceReport } from '../utils/adherenceInsights';
 import { sanitizeConsultationQuestions } from '../utils/consultationSummary';
@@ -13,32 +13,15 @@ import {
     type ScheduleAdvisorMed,
 } from '../utils/scheduleAdvisor';
 
-// ===== Cliente da API NVIDIA (build.nvidia.com) =====
-// A API da NVIDIA segue o formato OpenAI: POST {base}/chat/completions com
-// cabeçalho Bearer. Modelos de visão recebem a imagem como data URL base64
-// dentro de `image_url` (docs: NIM for Vision Language Models).
+// Cliente interno de IA: o navegador chama somente o Worker do sistema.
+// A credencial NVIDIA permanece exclusivamente no ambiente do servidor.
 
-const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
 
 /** Erro já com mensagem amigável para exibir direto na interface. */
 export class AiError extends Error {
     /** Status HTTP quando o erro veio de uma resposta (undefined em falha de rede). */
     status?: number;
-}
-
-/**
- * Endpoint base da API. Pode ser sobrescrito gravando "nvidiaBaseUrl" no
- * localStorage (recurso de teste/debug; usuários normais nunca setam isso).
- */
-function baseUrl(): string {
-    try {
-        const override = localStorage.getItem('nvidiaBaseUrl')?.trim();
-        if (override) return override.replace(/\/+$/, '');
-    } catch {
-        // localStorage indisponível: segue com o endpoint oficial
-    }
-    return DEFAULT_BASE_URL;
 }
 
 interface ChatContentPart {
@@ -57,33 +40,19 @@ interface ChatChoice {
 }
 
 /** Mensagem quando não há proxy nem chave configurados. O App reconhece a
- * frase "Configure a IA" para ajustar o aviso da lista de medicamentos. */
+ * aviso amigável quando o serviço estiver indisponível. */
 const NO_CREDENTIALS_MESSAGE =
-    'Configure a IA nas Configurações (ícone Ajustes no topo): cole a URL do proxy de IA ou a sua chave da API NVIDIA.';
+    'O serviço de inteligência artificial está temporariamente indisponível. Tente novamente em alguns instantes.';
 
-/** Cabeçalhos do pedido direto (chave do usuário). */
-const directHeaders = (apiKey: string): Record<string, string> => ({
-    Authorization: `Bearer ${apiKey}`,
+/** Cabeçalhos do serviço interno; nenhuma credencial é enviada pelo navegador. */
+const proxyHeaders = (): Record<string, string> => ({
     'Content-Type': 'application/json',
     Accept: 'application/json',
 });
 
-/** Cabeçalhos do pedido via proxy (sem chave NVIDIA; token de acesso obrigatório). */
-const proxyHeaders = (settings: AiSettings): Record<string, string> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
-    const token = settings.proxyToken.trim();
-    if (token) headers['x-proxy-token'] = token;
-    return headers;
-};
-
-/** Erro permite cair do proxy para a chave direta? Só rede/instabilidade. */
-const canFallbackToKey = (error: unknown): boolean =>
-    error instanceof AiError && (error.status === undefined || error.status >= 500);
-
 /**
  * Chamada única de chat completions; devolve o texto da primeira resposta.
- * Caminho preferencial: proxy configurado (sem chave por usuário). Se o proxy
- * falhar por rede/5xx e existir uma chave própria, repete direto na NVIDIA.
+ * O endpoint e a credencial de upstream são gerenciados pelo servidor.
  */
 async function chatCompletion(
     messages: ChatMessage[],
@@ -91,9 +60,8 @@ async function chatCompletion(
     options?: { maxTokens?: number; temperature?: number }
 ): Promise<string> {
     const settings = readAiSettings();
-    const apiKey = settings.nvidiaApiKey.trim();
     const proxy = effectiveProxyUrl(settings);
-    if (!apiKey && !proxy) {
+    if (!proxy) {
         throw new AiError(NO_CREDENTIALS_MESSAGE);
     }
 
@@ -118,7 +86,7 @@ async function chatCompletion(
         } catch {
             throw new AiError(
                 viaProxy
-                    ? 'Não foi possível conectar ao proxy de IA. Verifique sua internet ou use sua chave da API NVIDIA nas Configurações.'
+                    ? 'Não foi possível conectar ao proxy de IA. Verifique sua conexão com a internet e tente novamente.'
                     : 'Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.'
             );
         } finally {
@@ -143,15 +111,7 @@ async function chatCompletion(
         throw new AiError('A API da NVIDIA respondeu em um formato inesperado. Tente novamente.');
     };
 
-    if (proxy) {
-        try {
-            return await attempt(`${proxy}/chat/completions`, proxyHeaders(settings), true);
-        } catch (error) {
-            if (!apiKey || !canFallbackToKey(error)) throw error;
-            // Cai para a chave direta abaixo (instabilidade momentânea do proxy).
-        }
-    }
-    return attempt(`${baseUrl()}/chat/completions`, directHeaders(apiKey), false);
+    return attempt(`${proxy}/chat/completions`, proxyHeaders(), true);
 }
 
 /** Traduz erros HTTP da API/proxy para mensagens claras em português. */
@@ -166,7 +126,7 @@ async function describeHttpError(response: Response, viaProxy = false): Promise<
     }
     if (response.status === 401 || response.status === 403) {
         return viaProxy
-            ? 'O proxy de IA recusou o pedido (origem ou token não autorizado). Confira a URL/Token do proxy nas Configurações e o ALLOWED_ORIGINS do Worker.'
+            ? 'O serviço de IA recusou o pedido. Verifique a configuração interna do Worker.'
             : 'Chave da API NVIDIA inválida ou sem permissão. Gere uma chave nova em build.nvidia.com ("Get API Key") e confirme nas Configurações.';
     }
     if (response.status === 404) {
@@ -815,42 +775,27 @@ export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promis
 /** Consulta a lista de modelos da conta e devolve um resumo do status. */
 export const testConnection = async (): Promise<string> => {
     const settings = readAiSettings();
-    const apiKey = settings.nvidiaApiKey.trim();
     const proxy = effectiveProxyUrl(settings);
-    if (!apiKey && !proxy) throw new AiError('Informe a chave da API NVIDIA ou a URL do proxy antes de testar.');
+    if (!proxy) throw new AiError(NO_CREDENTIALS_MESSAGE);
 
-    const viaProxy = Boolean(proxy);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 20_000);
     let response: Response;
     try {
-        response = await fetch(viaProxy ? `${proxy}/models` : `${baseUrl()}/models`, {
-            headers: viaProxy ? proxyHeaders(settings) : directHeaders(apiKey),
+        response = await fetch(`${proxy}/models`, {
+            headers: proxyHeaders(),
             signal: controller.signal,
         });
     } catch {
-        throw new AiError(
-            viaProxy
-                ? 'Não foi possível conectar ao proxy de IA. Verifique sua internet e a URL do proxy nas Configurações.'
-                : 'Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.'
-        );
+        throw new AiError('Não foi possível conectar ao serviço de IA. Verifique sua internet e tente novamente.');
     } finally {
         window.clearTimeout(timeout);
     }
-    if (!response.ok) throw new AiError(await describeHttpError(response, viaProxy));
+    if (!response.ok) throw new AiError(await describeHttpError(response, true));
 
     const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
     const ids = Array.isArray(data?.data)
         ? data!.data!.map((m) => (typeof m?.id === 'string' ? m.id : '')).filter(Boolean)
         : [];
-
-    const warnings: string[] = [];
-    if (ids.length && !ids.includes(settings.visionModel)) warnings.push(`o modelo de visão "${settings.visionModel}" não consta na sua conta`);
-    if (ids.length && !ids.includes(settings.textModel)) warnings.push(`o modelo de texto "${settings.textModel}" não consta na sua conta`);
-
-    const via = viaProxy ? 'no proxy de IA (NVIDIA)' : 'à NVIDIA';
-    if (warnings.length) return `Conectado ${via}. Atenção: ${warnings.join(' e ')}.`;
-    return ids.length
-        ? `Conectado ${via}! ${ids.length} modelos disponíveis.`
-        : `Conectado ${via}!`;
+    return ids.length ? `Serviço de IA conectado. ${ids.length} modelos disponíveis.` : 'Serviço de IA conectado.';
 };

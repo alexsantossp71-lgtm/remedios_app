@@ -1,7 +1,6 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-    constantTimeEquals,
     isModelAllowed,
     isOriginAllowed,
     parseConfig,
@@ -16,7 +15,6 @@ describe('parseConfig', () => {
         expect(cfg.dayMax).toBe(200);
         expect(cfg.allowedOrigins).toEqual([]);
         expect(cfg.allowedModels).toBe('*');
-        expect(cfg.requiresToken).toBe(true);
     });
 
     it('lê as listas separadas por vírgula', () => {
@@ -32,17 +30,15 @@ describe('parseConfig', () => {
         expect(parseConfig({ ALLOWED_MODELS: '*' }).allowedModels).toBe('*');
     });
 
-    it('sempre exige token, inclusive antes de o segredo ser configurado', () => {
+    it('lê os limites do proxy sem exigir segredo no navegador', () => {
         const cfg = parseConfig({
             RATE_LIMIT_WINDOW_MS: '60000',
             RATE_LIMIT_MAX: '10',
             RATE_LIMIT_DAY_MAX: '50',
-            PROXY_TOKEN: 'segredo',
         });
         expect(cfg.windowMs).toBe(60_000);
         expect(cfg.windowMax).toBe(10);
         expect(cfg.dayMax).toBe(50);
-        expect(cfg.requiresToken).toBe(true);
     });
 
     it('valores inválidos caem no padrão', () => {
@@ -72,15 +68,6 @@ describe('isModelAllowed', () => {
         expect(isModelAllowed('openai/gpt-4o', allowed)).toBe(false);
         expect(isModelAllowed('', allowed)).toBe(false);
         expect(isModelAllowed('   ', allowed)).toBe(false);
-    });
-});
-
-describe('constantTimeEquals', () => {
-    it('compara strings iguais e diferentes', () => {
-        expect(constantTimeEquals('abc', 'abc')).toBe(true);
-        expect(constantTimeEquals('abc', 'abd')).toBe(false);
-        expect(constantTimeEquals('abc', 'abcd')).toBe(false);
-        expect(constantTimeEquals('', '')).toBe(true);
     });
 });
 

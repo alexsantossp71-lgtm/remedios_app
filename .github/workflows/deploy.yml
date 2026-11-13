@@ -45,12 +45,9 @@ jobs:
 
       - name: Build
         run: pnpm run build
-        # URL do proxy de IA embutida no bundle. Defina em
-        # Settings → Secrets and variables → Actions → Variables
-        # (variável VITE_DEFAULT_PROXY_URL). Sem a variável, o build segue
-        # igual e o usuário configura a URL por dispositivo.
+        # URL pública do Worker; não é um segredo e não contém credenciais.
         env:
-          VITE_DEFAULT_PROXY_URL: ${{ vars.VITE_DEFAULT_PROXY_URL }}
+          VITE_DEFAULT_PROXY_URL: https://remedios-ai-proxy.alexsantossp71.workers.dev
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

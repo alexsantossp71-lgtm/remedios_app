@@ -7,13 +7,12 @@
 //
 // O app (GitHub Pages) chama https://<nome>.workers.dev/v1/chat/completions
 // sem chave por usuário; o proxy injeta o segredo no servidor. Proteções:
-// CORS por origem exata (não é autenticação), token obrigatório, allowlist de
-// modelos, sem streaming, teto de corpo e rate limit em memória por isolate.
+// CORS por origem exata (não é autenticação), allowlist de modelos, sem
+// streaming, teto de corpo e rate limit em memória por isolate.
 
 import {
     MAX_BODY_BYTES,
     UPSTREAM_BASE,
-    constantTimeEquals,
     isModelAllowed,
     isOriginAllowed,
     parseConfig,
@@ -24,7 +23,6 @@ import { RateLimits, clientIp } from './limiter';
 export interface WorkerEnv {
     [key: string]: string | undefined;
     NVIDIA_API_KEY?: string;
-    PROXY_TOKEN?: string;
     ALLOWED_ORIGINS?: string;
     ALLOWED_MODELS?: string;
     RATE_LIMIT_WINDOW_MS?: string;
@@ -80,7 +78,7 @@ export default {
                 status: 204,
                 headers: corsHeaders(allowedOrigin, {
                     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Accept, x-proxy-token',
+                    'Access-Control-Allow-Headers': 'Content-Type, Accept',
                     'Access-Control-Max-Age': '86400',
                 }),
             });
@@ -93,16 +91,6 @@ export default {
 
         if (!allowedOrigin) {
             return jsonResponse(403, { error: { message: 'Origem não autorizada para usar este proxy.' } }, '');
-        }
-
-        // Falha fechada: sem segredo no servidor, o proxy não atende chamadas.
-        const configuredToken = (env.PROXY_TOKEN ?? '').trim();
-        if (!configuredToken) {
-            return jsonResponse(503, { error: { message: 'Proxy sem autenticação configurada. O administrador deve definir PROXY_TOKEN.' } }, allowedOrigin);
-        }
-        const token = (request.headers.get('x-proxy-token') ?? '').trim();
-        if (!constantTimeEquals(token, configuredToken)) {
-            return jsonResponse(401, { error: { message: 'Token do proxy inválido ou ausente.' } }, allowedOrigin);
         }
 
         if (!(env.NVIDIA_API_KEY ?? '').trim()) {

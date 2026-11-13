@@ -31,8 +31,8 @@ describe('normalizeProxyUrl', () => {
 });
 
 describe('effectiveProxyUrl', () => {
-    it('usa a URL por dispositivo quando informada', () => {
-        expect(effectiveProxyUrl({ proxyUrl: 'https://meu-proxy.dev' })).toBe('https://meu-proxy.dev/v1');
+    it('ignora URL por dispositivo e usa somente a URL interna', () => {
+        expect(effectiveProxyUrl({ proxyUrl: 'https://meu-proxy.dev' })).toBe(normalizeProxyUrl(DEFAULT_PROXY_URL));
     });
 
     it('cai no padrão do build quando o campo está vazio', () => {
@@ -46,7 +46,8 @@ describe('hasAiAccess', () => {
         expect(hasAiAccess({ proxyUrl: '', nvidiaApiKey: '' })).toBe(Boolean(DEFAULT_PROXY_URL));
     });
 
-    it('libera com chave própria mesmo sem proxy', () => {
-        expect(hasAiAccess({ proxyUrl: '', nvidiaApiKey: 'nvapi-xyz' })).toBe(true);
+    it('usa o acesso interno sem exigir chave fornecida pelo usuário', () => {
+        expect(hasAiAccess({ proxyUrl: '', nvidiaApiKey: '' })).toBe(Boolean(DEFAULT_PROXY_URL));
+        expect(hasAiAccess({ proxyUrl: 'https://proxy-adulterado.dev', nvidiaApiKey: 'nvapi-xyz' })).toBe(Boolean(DEFAULT_PROXY_URL));
     });
 });

@@ -8,31 +8,22 @@ const baseEnv = {
     NVIDIA_API_KEY: 'nvapi-test-key',
 };
 
-describe('autenticação do proxy', () => {
-    it('falha fechada quando PROXY_TOKEN não está configurado no servidor', async () => {
-        const request = new Request('https://proxy.example/v1/models', {
-            headers: { Origin: origin },
+describe('acesso ao proxy', () => {
+    it('aceita chamadas do app sem segredo compartilhado no navegador', async () => {
+        const request = new Request('https://proxy.example/v1/chat/completions', {
+            method: 'POST',
+            headers: { Origin: origin, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'not-allowed', messages: [], stream: false }),
         });
         const response = await worker.fetch(request, baseEnv);
-        expect(response.status).toBe(503);
+        // Sem token, o pedido chega à validação da allowlist (403), não à autenticação (401).
+        expect(response.status).toBe(403);
     });
 
-    it('recusa chamada sem token ou com token incorreto', async () => {
-        const env = { ...baseEnv, PROXY_TOKEN: 'token-correto' };
-        const missing = await worker.fetch(new Request('https://proxy.example/v1/models', {
-            headers: { Origin: origin },
-        }), env);
-        const invalid = await worker.fetch(new Request('https://proxy.example/v1/models', {
-            headers: { Origin: origin, 'x-proxy-token': 'token-errado' },
-        }), env);
-        expect(missing.status).toBe(401);
-        expect(invalid.status).toBe(401);
-    });
-
-    it('não trata CORS como autenticação e rejeita origem não cadastrada', async () => {
+    it('rejeita origem não cadastrada', async () => {
         const response = await worker.fetch(new Request('https://proxy.example/v1/models', {
-            headers: { Origin: 'https://site-malicioso.example', 'x-proxy-token': 'token-correto' },
-        }), { ...baseEnv, PROXY_TOKEN: 'token-correto' });
+            headers: { Origin: 'https://site-malicioso.example' },
+        }), baseEnv);
         expect(response.status).toBe(403);
     });
 
