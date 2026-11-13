@@ -14,7 +14,6 @@ interface Props {
     doctors: Doctor[];
     /** Exame em edição; `null`/ausente = novo cadastro. */
     editing?: Exam | null;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
     onOpenSettings?: () => void;
 }
 
