@@ -156,6 +156,21 @@ describe('selectAvailablePollinationsModels', () => {
         ])).toEqual(['google/gemini-3.8-flash', 'qwen/qwen3.8-27b']);
     });
 
+    it('usa somente Gemini para payloads com imagem', () => {
+        expect(selectAvailablePollinationsModels([
+            'google/gemini-3.8-flash',
+            'openai/gpt-5.4-nano',
+            'deepseek/deepseek-v4-flash',
+        ], true)).toEqual(['google/gemini-3.8-flash']);
+    });
+
+    it('não envia imagens ao Pollinations se não houver modelo de visão anunciado', () => {
+        expect(selectAvailablePollinationsModels([
+            'openai/gpt-5.4-nano',
+            'deepseek/deepseek-v4-flash',
+        ], true)).toEqual([]);
+    });
+
     it('não tenta modelos quando o catálogo não oferece opções compatíveis', () => {
         expect(selectAvailablePollinationsModels(['modelo/desconhecido'])).toEqual([]);
     });
