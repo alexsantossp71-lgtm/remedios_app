@@ -99,7 +99,6 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
                 <p className={helperClass}>
                     Seus dados (lembretes, histórico de doses, médicos, consultas, planos, exames e laudos laboratoriais) ficam salvos apenas neste navegador.
                     Exporte um arquivo de vez em quando para não perder nada ao limpar o navegador ou trocar de aparelho.
-                    <span className="font-semibold"> A chave da IA não é incluída.</span>
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                     <button
