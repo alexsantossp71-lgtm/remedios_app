@@ -16,6 +16,8 @@ import {
 // Cliente interno: o navegador acessa somente o serviço central do sistema.
 
 const REQUEST_TIMEOUT_MS = 60_000;
+const MODEL_CATALOG_TTL_MS = 5 * 60_000;
+let modelCatalogCache: { proxy: string; expiresAt: number; ids: Set<string> } | null = null;
 
 /** Erro já com mensagem amigável para exibir direto na interface. */
 export class AiError extends Error {
@@ -130,10 +132,13 @@ async function chatCompletion(
         'nvidia/nemotron-3.5-super-vl-120b-a12b',
     ];
     const preferred = hasImages ? visionFallbacks : textFallbacks;
+    let availableIds: Set<string> | null = modelCatalogCache?.proxy === proxy && modelCatalogCache.expiresAt > Date.now()
+        ? modelCatalogCache.ids
+        : null;
     const catalogController = new AbortController();
     const catalogTimeout = window.setTimeout(() => catalogController.abort(), 8_000);
-    let availableIds: Set<string> | null = null;
     try {
+        if (!availableIds) {
         const catalogResponse = await fetch(`${proxy}/models`, {
             headers: proxyHeaders(),
             signal: catalogController.signal,
@@ -143,7 +148,11 @@ async function chatCompletion(
             const ids = Array.isArray(catalog?.data)
                 ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
                 : [];
-            if (ids.length) availableIds = new Set(ids);
+            if (ids.length) {
+                availableIds = new Set(ids);
+                modelCatalogCache = { proxy, expiresAt: Date.now() + MODEL_CATALOG_TTL_MS, ids: availableIds };
+            }
+        }
         }
     } catch {
         // O fallback estático continua disponível se /models estiver fora do ar.
