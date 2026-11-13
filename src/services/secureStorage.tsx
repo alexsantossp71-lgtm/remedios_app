@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from '../storage';
+import { STORAGE_KEYS, loadJson, saveJson } from '../storage';
 
 const VAULT_DB = 'remedio-na-hora-secure-vault';
 const VAULT_STORE = 'vault';
@@ -175,7 +175,7 @@ export function lockSecureVault(): void {
 }
 
 export function loadSecureJson<T>(key: string, isValid: (value: unknown) => boolean): T | null {
-    if (!activeData) return null;
+    if (!activeData) return loadJson<T>(key, isValid);
     try {
         const raw = activeData[key];
         if (raw === undefined) return null;
@@ -188,7 +188,7 @@ export function loadSecureJson<T>(key: string, isValid: (value: unknown) => bool
 
 /** Atualiza a cópia em memória e persiste o cofre inteiro criptografado no IndexedDB. */
 export function saveSecureJson(key: string, value: unknown): boolean {
-    if (!activeData || !activeKey) return false;
+    if (!activeData || !activeKey) return saveJson(key, value);
     activeData[key] = JSON.stringify(value);
     const snapshot = { ...activeData };
     const keySnapshot = activeKey;
