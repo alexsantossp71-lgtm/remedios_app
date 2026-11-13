@@ -26,7 +26,7 @@ interface Props {
 }
 
 const PERMISSION_LABELS: Record<NotificationSupport, string> = {
-    granted: 'Ativadas — você será avisado mesmo com o app em segundo plano.',
+    granted: 'Permissão do navegador concedida. Para receber avisos com o navegador fechado, ative o Push abaixo.',
     default: 'Não configuradas. Ative para receber o aviso da dose fora do app.',
     denied: 'Bloqueadas pelo navegador. Libere nas permissões do site para receber avisos.',
     unsupported: 'Este navegador não suporta notificações (no iPhone, instale o app na tela de início para habilitar).',
@@ -122,7 +122,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                     </button>
                 )}
                 <p className={helperClass}>
-                    As notificações avisam da dose quando o app está em segundo plano. Com o app aberto, o alarme sonoro toca normalmente.
+                    Os alarmes locais dependem de o navegador manter o aplicativo em execução. Para tentar receber avisos com o navegador fechado, ative o Push abaixo.
                 </p>
             </FormSection>
 
