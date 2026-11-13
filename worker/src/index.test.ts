@@ -80,8 +80,41 @@ describe('limite independente do diagnóstico NVIDIA', () => {
                 baseEnv,
             )));
             expect(responses.every((response) => response.status === 200)).toBe(true);
+
+            // As chamadas de diagnóstico não podem consumir a cota das rotas normais.
+            const normalResponse = await worker.fetch(
+                new Request('https://proxy.example/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '198.51.100.77' },
+                    body: JSON.stringify({ model: 'meta/llama-3.3-70b-instruct', messages: [{ role: 'user', content: 'teste' }], stream: false }),
+                }),
+                baseEnv,
+            );
+            expect(normalResponse.status).toBe(200);
         } finally {
             globalThis.fetch = originalFetch;
         }
     });
+
+    it('mantém o limite normal de 30 chamadas para o proxy do aplicativo', async () => {
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = async () => new Response(JSON.stringify({
+            choices: [{ message: { content: 'teste sintético' } }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        try {
+            const responses = await Promise.all(Array.from({ length: 31 }, () => worker.fetch(
+                new Request('https://proxy.example/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '198.51.100.78' },
+                    body: JSON.stringify({ model: 'meta/llama-3.3-70b-instruct', messages: [{ role: 'user', content: 'teste' }], stream: false }),
+                }),
+                baseEnv,
+            )));
+            expect(responses.filter((response) => response.status === 200)).toHaveLength(30);
+            expect(responses.filter((response) => response.status === 429)).toHaveLength(1);
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
 });
