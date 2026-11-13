@@ -9,7 +9,6 @@ interface Props {
     /** Lembretes ativos (nome + dosagem) enviados à análise. */
     medications: Array<{ name: string; dosage?: string }>;
     onClose: () => void;
-    
 }
 
 type Status = 'loading' | 'done' | 'error' | 'nokey';
