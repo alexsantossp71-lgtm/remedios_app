@@ -63,7 +63,7 @@ async function chatCompletion(
         throw new AiError(NO_CREDENTIALS_MESSAGE);
     }
 
-    const attempt = async (url: string, headers: Record<string, string>, viaProxy: boolean): Promise<string> => {
+    const attempt = async (url: string, headers: Record<string, string>): Promise<string> => {
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -83,14 +83,14 @@ async function chatCompletion(
             });
         } catch {
             throw new AiError(
-                 'Não foi possível conectar ao serviço. Verifique sua conexão com a internet e tente novamente.'
+                'Não foi possível conectar ao serviço. Verifique sua conexão com a internet e tente novamente.'
             );
         } finally {
             window.clearTimeout(timeout);
         }
 
         if (!response.ok) {
-            const error = new AiError(await describeHttpError(response, viaProxy));
+            const error = new AiError(await describeHttpError(response));
             error.status = response.status;
             throw error;
         }
@@ -107,11 +107,11 @@ async function chatCompletion(
         throw new AiError('Não foi possível concluir a leitura. Tente novamente.');
     };
 
-    return attempt(`${proxy}/chat/completions`, proxyHeaders(), true);
+    return attempt(`${proxy}/chat/completions`, proxyHeaders());
 }
 
 /** Traduz erros HTTP da API/proxy para mensagens claras em português. */
-async function describeHttpError(response: Response, _viaProxy = false): Promise<string> {
+async function describeHttpError(response: Response): Promise<string> {
     if (response.status === 401 || response.status === 403) {
         return 'Não foi possível processar sua solicitação no momento. Tente novamente mais tarde.';
     }
