@@ -145,6 +145,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                                 setPushEnabled(true);
                                 setPushMessage({ ok: true, text: 'Notificações Push ativadas neste dispositivo.' });
                             } catch (error) {
+                                setPushEnabled(isPushEnabled());
                                 setPushMessage({ ok: false, text: error instanceof Error ? error.message : 'Não foi possível ativar as notificações Push.' });
                             } finally {
                                 setPushBusy(false);
