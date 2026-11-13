@@ -804,7 +804,6 @@ const App: React.FC = () => {
                     onClose={() => setPlanModal({ open: false, editing: null })}
                     onSave={handleSavePlan}
                     editing={planModal.editing}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
