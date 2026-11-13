@@ -173,6 +173,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
                     <p>Medicamentos, horários, histórico de doses, médicos, consultas, carteirinha, exames, fotos e laudos ficam criptografados neste dispositivo. O aplicativo não mantém uma conta nem sincroniza esses registros com um servidor próprio.</p>
                     <p className="mt-2">Quando você escolhe usar recursos de leitura ou análise inteligente, o conteúdo necessário para aquela função — que pode incluir texto, fotos ou dados de medicamentos — é enviado a um serviço externo para processamento. Não use esses recursos se não concordar com esse envio.</p>
                     <p className="mt-2">Os backups são arquivos baixados por você e protegidos por uma senha própria. Guarde a senha do aplicativo e a do backup em local seguro. Se perder a senha do aplicativo, não será possível recuperar o cofre sem um backup válido.</p>
+                    <p className="mt-2">A proteção reduz o risco de leitura direta do armazenamento, mas não protege contra um dispositivo comprometido, extensões maliciosas ou acesso enquanto o aplicativo está desbloqueado. Bloqueie a tela ao se afastar.</p>
                     <p className="mt-2">A exclusão dos dados do navegador, a limpeza do perfil ou a perda do dispositivo pode apagar os registros locais. Exporte backups protegidos regularmente.</p>
                 </div>
             </FormSection>
