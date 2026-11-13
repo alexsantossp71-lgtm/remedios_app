@@ -110,21 +110,54 @@ async function chatCompletion(
     return attempt(`${proxy}/chat/completions`, proxyHeaders());
 }
 
-/** Traduz erros HTTP da API/proxy para mensagens claras em português. */
+/** Lê a mensagem estruturada devolvida pelo proxy ou pela API, sem expor dados sensíveis. */
+async function readServiceError(response: Response): Promise<string> {
+    const raw = await response.text().catch(() => '');
+    if (!raw) return '';
+    try {
+        const data = JSON.parse(raw) as {
+            error?: { message?: unknown } | string;
+            message?: unknown;
+        };
+        const nested = typeof data.error === 'object' && data.error !== null
+            ? data.error.message
+            : data.error;
+        const message = typeof nested === 'string'
+            ? nested
+            : typeof data.message === 'string'
+                ? data.message
+                : '';
+        // Limita tamanho e remove controles; nunca exibe o corpo bruto da resposta.
+        return message.replace(/[\\u0000-\\u001f\\u007f]/g, ' ').trim().slice(0, 240);
+    } catch {
+        return '';
+    }
+}
+
+/** Traduz erros HTTP preservando a causa informada pelo proxy/API. */
 async function describeHttpError(response: Response): Promise<string> {
-    if (response.status === 401 || response.status === 403) {
-        return 'Não foi possível processar sua solicitação no momento. Tente novamente mais tarde.';
+    const detail = await readServiceError(response);
+    const status = response.status;
+
+    if (status === 401) {
+        return detail || 'A autenticação do serviço de IA foi recusada. Verifique a chave NVIDIA cadastrada no Worker.';
     }
-    if (response.status === 404) {
-        return 'Este recurso está temporariamente indisponível. Tente novamente mais tarde.';
+    if (status === 403) {
+        return detail || 'O serviço recusou a solicitação. Verifique se o modelo está autorizado para a conta NVIDIA e na lista permitida do Worker.';
     }
-    if (response.status === 413) {
-        return 'A foto ou o texto é muito grande. Escolha uma imagem menor ou reduza o texto.';
+    if (status === 404) {
+        return detail || 'O modelo ou endereço solicitado não foi encontrado. Verifique a configuração do serviço de IA.';
     }
-    if (response.status === 429) {
-        return 'Muitas solicitações foram feitas em pouco tempo. Aguarde alguns instantes e tente novamente.';
+    if (status === 413) {
+        return detail || 'A foto ou o texto é muito grande. Escolha uma imagem menor ou reduza o texto.';
     }
-    return 'Ocorreu um problema ao processar sua solicitação. Tente novamente em alguns instantes.';
+    if (status === 429) {
+        return detail || 'O limite de solicitações foi atingido. Aguarde alguns instantes e tente novamente.';
+    }
+    if (status >= 500) {
+        return detail || 'O serviço de IA está temporariamente indisponível. Tente novamente mais tarde.';
+    }
+    return detail || `A solicitação ao serviço de IA falhou (HTTP ${status}). Tente novamente.`;
 }
 
 /** Extrai o primeiro objeto JSON da resposta do modelo (tolerante a blocos de código). */
