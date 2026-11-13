@@ -41,3 +41,7 @@ RATE_LIMIT_DAY_MAX = "200"
 #   VAPID_PRIVATE_KEY — chave privada VAPID em Base64URL (32 bytes), já cadastrada no Worker
 # A API é protegida por allowlist de origem, allowlist de modelos e limites por IP.
 # NVIDIA_API_KEY permanece exclusivamente como secret do Worker.
+
+# Provedor experimental: só será usado pelas rotas /v1/pollinations/*.
+# A chave POLLINATIONS_API_KEY deve ser cadastrada como secret no Cloudflare.
+POLLINATIONS_ALLOWED_MODELS = "google/gemini-3.8-flash,openai/gpt-5.4-nano,deepseek/deepseek-v4-flash,qwen/qwen3.8-27b"
