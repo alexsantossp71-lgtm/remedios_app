@@ -338,7 +338,7 @@ export async function runAiModelDiagnostics(
     // estática do app. Modelos sem suporte a chat também são registrados como falha.
     const catalogController = new AbortController();
     const catalogTimeout = window.setTimeout(() => catalogController.abort(), 15_000);
-    let models: string[] = [];
+    let models: string[];
     try {
         const response = await fetch(`${proxy}/models`, {
             headers: proxyHeaders(),
