@@ -31,6 +31,7 @@ interface BackupData {
     appointments?: Appointment[];
     plans?: HealthPlan[];
     exams?: Exam[];
+    /** Conteúdo de STORAGE_KEYS.labs ('healthLabResults'), incluindo fotos e valores estruturados. */
     labs?: LabResult[];
 }
 
@@ -85,6 +86,8 @@ export function buildBackup(): BackupFile {
         appointments: (isVaultUnlocked() ? loadSecureJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) : null) ?? loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? [],
         plans: (isVaultUnlocked() ? loadSecureJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) : null) ?? loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? [],
         exams: (isVaultUnlocked() ? loadSecureJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) : null) ?? loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? [],
+        // STORAGE_KEYS.labs aponta diretamente para healthLabResults; preserva o registro inteiro,
+        // inclusive photo (data URL), values, faixas de referência e notes.
         labs: (isVaultUnlocked() ? loadSecureJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) : null) ?? loadJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? [],
     };
     return { app: APP_ID, version: FORMAT_VERSION, exportedAt: toDateTimeInputValue(new Date()), data };
@@ -316,6 +319,7 @@ export function applyBackup(data: Partial<Required<BackupData>>): void {
         if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.exams, data.exams);
         else saveJson(STORAGE_KEYS.exams, data.exams);
     }
+    // Restaura a categoria healthLabResults completa, sem descartar fotos nem campos dos valores.
     if (data.labs !== undefined) {
         if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.labs, data.labs);
         else saveJson(STORAGE_KEYS.labs, data.labs);
