@@ -59,7 +59,7 @@ interface ChatChoice {
 /** Mensagem quando não há proxy nem chave configurados. O App reconhece a
  * frase "Configure a IA" para ajustar o aviso da lista de medicamentos. */
 const NO_CREDENTIALS_MESSAGE =
-    'Configure a IA nas Configurações (ícone Ajustes no topo): cole a URL do proxy de IA ou a sua chave da API NVIDIA.';
+    'O serviço de inteligência artificial está temporariamente indisponível. Tente novamente em alguns instantes.';
 
 /** Cabeçalhos do pedido direto (chave do usuário). */
 const directHeaders = (apiKey: string): Record<string, string> => ({
@@ -69,12 +69,10 @@ const directHeaders = (apiKey: string): Record<string, string> => ({
 });
 
 /** Cabeçalhos do pedido via proxy (sem chave NVIDIA; token de acesso obrigatório). */
-const proxyHeaders = (settings: AiSettings): Record<string, string> => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
-    const token = settings.proxyToken.trim();
-    if (token) headers['x-proxy-token'] = token;
-    return headers;
-};
+const proxyHeaders = (_settings: AiSettings): Record<string, string> => ({
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+});
 
 /** Erro permite cair do proxy para a chave direta? Só rede/instabilidade. */
 const canFallbackToKey = (error: unknown): boolean =>
@@ -118,7 +116,7 @@ async function chatCompletion(
         } catch {
             throw new AiError(
                 viaProxy
-                    ? 'Não foi possível conectar ao proxy de IA. Verifique sua internet ou use sua chave da API NVIDIA nas Configurações.'
+                    ? 'Não foi possível conectar ao proxy de IA. Verifique sua conexão com a internet e tente novamente.'
                     : 'Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.'
             );
         } finally {
@@ -848,7 +846,7 @@ export const testConnection = async (): Promise<string> => {
     if (ids.length && !ids.includes(settings.visionModel)) warnings.push(`o modelo de visão "${settings.visionModel}" não consta na sua conta`);
     if (ids.length && !ids.includes(settings.textModel)) warnings.push(`o modelo de texto "${settings.textModel}" não consta na sua conta`);
 
-    const via = viaProxy ? 'no proxy de IA (NVIDIA)' : 'à NVIDIA';
+    const via = viaProxy ? 'no serviço de IA' : 'à NVIDIA';
     if (warnings.length) return `Conectado ${via}. Atenção: ${warnings.join(' e ')}.`;
     return ids.length
         ? `Conectado ${via}! ${ids.length} modelos disponíveis.`
