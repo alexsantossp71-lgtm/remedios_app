@@ -209,6 +209,7 @@ export interface ModelDiagnosticTask {
 }
 
 export interface ModelDiagnosticResult {
+    provider: 'NVIDIA' | 'Pollinations.ai';
     model: string;
     interactions: ModelDiagnosticTask;
     schedule: ModelDiagnosticTask;
@@ -239,12 +240,13 @@ const DIAGNOSTIC_SCHEDULE_PROMPT = `Você está sendo avaliado em uma tarefa de 
 {"summary":"...","suggestions":[{"medicationId":"TESTE-A","medicationName":"Medicamento Alfa","suggestedTimes":["08:00","20:00"],"reason":"...","warnings":[]},{"medicationId":"TESTE-B","medicationName":"Medicamento Beta","suggestedTimes":["07:00"],"reason":"...","warnings":[]}]}
 Não crie nem remova medicamentos ou doses. Preserve os IDs e todos os horários exatamente. Caso falte informação, diga que não é possível otimizar com segurança. Dados fictícios: TESTE-A Medicamento Alfa, dose não informada, horários atuais 08:00 e 20:00; TESTE-B Medicamento Beta, dose não informada, horário atual 07:00.`;
 
-async function diagnosticRequest(proxy: string, model: string, prompt: string): Promise<{ content: string; durationMs: number }> {
+async function diagnosticRequest(proxy: string, model: string, prompt: string, provider: 'NVIDIA' | 'Pollinations.ai' = 'NVIDIA'): Promise<{ content: string; durationMs: number }> {
     const controller = new AbortController();
     const started = performance.now();
     const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-        const response = await fetch(`${proxy}/chat/completions`, {
+        const endpoint = provider === 'Pollinations.ai' ? `${proxy}/pollinations/chat/completions` : `${proxy}/chat/completions`;
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: proxyHeaders(),
             body: JSON.stringify({
@@ -373,12 +375,94 @@ export async function runAiModelDiagnostics(
                 }
             })(),
         ]);        results.push({
+            provider: 'NVIDIA',
             model,
             interactions: interactionResult,
             schedule: scheduleResult,
             totalMs: Math.round(performance.now() - started),
         });
         onProgress?.({ completed: index + 1, total: models.length, model });
+    }
+
+    // Pollinations é testado separadamente; sua chave nunca é enviada pelo navegador.
+    // A lista pública de modelos é consultada pelo Worker, que injeta o secret.
+    const pollinationsCandidates = [
+        'google/gemini-3.8-flash',
+        'openai/gpt-5.4-nano',
+        'deepseek/deepseek-v4-flash',
+        'qwen/qwen3.8-27b',
+    ];
+    const pollinationsCatalogController = new AbortController();
+    const pollinationsCatalogTimeout = window.setTimeout(() => pollinationsCatalogController.abort(), 8_000);
+    let pollinationsModels: string[] = [];
+    let pollinationsUnavailable = '';
+    try {
+        const response = await fetch(`${proxy}/pollinations/models`, {
+            headers: proxyHeaders(),
+            signal: pollinationsCatalogController.signal,
+        });
+        if (!response.ok) {
+            pollinationsUnavailable = await describeHttpError(response) || `Pollinations respondeu HTTP ${response.status}.`;
+        } else {
+            const catalog = await response.json() as { data?: Array<{ id?: unknown }> };
+            const available = new Set((catalog.data ?? [])
+                .map((item) => typeof item.id === 'string' ? item.id : '')
+                .filter(Boolean));
+            pollinationsModels = pollinationsCandidates.filter((model) => available.has(model));
+            if (!pollinationsModels.length) pollinationsUnavailable = 'Nenhum dos modelos de texto selecionados está disponível nesta conta Pollinations.';
+        }
+    } catch (error) {
+        pollinationsUnavailable = error instanceof Error ? error.message : 'Não foi possível consultar o catálogo Pollinations.';
+    } finally {
+        window.clearTimeout(pollinationsCatalogTimeout);
+    }
+
+    if (pollinationsUnavailable) {
+        const failedTask: ModelDiagnosticTask = { ok: false, durationMs: 0, detail: pollinationsUnavailable };
+        results.push({
+            provider: 'Pollinations.ai',
+            model: 'Pollinations.ai · indisponível',
+            interactions: failedTask,
+            schedule: failedTask,
+            totalMs: 0,
+        });
+        onProgress?.({ completed: models.length + 1, total: models.length + 1, model: 'Pollinations.ai indisponível' });
+    } else {
+        for (const [index, model] of pollinationsModels.entries()) {
+            const started = performance.now();
+            const [interactionResult, scheduleResult] = await Promise.all([
+                (async (): Promise<ModelDiagnosticTask> => {
+                    const taskStarted = performance.now();
+                    try {
+                        const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_INTERACTIONS_PROMPT, 'Pollinations.ai');
+                        return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticInteractions(response.content) };
+                    } catch (error) {
+                        return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
+                    }
+                })(),
+                (async (): Promise<ModelDiagnosticTask> => {
+                    const taskStarted = performance.now();
+                    try {
+                        const response = await diagnosticRequest(proxy, model, DIAGNOSTIC_SCHEDULE_PROMPT, 'Pollinations.ai');
+                        return { ok: true, durationMs: response.durationMs, detail: evaluateDiagnosticSchedule(response.content) };
+                    } catch (error) {
+                        return { ok: false, durationMs: Math.round(performance.now() - taskStarted), detail: error instanceof Error ? error.message : 'Falha no teste.' };
+                    }
+                })(),
+            ]);
+            results.push({
+                provider: 'Pollinations.ai',
+                model,
+                interactions: interactionResult,
+                schedule: scheduleResult,
+                totalMs: Math.round(performance.now() - started),
+            });
+            onProgress?.({
+                completed: models.length + index + 1,
+                total: models.length + pollinationsModels.length,
+                model: `Pollinations.ai / ${model}`,
+            });
+        }
     }
     return results.sort((a, b) => {
         const aPass = Number(a.interactions.ok) + Number(a.schedule.ok);
