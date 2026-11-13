@@ -79,9 +79,13 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
             : window.confirm('Este backup não contém categorias de dados reconhecidas. Nenhum dado será alterado. Continuar?');
         if (!confirmed) return;
 
-        applyBackup(parsed.data);
-        await flushSecureWrites();
-        window.location.reload(); // recarrega com os dados importados
+        try {
+            applyBackup(parsed.data);
+            await flushSecureWrites();
+            window.location.reload(); // recarrega com os dados importados
+        } catch (error) {
+            setBackupMessage({ ok: false, text: error instanceof Error ? error.message : 'Não foi possível concluir a restauração.' });
+        }
     };
 
     return (
