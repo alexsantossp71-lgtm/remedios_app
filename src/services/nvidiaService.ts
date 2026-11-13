@@ -1318,7 +1318,7 @@ export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promis
     const content = await chatCompletion(
         [{ role: 'user', content: `${SCHEDULE_PROMPT}\n\n${buildScheduleDataBlock(medications)}` }],
         textModel,
-        { maxTokens: 1600, temperature: 0.2, validateResponse: (value) => { extractJson(value); } }
+        { maxTokens: 1600, temperature: 0.2, validateResponse: (value) => validateJsonFields(value, ['summary', 'suggestions'], false, ['suggestions'], ['summary']) }
     );
     return sanitizeScheduleAdvice(extractJson(content), medications);
 };
