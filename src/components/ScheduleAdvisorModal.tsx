@@ -97,8 +97,10 @@ const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose }) 
         const details = updates.map((update) => {
             const suggestion = advice.suggestions.find((item) => item.medicationId === update.id)!;
             return `${suggestion.medicationName}: ${suggestion.changes.map((change) => `${change.from} → ${change.to}`).join(', ')}`;
-        }).join('\\n');
-        const confirmed = window.confirm(`Você está prestes a alterar somente os horários dos lembretes selecionados:\\n\\n${details}\\n\\nConfirme que comparou cada sugestão com a receita. A IA pode errar; não altere dose ou frequência prescrita. Deseja aplicar?`);
+        }).join(String.fromCharCode(10));
+        const confirmed = window.confirm(
+            `Você está prestes a alterar somente os horários dos lembretes selecionados:${String.fromCharCode(10)}${String.fromCharCode(10)}${details}${String.fromCharCode(10)}${String.fromCharCode(10)}Compare cada sugestão com a receita. A IA pode errar; não altere dose, frequência ou duração prescrita. Deseja aplicar?`
+        );
         if (!confirmed) return;
         onApply(updates);
         onClose();
