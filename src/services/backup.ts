@@ -40,6 +40,10 @@ export interface BackupFile {
     data: BackupData;
 }
 
+type BackupCategory = 'reminders' | 'doctors' | 'appointments' | 'plans' | 'exams' | 'labs';
+
+const BACKUP_CATEGORIES: BackupCategory[] = ['reminders', 'doctors', 'appointments', 'plans', 'exams', 'labs'];
+
 export interface BackupSummary {
     reminders: number;
     doctors: number;
@@ -47,13 +51,14 @@ export interface BackupSummary {
     plans: number;
     exams: number;
     labs: number;
+    included: BackupCategory[];
 }
 
 export type ParseResult =
     | { ok: true; data: Partial<Required<BackupData>>; summary: BackupSummary }
     | { ok: false; error: string };
 
-const VALIDATORS = {
+const VALIDATORS: Record<BackupCategory, (value: unknown) => boolean> = {
     reminders: isReminderArray,
     doctors: isDoctorArray,
     appointments: isAppointmentArray,
@@ -62,7 +67,7 @@ const VALIDATORS = {
     labs: isLabResultArray,
 } as const;
 
-const LABELS: Record<keyof BackupSummary, string> = {
+const LABELS: Record<BackupCategory, string> = {
     reminders: 'lembrete(s)',
     doctors: 'médico(s)',
     appointments: 'consulta(s)',
@@ -123,9 +128,9 @@ export function parseBackup(text: string): ParseResult {
 
     const source = file.data as Record<string, unknown>;
     const data: Partial<Required<BackupData>> = {};
-    const summary: BackupSummary = { reminders: 0, doctors: 0, appointments: 0, plans: 0, exams: 0, labs: 0 };
+    const summary: BackupSummary = { reminders: 0, doctors: 0, appointments: 0, plans: 0, exams: 0, labs: 0, included: [] };
 
-    for (const key of Object.keys(VALIDATORS) as Array<keyof BackupSummary>) {
+    for (const key of BACKUP_CATEGORIES) {
         const value = source[key];
         if (value === undefined) continue; // categoria ausente: mantém a atual
         if (!VALIDATORS[key](value)) {
@@ -133,13 +138,14 @@ export function parseBackup(text: string): ParseResult {
         }
         (data as Record<string, unknown>)[key] = value;
         summary[key] = (value as unknown[]).length;
+        summary.included.push(key);
     }
     return { ok: true, data, summary };
 }
 
 /** Texto do diálogo de confirmação, ex.: "3 lembrete(s), 1 médico(s)...". */
 export function describeSummary(summary: BackupSummary): string {
-    return (Object.keys(summary) as Array<keyof BackupSummary>)
+    return summary.included
         .map((key) => `${summary[key]} ${LABELS[key]}`)
         .join(', ');
 }
