@@ -36,9 +36,9 @@ import ScheduleAdvisorModal from './components/ScheduleAdvisorModal';
 import LabFormModal from './components/LabFormModal';
 import LabResultsTab from './components/LabResultsTab';
 import type { ReminderDraft } from './utils/prescription';
-import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon, FileTextIcon } from './constants';
+import { GearIcon, PlusIcon, PillIcon, StethoscopeIcon, FileTextIcon, CalendarIcon, ChartIcon, SparklesIcon } from './constants';
 
-type MainTab = 'meds' | 'health';
+type MainTab = 'home' | 'meds' | 'schedule' | 'health';
 type HealthTab = 'appointments' | 'doctors' | 'plans' | 'exams' | 'labs';
 
 const subTabClass = (active: boolean): string =>
@@ -83,7 +83,7 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
     const [labs, setLabs] = useState<LabResult[]>(() => loadSecureJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? []);
 
     // Navegação por abas
-    const [mainTab, setMainTab] = useState<MainTab>('meds');
+    const [mainTab, setMainTab] = useState<MainTab>('home');
     const [healthTab, setHealthTab] = useState<HealthTab>('appointments');
 
     const [reminderModal, setReminderModal] = useState<{ open: boolean; editing: Reminder | null }>({ open: false, editing: null });
@@ -606,110 +606,235 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
         ? doctors.find(d => d.id === appointmentNotification.appointment.doctorId)
         : undefined;
 
+    const nextDose = getNextAlarm();
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const dosesTakenToday = reminders.reduce((total, reminder) => (
+        total + Object.values(reminder.history[todayKey] ?? {}).filter(status => status === ReminderStatus.TAKEN).length
+    ), 0);
+    const upcomingAppointments = appointments.filter(appointment => (
+        parseLocalDateTime(appointment.dateTime)?.getTime() >= Date.now()
+    )).length;
+    const todayLabel = today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
     return (
-        <div className="min-h-screen bg-brand-gray-100 text-brand-gray-800 dark:bg-brand-gray-900 dark:text-brand-gray-200 font-sans">
-            <header className="bg-white dark:bg-brand-gray-800 shadow-md">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center space-x-2">
-                        <PillIcon className="w-8 h-8 text-brand-blue" />
-                        <h1 className="text-2xl font-bold text-brand-blue">Remédio na Hora</h1>
+        <div className="app-shell min-h-screen text-slate-800 dark:text-slate-100">
+            <header className="app-header sticky top-0 z-30 border-b border-slate-200/80 dark:border-slate-700/70">
+                <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-8">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="brand-mark flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg">
+                            <PillIcon className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0">
+                            <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-900 dark:text-white md:text-xl">Remédios na Hora</h1>
+                            <p className="hidden text-xs font-medium text-slate-500 dark:text-slate-400 sm:block">Sua rotina de cuidado, organizada</p>
+                        </div>
                     </div>
                     <button
                         onClick={() => setSettingsOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-brand-gray-500 dark:text-brand-gray-300 hover:text-brand-blue hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-teal-200 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:text-teal-300"
                         aria-label="Configurações"
                         title="Configurações"
                     >
-                        <GearIcon className="w-5 h-5" />
-                        Ajustes
+                        <GearIcon className="h-5 w-5" />
+                        <span className="hidden sm:inline">Configurações</span>
                     </button>
                 </div>
             </header>
 
-            <nav className="container mx-auto px-4 pt-4 md:px-6 md:pt-6">
-                <div className="grid grid-cols-2 gap-1 max-w-md mx-auto bg-brand-gray-200 dark:bg-brand-gray-700 rounded-xl p-1">
-                    <NavButton active={mainTab === 'meds'} onClick={() => setMainTab('meds')} label="Remédios" icon={<PillIcon className="w-5 h-5" />} />
-                    <NavButton active={mainTab === 'health'} onClick={() => setMainTab('health')} label="Minha Saúde" icon={<StethoscopeIcon className="w-5 h-5" />} />
+            <nav className="mx-auto max-w-7xl px-4 pt-4 md:px-8 md:pt-6" aria-label="Navegação principal">
+                <div className="app-nav grid grid-cols-2 gap-1.5 rounded-2xl p-1.5 sm:grid-cols-4">
+                    <NavButton active={mainTab === 'home'} onClick={() => setMainTab('home')} label="Início" icon={<ChartIcon className="h-5 w-5" />} />
+                    <NavButton active={mainTab === 'meds'} onClick={() => setMainTab('meds')} label="Medicamentos" icon={<PillIcon className="h-5 w-5" />} />
+                    <NavButton active={mainTab === 'schedule'} onClick={() => setMainTab('schedule')} label="Agenda" icon={<CalendarIcon className="h-5 w-5" />} />
+                    <NavButton active={mainTab === 'health'} onClick={() => setMainTab('health')} label="Minha Saúde" icon={<StethoscopeIcon className="h-5 w-5" />} />
                 </div>
             </nav>
 
-            {mainTab === 'meds' && <NotificationsBanner />}
+            {(mainTab === 'home' || mainTab === 'meds') && <NotificationsBanner />}
+
+            {mainTab === 'home' && (
+                <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-8 md:py-8">
+                    <section className="dashboard-hero relative overflow-hidden rounded-3xl p-6 text-white shadow-xl md:p-8">
+                        <div className="pointer-events-none absolute -right-12 -top-16 h-56 w-56 rounded-full border-[28px] border-white/10" />
+                        <div className="pointer-events-none absolute -bottom-24 right-28 h-48 w-48 rounded-full bg-white/5" />
+                        <div className="relative grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-center">
+                            <div>
+                                <p className="text-sm font-semibold capitalize text-teal-100">{todayLabel}</p>
+                                <h2 className="mt-2 max-w-xl text-2xl font-extrabold leading-tight md:text-3xl">Olá! Vamos cuidar da sua saúde hoje?</h2>
+                                <p className="mt-3 max-w-lg text-sm leading-6 text-teal-50/90 md:text-base">Acompanhe seus medicamentos, horários e compromissos em um só lugar.</p>
+                                <div className="mt-6 flex flex-wrap gap-3">
+                                    <button onClick={() => setReminderModal({ open: true, editing: null })} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-teal-800 shadow-md transition hover:bg-teal-50">
+                                        <PlusIcon className="h-5 w-5" /> Adicionar medicamento
+                                    </button>
+                                    <button onClick={() => setMainTab('schedule')} className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20">
+                                        <CalendarIcon className="h-5 w-5" /> Ver agenda
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="next-dose-card rounded-2xl border border-white/20 bg-white/12 p-5 backdrop-blur-sm">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-teal-50">
+                                    <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_0_4px_rgba(110,231,183,0.16)]" />
+                                    Próxima dose
+                                </div>
+                                {nextDose.nextAlarmReminder && nextDose.nextAlarmTime ? (
+                                    <>
+                                        <p className="mt-4 text-4xl font-extrabold tracking-tight">{nextDose.nextAlarmTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                        <p className="mt-1 text-lg font-bold">{nextDose.nextAlarmReminder.reminder.medicationName}</p>
+                                        <p className="mt-1 text-sm text-teal-50/80">{nextDose.nextAlarmReminder.reminder.dosage || 'Dose programada'} · Hoje</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="mt-4 text-xl font-bold">Tudo em dia por enquanto</p>
+                                        <p className="mt-2 text-sm leading-5 text-teal-50/80">Não há outra dose programada para hoje. Consulte seus lembretes para conferir a rotina.</p>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="grid gap-4 sm:grid-cols-3">
+                        <div className="app-stat-card">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">Lembretes cadastrados</span>
+                                <span className="stat-icon bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300"><PillIcon className="h-5 w-5" /></span>
+                            </div>
+                            <p className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-white">{reminders.length}</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Medicamentos na sua rotina</p>
+                        </div>
+                        <div className="app-stat-card">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">Doses tomadas hoje</span>
+                                <span className="stat-icon bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><ChartIcon className="h-5 w-5" /></span>
+                            </div>
+                            <p className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-white">{dosesTakenToday}</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Registros marcados como tomados</p>
+                        </div>
+                        <div className="app-stat-card">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">Compromissos futuros</span>
+                                <span className="stat-icon bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"><CalendarIcon className="h-5 w-5" /></span>
+                            </div>
+                            <p className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-white">{upcomingAppointments}</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Consultas agendadas</p>
+                        </div>
+                    </section>
+
+                    <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+                        <div className="app-panel p-5 md:p-6">
+                            <div className="mb-4 flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Sua rotina de medicamentos</h3>
+                                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Acesso rápido aos lembretes cadastrados</p>
+                                </div>
+                                <button onClick={() => setMainTab('meds')} className="shrink-0 text-sm font-bold text-teal-700 hover:text-teal-800 dark:text-teal-300">Ver todos</button>
+                            </div>
+                            {reminders.length > 0 ? (
+                                <ReminderList
+                                    reminders={reminders.slice(0, 3)}
+                                    onEdit={reminder => setReminderModal({ open: true, editing: reminder })}
+                                    onDelete={handleDeleteReminder}
+                                    onExplain={setBulaReminder}
+                                />
+                            ) : (
+                                <div className="empty-state rounded-2xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
+                                    <PillIcon className="mx-auto h-9 w-9 text-teal-600 dark:text-teal-300" />
+                                    <p className="mt-3 font-bold text-slate-800 dark:text-white">Sua rotina começa aqui</p>
+                                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Cadastre o primeiro medicamento para organizar seus horários.</p>
+                                    <button onClick={() => setReminderModal({ open: true, editing: null })} className="mt-4 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800">Cadastrar medicamento</button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="app-panel p-5 md:p-6">
+                                <div className="flex items-center gap-3">
+                                    <span className="stat-icon bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"><SparklesIcon className="h-5 w-5" /></span>
+                                    <div>
+                                        <h3 className="font-bold text-slate-900 dark:text-white">Ferramentas inteligentes</h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Recursos de apoio com inteligência artificial</p>
+                                    </div>
+                                </div>
+                                <div className="mt-4 grid gap-2">
+                                    <button onClick={() => setPrescriptionOpen(true)} className="quick-action"><FileTextIcon className="h-4 w-4" /> Importar receita</button>
+                                    <button onClick={() => setInteractionsOpen(true)} disabled={reminders.length < 2} className="quick-action disabled:cursor-not-allowed disabled:opacity-45"><SparklesIcon className="h-4 w-4" /> Analisar interações</button>
+                                    <button onClick={() => setConsultationOpen(true)} disabled={reminders.length === 0} className="quick-action disabled:cursor-not-allowed disabled:opacity-45"><FileTextIcon className="h-4 w-4" /> Preparar resumo para consulta</button>
+                                    <button onClick={() => setScheduleOpen(true)} disabled={reminders.length === 0} className="quick-action disabled:cursor-not-allowed disabled:opacity-45"><ClockIcon className="h-4 w-4" /> Revisar horários</button>
+                                </div>
+                            </div>
+                            <div className="app-panel p-5 md:p-6">
+                                <h3 className="font-bold text-slate-900 dark:text-white">Acompanhamento</h3>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Veja seus registros e padrões de adesão.</p>
+                                <AdherenceCard reminders={reminders} />
+                            </div>
+                        </div>
+                    </section>
+                </main>
+            )}
 
             {mainTab === 'meds' && (
-            <main className="container mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-semibold">Calendário de Doses</h2>
-                    </div>
-                    <Calendar reminders={reminders} appointments={appointments} exams={exams} />
-                </div>
-                
-                <div className="lg:col-span-1 bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-semibold">Meus Lembretes</h2>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setPrescriptionOpen(true)}
-                                className="flex items-center border border-brand-blue text-brand-blue font-semibold px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-200"
-                                aria-label="Importar receita com IA"
-                                title="Importar receita por foto ou texto"
-                            >
-                                <FileTextIcon className="w-5 h-5 sm:mr-2" />
-                                <span className="hidden sm:inline">Receita</span>
+                <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-8 md:py-8">
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                        <div>
+                            <p className="text-sm font-semibold text-teal-700 dark:text-teal-300">Sua lista pessoal</p>
+                            <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Medicamentos e lembretes</h2>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Organize doses, horários e informações de cada medicamento.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button onClick={() => setPrescriptionOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-white px-4 py-2.5 text-sm font-bold text-teal-700 shadow-sm transition hover:bg-teal-50 dark:border-teal-800 dark:bg-slate-800 dark:text-teal-300 dark:hover:bg-slate-700">
+                                <FileTextIcon className="h-5 w-5" /> Importar receita
                             </button>
-                            <button
-                                onClick={() => setReminderModal({ open: true, editing: null })}
-                                className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
-                                aria-label="Adicionar novo lembrete"
-                            >
-                                <PlusIcon className="w-5 h-5 mr-2" />
-                                Adicionar
+                            <button onClick={() => setReminderModal({ open: true, editing: null })} className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-teal-800">
+                                <PlusIcon className="h-5 w-5" /> Adicionar medicamento
                             </button>
                         </div>
                     </div>
-                    <ReminderList
-                        reminders={reminders}
-                        onEdit={reminder => setReminderModal({ open: true, editing: reminder })}
-                        onDelete={handleDeleteReminder}
-                        onExplain={setBulaReminder}
-                    />
-                    {reminders.length >= 2 && (
-                        <button
-                            onClick={() => setInteractionsOpen(true)}
-                            className="mt-3 w-full flex items-center justify-center gap-2 text-sm font-semibold text-brand-blue border border-brand-gray-300 dark:border-brand-gray-600 rounded-lg py-2 hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
-                            title="A IA verifica duplicidades e interações entre os seus remédios"
-                        >
-                            Analisar interações (IA)
-                        </button>
-                    )}
-                    {reminders.length > 0 && (
-                        <button
-                            onClick={() => setConsultationOpen(true)}
-                            className="mt-2 w-full flex items-center justify-center gap-2 text-sm font-semibold text-brand-blue border border-brand-gray-300 dark:border-brand-gray-600 rounded-lg py-2 hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
-                            title="Gera um resumo com medicamentos, adesão, exames e perguntas para levar ao médico"
-                        >
-                            Resumo para a consulta
-                        </button>
-                    )}
-                    {reminders.length > 0 && (
-                        <button
-                            onClick={() => setScheduleOpen(true)}
-                            className="mt-2 w-full flex items-center justify-center gap-2 text-sm font-semibold text-brand-blue border border-brand-gray-300 dark:border-brand-gray-600 rounded-lg py-2 hover:bg-brand-gray-100 dark:hover:bg-brand-gray-700 transition-colors"
-                            title="A IA redistribui os horários das doses respeitando jejum e intervalos"
-                        >
-                            Otimizar horários (IA)
-                        </button>
-                    )}
-                    <AdherenceCard reminders={reminders} />
-                </div>
-            </main>
+                    <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+                        <section className="app-panel p-5 md:p-6">
+                            <ReminderList
+                                reminders={reminders}
+                                onEdit={reminder => setReminderModal({ open: true, editing: reminder })}
+                                onDelete={handleDeleteReminder}
+                                onExplain={setBulaReminder}
+                            />
+                        </section>
+                        <aside className="app-panel p-5 md:p-6">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Acompanhamento da rotina</h3>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Indicadores e ferramentas para acompanhar seus registros.</p>
+                            <AdherenceCard reminders={reminders} />
+                            <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 dark:border-slate-700">
+                                <button onClick={() => setInteractionsOpen(true)} disabled={reminders.length < 2} className="quick-action disabled:cursor-not-allowed disabled:opacity-45"><SparklesIcon className="h-4 w-4" /> Analisar interações (IA)</button>
+                                <button onClick={() => setConsultationOpen(true)} disabled={reminders.length === 0} className="quick-action disabled:cursor-not-allowed disabled:opacity-45"><FileTextIcon className="h-4 w-4" /> Resumo para consulta</button>
+                                <button onClick={() => setScheduleOpen(true)} disabled={reminders.length === 0} className="quick-action disabled:cursor-not-allowed disabled:opacity-45"><ClockIcon className="h-4 w-4" /> Otimizar horários (IA)</button>
+                            </div>
+                        </aside>
+                    </div>
+                </main>
+            )}
+
+            {mainTab === 'schedule' && (
+                <main className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
+                    <div className="mb-5">
+                        <p className="text-sm font-semibold text-teal-700 dark:text-teal-300">Visão organizada do seu tempo</p>
+                        <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Agenda de cuidados</h2>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Consulte doses, consultas e exames em um calendário único.</p>
+                    </div>
+                    <section className="app-panel p-5 md:p-7">
+                        <Calendar reminders={reminders} appointments={appointments} exams={exams} />
+                    </section>
+                </main>
             )}
 
             {mainTab === 'health' && (
-                <main className="container mx-auto p-4 md:p-6">
-                    <div className="bg-white dark:bg-brand-gray-800 p-6 rounded-xl shadow-lg max-w-3xl mx-auto">
-                        <div className="flex justify-between items-center flex-wrap gap-3 mb-5">
-                            <div className="inline-flex bg-brand-gray-100 dark:bg-brand-gray-700 rounded-lg p-1">
+                <main className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
+                    <div className="mb-5">
+                        <p className="text-sm font-semibold text-teal-700 dark:text-teal-300">Seus dados de acompanhamento</p>
+                        <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">Minha Saúde</h2>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Consultas, profissionais, exames, laudos e plano de saúde.</p>
+                    </div>
+                    <div className="app-panel p-4 md:p-6">
+                        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                            <div className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-700">
                                 <button onClick={() => setHealthTab('appointments')} className={subTabClass(healthTab === 'appointments')}>Consultas</button>
                                 <button onClick={() => setHealthTab('exams')} className={subTabClass(healthTab === 'exams')}>Exames</button>
                                 <button onClick={() => setHealthTab('labs')} className={subTabClass(healthTab === 'labs')}>Laudos</button>
@@ -724,44 +849,23 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
                                     else if (healthTab === 'labs') setLabModalOpen(true);
                                     else setAppointmentModal({ open: true, editing: null });
                                 }}
-                                className="flex items-center bg-brand-blue text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
+                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-teal-800"
                                 aria-label={healthTab === 'doctors' ? 'Adicionar novo médico' : healthTab === 'plans' ? 'Adicionar novo plano de saúde' : healthTab === 'exams' ? 'Adicionar novo exame' : healthTab === 'labs' ? 'Registrar novo laudo' : 'Adicionar nova consulta'}
                             >
-                                <PlusIcon className="w-5 h-5 mr-2" />
+                                <PlusIcon className="h-5 w-5" />
                                 {healthTab === 'doctors' ? 'Novo médico' : healthTab === 'plans' ? 'Novo plano' : healthTab === 'exams' ? 'Novo exame' : healthTab === 'labs' ? 'Registrar laudo' : 'Nova consulta'}
                             </button>
                         </div>
                         {healthTab === 'doctors' ? (
-                            <DoctorsTab
-                                doctors={doctors}
-                                onEdit={doctor => setDoctorModal({ open: true, editing: doctor })}
-                                onDelete={handleDeleteDoctor}
-                            />
+                            <DoctorsTab doctors={doctors} onEdit={doctor => setDoctorModal({ open: true, editing: doctor })} onDelete={handleDeleteDoctor} />
                         ) : healthTab === 'plans' ? (
-                            <HealthPlansTab
-                                plans={plans}
-                                onEdit={plan => setPlanModal({ open: true, editing: plan })}
-                                onDelete={handleDeletePlan}
-                            />
+                            <HealthPlansTab plans={plans} onEdit={plan => setPlanModal({ open: true, editing: plan })} onDelete={handleDeletePlan} />
                         ) : healthTab === 'exams' ? (
-                            <ExamsTab
-                                exams={exams}
-                                onEdit={exam => setExamModal({ open: true, editing: exam })}
-                                onDelete={handleDeleteExam}
-                            />
+                            <ExamsTab exams={exams} onEdit={exam => setExamModal({ open: true, editing: exam })} onDelete={handleDeleteExam} />
                         ) : healthTab === 'labs' ? (
-                            <LabResultsTab
-                                labs={labs}
-                                onDelete={handleDeleteLab}
-                                onNew={() => setLabModalOpen(true)}
-                            />
+                            <LabResultsTab labs={labs} onDelete={handleDeleteLab} onNew={() => setLabModalOpen(true)} />
                         ) : (
-                            <AppointmentsTab
-                                appointments={appointments}
-                                doctors={doctors}
-                                onEdit={appointment => setAppointmentModal({ open: true, editing: appointment })}
-                                onDelete={handleDeleteAppointment}
-                            />
+                            <AppointmentsTab appointments={appointments} doctors={doctors} onEdit={appointment => setAppointmentModal({ open: true, editing: appointment })} onDelete={handleDeleteAppointment} />
                         )}
                     </div>
                 </main>
