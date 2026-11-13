@@ -1,6 +1,7 @@
 
 import type { MedicationGuide } from '../services/nvidiaService';
 import { loadJson, saveJson, STORAGE_KEYS } from '../storage';
+import { isVaultUnlocked, loadSecureJson, saveSecureJson } from '../services/secureStorage';
 
 // ===== Cache das explicações de medicamento ("bula simplificada") =====
 // Evita repetir a chamada à API da NVIDIA para o mesmo medicamento no mesmo
@@ -29,18 +30,19 @@ const isGuideMap = (value: unknown): boolean =>
 /** Devolve a explicação em cache para a chave; `null` quando não há. */
 export function getCachedGuide(key: string): MedicationGuide | null {
     if (!key) return null;
-    const map = loadJson<GuideMap>(STORAGE_KEYS.guides, isGuideMap);
+    const map = isVaultUnlocked() ? loadSecureJson<GuideMap>(STORAGE_KEYS.guides, isGuideMap) : loadJson<GuideMap>(STORAGE_KEYS.guides, isGuideMap);
     return map && map[key] ? map[key] : null;
 }
 
 /** Salva/atualiza a explicação, descartando as mais antigas acima do teto. */
 export function storeGuide(key: string, guide: MedicationGuide): void {
     if (!key) return;
-    const map = loadJson<GuideMap>(STORAGE_KEYS.guides, isGuideMap) ?? {};
+    const map = (isVaultUnlocked() ? loadSecureJson<GuideMap>(STORAGE_KEYS.guides, isGuideMap) : loadJson<GuideMap>(STORAGE_KEYS.guides, isGuideMap)) ?? {};
     map[key] = guide;
     const keys = Object.keys(map);
     if (keys.length > MAX_ENTRIES) {
         for (const oldKey of keys.slice(0, keys.length - MAX_ENTRIES)) delete map[oldKey];
     }
-    saveJson(STORAGE_KEYS.guides, map);
+    if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.guides, map);
+    else saveJson(STORAGE_KEYS.guides, map);
 }
