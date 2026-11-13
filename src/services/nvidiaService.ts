@@ -86,7 +86,7 @@ async function chatCompletion(
 
     // Pollinations é o provedor principal quando habilitado; NVIDIA permanece como fallback.
     let pollinationsFailure = '';
-    if (options?.provider !== 'nvidia-only') {
+    if (options?.provider !== 'nvidia-only' && (readAiSettings().pollinationsConsent || options?.pollinationsConsentOverride === true)) {
         try {
             return await pollinationsChatCompletion(messages, {
                 maxTokens: options?.maxTokens ?? 1024,
