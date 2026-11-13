@@ -116,12 +116,12 @@ const GuardianCheck: React.FC<{
                 )}
                 {error && <p className="mt-2 text-xs font-medium text-brand-red" role="alert">{error}</p>}
                 <p className="mt-2 text-xs text-brand-gray-500 dark:text-brand-gray-400">
-                    A foto é enviada à NVIDIA apenas para leitura e não é salva no app.
+                    A foto é usada apenas para identificar o medicamento e não é armazenada no app.
                 </p>
                 {!hasApiKey && (
                     <p className="mt-1 text-center text-xs">
                         <button type="button" onClick={() => onOpenSettings?.()} className="font-semibold text-brand-blue hover:underline">
-                            A conferência precisa da IA configurada (proxy ou chave) — configurar
+A conferência automática está temporariamente indisponível.
                         </button>
                     </p>
                 )}
