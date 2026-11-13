@@ -16,9 +16,9 @@ const AppointmentNotificationModal: React.FC<Props> = ({ appointment, offsetMinu
     const close = () => onDismiss(appointment.id, offsetMinutes);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-brand-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 text-center transform transition-all animate-slide-up relative">
-                <button onClick={close} className="absolute top-3 right-3 text-brand-gray-400 hover:text-brand-gray-600 dark:hover:text-brand-gray-200" aria-label="Fechar lembrete">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4 animate-fade-in">
+            <div className="w-full max-w-md rounded-t-3xl border border-white/70 bg-white p-6 text-center shadow-2xl transition-all dark:border-slate-700 dark:bg-slate-900 sm:rounded-3xl animate-slide-up relative">
+                <button onClick={close} className="absolute top-3 right-3 rounded-xl bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-800 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700" aria-label="Fechar lembrete">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="6" y1="6" y2="18" /><line x1="6" x2="18" y1="6" y2="18" /></svg>
                 </button>
 
