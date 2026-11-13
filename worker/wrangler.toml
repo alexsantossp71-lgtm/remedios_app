@@ -1,7 +1,7 @@
 # Proxy da API NVIDIA para o app "Remédio na Hora" (deploy separado do Pages).
 # Configure com `npx wrangler`:
 #   npx wrangler secret put NVIDIA_API_KEY   # chave nvapi-... (obrigatória)
-##   npx wrangler deploy
+#   npx wrangler deploy
 
 name = "remedios-ai-proxy"
 main = "src/index.ts"
