@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Reminder, ReminderStatus, Medication, Doctor, Appointment, HealthPlan, Exam, LabResult } from './types';
-import { getMedications, AiError } from './services/nvidiaService';
-import { useAiSettings } from './services/settings';
+import { getMedications } from './services/nvidiaService';
 import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray, loadJson, saveJson } from './storage';
 import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/datetime';
@@ -117,9 +116,6 @@ const App: React.FC = () => {
         remindersRef.current = reminders;
     }, [reminders]);
 
-    // Configurações de IA: re-renderiza (e rebusca a lista de medicamentos)
-    // quando a chave/modelos são alterados nas Configurações.
-    const aiSettings = useAiSettings();
 
     useEffect(() => {
         saveJson(STORAGE_KEYS.reminders, reminders);
@@ -152,10 +148,7 @@ const App: React.FC = () => {
                 setMedications(meds);
             } catch (error) {
                 console.error("Failed to fetch medications:", error);
-                const missingKey = error instanceof AiError && error.message.includes('Configure a IA');
-                setMedsError(missingKey
-                    ? "Lista de medicamentos offline em uso. Para a lista completa, configure a IA no botão \"Ajustes\" no topo (proxy ou chave da API NVIDIA)."
-                    : "Lista online indisponível — usando lista offline de medicamentos comuns.");
+                setMedsError("Lista online indisponível — usando lista offline de medicamentos comuns.");
                 setMedications(FALLBACK_MEDICATIONS);
             } finally {
                 setIsLoadingMeds(false);
@@ -163,7 +156,7 @@ const App: React.FC = () => {
         };
 
         fetchMedications();
-    }, [aiSettings.nvidiaApiKey, aiSettings.proxyUrl, aiSettings.textModel]);
+    }, []);
     
     const getNextAlarm = useCallback((): {
         nextAlarmTime: Date | null;
