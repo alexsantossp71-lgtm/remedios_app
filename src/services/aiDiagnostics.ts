@@ -82,7 +82,7 @@ const requestModel = async (proxy: string, model: string, prompt: string, maxTok
         if (!content.trim()) throw new Error('O modelo retornou resposta vazia.');
         return { content, latencyMs: Math.round(performance.now() - started) };
     } catch (error) {
-        if (controller.signal.aborted) throw new Error('Tempo esgotado (10 segundos).');
+        if (controller.signal.aborted) throw new Error('Tempo esgotado (10 segundos).', { cause: error });
         throw error instanceof Error ? error : new Error('Falha de conexão.');
     } finally {
         window.clearTimeout(timeout);
