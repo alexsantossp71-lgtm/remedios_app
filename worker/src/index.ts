@@ -130,7 +130,7 @@ export default {
                 }
                 if (pathname === '/v1/pollinations/chat/completions' && request.method === 'POST') {
                     const contentType = request.headers.get('Content-Type') ?? '';
-                    if (!/^application\\/json(?:\\s*;|$)/i.test(contentType)) {
+                    if (!/^application\/json(?:\s*;|$)/i.test(contentType)) {
                         return jsonResponse(415, { error: { message: 'Envie o corpo como application/json.' } }, allowedOrigin);
                     }
                     const declaredLength = Number(request.headers.get('Content-Length') ?? 0);
