@@ -1314,11 +1314,21 @@ export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promis
     if (!medications.length) {
         throw new AiError('Cadastre lembretes com horários para a IA sugerir melhorias.');
     }
-    const { textModel } = readAiSettings();
+    // Esta tarefa gera apenas um JSON curto de organização de horários.
+    // Prioriza um modelo Flash em vez do modelo geral escolhido nas configurações,
+    // que pode ser mais lento (ex.: muse-glimmer-30b). Se não estiver disponível,
+    // chatCompletion percorre os modelos NVIDIA alternativos anunciados no catálogo.
+    const scheduleModel = 'z-ai/glm-5.3-flash';
     const content = await chatCompletion(
         [{ role: 'user', content: `${SCHEDULE_PROMPT}\n\n${buildScheduleDataBlock(medications)}` }],
-        textModel,
-        { maxTokens: 1600, temperature: 0.2, validateResponse: (value) => validateJsonFields(value, ['summary', 'suggestions'], false, ['suggestions'], ['summary']) }
+        scheduleModel,
+        {
+            maxTokens: 1100,
+            temperature: 0.2,
+            requestTimeoutMs: 9_000,
+            maxModels: 2,
+            validateResponse: (value) => validateJsonFields(value, ['summary', 'suggestions'], false, ['suggestions'], ['summary']),
+        }
     );
     return sanitizeScheduleAdvice(extractJson(content), medications);
 };
