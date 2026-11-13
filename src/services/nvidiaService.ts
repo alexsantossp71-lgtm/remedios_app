@@ -170,7 +170,7 @@ Regras:
 - Qualquer campo ilegível, ausente ou incompleto deve ser string vazia. Não invente dados.
 - Se a imagem não for uma carteirinha de plano de saúde, responda apenas {"error":"not_a_card"}.`;
 
-/** Envia a foto da carteirinha ao modelo de visão da NVIDIA e devolve os campos reconhecidos. */
+/** Lê a foto da carteirinha e devolve os campos reconhecidos. */
 export const scanHealthCard = async (
     imageBase64: string,
     mimeType: string
@@ -231,7 +231,7 @@ Regras:
 - Qualquer campo ilegível, ausente ou incompleto deve ser string vazia. Não invente dados.
 - Se a imagem não for um pedido de exame, responda apenas {"error":"not_a_request"}.`;
 
-/** Envia a foto do pedido de exame ao modelo de visão da NVIDIA e devolve os campos reconhecidos. */
+/** Lê a foto do pedido de exame e devolve os campos reconhecidos. */
 export const scanExamRequest = async (
     imageBase64: string,
     mimeType: string
