@@ -46,8 +46,8 @@ describe('extractJson', () => {
 describe('sanitizeInteractionReport', () => {
     it('devolve relatório vazio para entradas inesperadas', () => {
         expect(sanitizeInteractionReport(null)).toEqual({ summary: '', duplicates: [], interactions: [], sources: [] });
-        expect(sanitizeInteractionReport('texto')).toEqual({ summary: '', duplicates: [], interactions: [] });
-        expect(sanitizeInteractionReport([1, 2, 3])).toEqual({ summary: '', duplicates: [], interactions: [] });
+        expect(sanitizeInteractionReport('texto')).toEqual({ summary: '', duplicates: [], interactions: [], sources: [] });
+        expect(sanitizeInteractionReport([1, 2, 3])).toEqual({ summary: '', duplicates: [], interactions: [], sources: [] });
     });
 
     it('normaliza relatório completo da IA', () => {
