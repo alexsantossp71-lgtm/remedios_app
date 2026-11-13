@@ -143,7 +143,7 @@ export async function sendDuePushes(env: PushEnv): Promise<void> {
         }),
         options: { ttl: 300, urgency: 'high' },
       }, subscription, vapid);
-      const response = await fetch(item.endpoint, payload);
+      const response = await fetch(item.endpoint, { ...payload, body: new Uint8Array(payload.body).buffer as ArrayBuffer });
       if (response.ok || response.status === 201 || response.status === 202) {
         await env.PUSH_DB.prepare('UPDATE scheduled_notifications SET sent_at_ms = ?, attempts = attempts + 1 WHERE id = ?')
           .bind(Date.now(), item.notification_id).run();
