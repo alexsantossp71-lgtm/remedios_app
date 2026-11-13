@@ -57,9 +57,14 @@ export async function handlePushRequest(request: Request, env: PushEnv, origin: 
     const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
     const sub = body.subscription as PushSubscription | undefined;
     const endpoint = typeof sub?.endpoint === 'string' ? sub.endpoint : '';
+    let endpointHost = '';
+    try { endpointHost = new URL(endpoint).hostname.toLowerCase(); } catch { /* endpoint inválido */ }
+    const trustedPushHost = endpointHost === 'fcm.googleapis.com' ||
+      endpointHost.endsWith('.push.services.mozilla.com') || endpointHost === 'web.push.apple.com' ||
+      endpointHost.endsWith('.notify.windows.com') || endpointHost.endsWith('.wns.windows.com');
     const p256dh = typeof sub?.keys?.p256dh === 'string' ? sub.keys.p256dh : '';
     const auth = typeof sub?.keys?.auth === 'string' ? sub.keys.auth : '';
-    if (!/^[A-Za-z0-9_-]{40,100}$/.test(token) || !endpoint.startsWith('https://') || endpoint.length > 2048 || !p256dh || !auth) {
+    if (!/^[A-Za-z0-9_-]{40,100}$/.test(token) || !endpoint.startsWith('https://') || !trustedPushHost || endpoint.length > 2048 || !p256dh || !auth) {
       return json(400, { error: 'Inscrição Push inválida.' }, origin);
     }
     const now = Date.now();
