@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 html,
@@ -14,10 +16,133 @@ body,
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
-    Arial, sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #f4f7f8;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  background:
+    radial-gradient(ellipse at 10% 0%, rgba(20, 184, 166, 0.07), transparent 32rem),
+    #f4f7f8;
+}
+
+.dark .app-shell {
+  background:
+    radial-gradient(ellipse at 10% 0%, rgba(13, 148, 136, 0.12), transparent 32rem),
+    #0f172a;
+}
+
+.app-header {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
+}
+
+.dark .app-header {
+  background: rgba(15, 23, 42, 0.88);
+}
+
+.brand-mark {
+  background: linear-gradient(145deg, #0f766e, #0d9488 58%, #2dd4bf);
+}
+
+.app-nav {
+  background: #e8eff0;
+  border: 1px solid rgba(203, 213, 225, 0.72);
+}
+
+.dark .app-nav {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.app-nav button {
+  min-height: 46px;
+  border-radius: 0.85rem;
+}
+
+.dashboard-hero {
+  background: linear-gradient(115deg, #115e59 0%, #0f766e 48%, #0d9488 100%);
+}
+
+.next-dose-card {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.app-panel,
+.app-stat-card {
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.35rem;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.045);
+}
+
+.app-stat-card {
+  padding: 1.25rem;
+}
+
+.dark .app-panel,
+.dark .app-stat-card {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+}
+
+.stat-icon {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+}
+
+.quick-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  text-align: left;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 650;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.quick-action:hover:not(:disabled) {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.dark .quick-action {
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark .quick-action:hover:not(:disabled) {
+  border-color: #0f766e;
+  background: rgba(15, 118, 110, 0.16);
+  color: #99f6e4;
+}
+
+.empty-state {
+  background: linear-gradient(180deg, #f8fafc, #fff);
+}
+
+.dark .empty-state {
+  background: linear-gradient(180deg, #1e293b, #172033);
 }
 
 /* Scrollbar discreta nas listas */
@@ -26,6 +151,13 @@ body {
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.4);
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 9999px;
+}
+
+@media (max-width: 639px) {
+  .app-nav button {
+    min-height: 48px;
+    font-size: 0.78rem;
+  }
 }
