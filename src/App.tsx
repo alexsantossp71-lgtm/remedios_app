@@ -815,7 +815,6 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
                     onSave={handleSaveExam}
                     doctors={doctors}
                     editing={examModal.editing}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -830,7 +829,6 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
                 <InteractionsModal
                     medications={reminders.map(reminder => ({ name: reminder.medicationName, dosage: reminder.dosage }))}
                     onClose={() => setInteractionsOpen(false)}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
@@ -838,7 +836,6 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
                 <BulaModal
                     reminder={bulaReminder}
                     onClose={() => setBulaReminder(null)}
-                    onOpenSettings={() => setSettingsOpen(true)}
                 />
             )}
 
