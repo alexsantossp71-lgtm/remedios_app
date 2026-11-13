@@ -239,7 +239,7 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
                     </div>
                 )}
                 <p className={helperClass}>
-                    A foto fica anexada ao exame neste dispositivo e, se você configurou a chave da NVIDIA, a IA lê o pedido para preencher os campos automaticamente.
+                    A foto fica anexada ao exame neste dispositivo. A leitura automática identifica os dados do pedido para preencher os campos.
                 </p>
                 </>
                 ) : (
@@ -253,7 +253,7 @@ const ExamFormModal: React.FC<Props> = ({ onClose, onSave, doctors, editing, onO
                             onClick={() => onOpenSettings?.()}
                             className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
                         >
-                            Configurar IA (proxy ou chave)
+                            Tentar novamente
                         </button>
                     </div>
                 )}
