@@ -68,7 +68,7 @@ const directHeaders = (apiKey: string): Record<string, string> => ({
     Accept: 'application/json',
 });
 
-/** Cabeçalhos do pedido via proxy (sem chave; token opcional do Worker). */
+/** Cabeçalhos do pedido via proxy (sem chave NVIDIA; token de acesso obrigatório). */
 const proxyHeaders = (settings: AiSettings): Record<string, string> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
     const token = settings.proxyToken.trim();

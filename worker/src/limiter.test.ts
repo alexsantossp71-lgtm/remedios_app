@@ -91,8 +91,8 @@ describe('clientIp', () => {
         expect(clientIp(requestWith({ 'CF-Connecting-IP': '203.0.113.9' }))).toBe('203.0.113.9');
     });
 
-    it('cai para X-Forwarded-For e depois para unknown', () => {
-        expect(clientIp(requestWith({ 'X-Forwarded-For': '198.51.100.7, 10.0.0.1' }))).toBe('198.51.100.7');
+    it('não confia em X-Forwarded-For enviado pelo cliente', () => {
+        expect(clientIp(requestWith({ 'X-Forwarded-For': '198.51.100.7, 10.0.0.1' }))).toBe('unknown');
         expect(clientIp(requestWith({}))).toBe('unknown');
     });
 });

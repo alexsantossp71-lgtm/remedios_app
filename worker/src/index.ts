@@ -7,8 +7,8 @@
 //
 // O app (GitHub Pages) chama https://<nome>.workers.dev/v1/chat/completions
 // sem chave por usuário; o proxy injeta o segredo no servidor. Proteções:
-// CORS por origem exata, allowlist de modelos, sem streaming, teto de corpo
-// e rate limit (janela por IP + teto diário por IP + teto global diário).
+// CORS por origem exata (não é autenticação), token obrigatório, allowlist de
+// modelos, sem streaming, teto de corpo e rate limit em memória por isolate.
 
 import {
     MAX_BODY_BYTES,
@@ -71,8 +71,11 @@ export default {
         const origin = request.headers.get('Origin') ?? '';
         const allowedOrigin = isOriginAllowed(origin, cfg.allowedOrigins) ? origin : '';
 
-        // Preflight CORS do navegador.
+        const pathname = new URL(request.url).pathname;
+
+        // Preflight CORS: autoriza somente a origem cadastrada.
         if (request.method === 'OPTIONS') {
+            if (!allowedOrigin) return new Response(null, { status: 403 });
             return new Response(null, {
                 status: 204,
                 headers: corsHeaders(allowedOrigin, {
@@ -83,13 +86,23 @@ export default {
             });
         }
 
-        // Verificação de saúde do deploy (curl https://proxy/health).
-        if (new URL(request.url).pathname === '/health') {
-            return jsonResponse(200, { ok: true, hasKey: Boolean((env.NVIDIA_API_KEY ?? '').trim()) }, allowedOrigin);
+        // Verificação pública de disponibilidade; não revela se há segredo configurado.
+        if (pathname === '/health' && request.method === 'GET') {
+            return jsonResponse(200, { ok: true }, allowedOrigin);
         }
 
         if (!allowedOrigin) {
             return jsonResponse(403, { error: { message: 'Origem não autorizada para usar este proxy.' } }, '');
+        }
+
+        // Falha fechada: sem segredo no servidor, o proxy não atende chamadas.
+        const configuredToken = (env.PROXY_TOKEN ?? '').trim();
+        if (!configuredToken) {
+            return jsonResponse(503, { error: { message: 'Proxy sem autenticação configurada. O administrador deve definir PROXY_TOKEN.' } }, allowedOrigin);
+        }
+        const token = (request.headers.get('x-proxy-token') ?? '').trim();
+        if (!constantTimeEquals(token, configuredToken)) {
+            return jsonResponse(401, { error: { message: 'Token do proxy inválido ou ausente.' } }, allowedOrigin);
         }
 
         if (!(env.NVIDIA_API_KEY ?? '').trim()) {
@@ -98,15 +111,6 @@ export default {
                 { error: { message: 'Proxy sem chave da NVIDIA configurada: rode `wrangler secret put NVIDIA_API_KEY`.' } },
                 allowedOrigin
             );
-        }
-
-        // Token opcional (PROXY_TOKEN): se o segredo existe, o app precisa
-        // enviar o mesmo valor no cabeçalho x-proxy-token.
-        if (cfg.requiresToken) {
-            const token = (request.headers.get('x-proxy-token') ?? '').trim();
-            if (!constantTimeEquals(token, (env.PROXY_TOKEN ?? '').trim())) {
-                return jsonResponse(401, { error: { message: 'Token do proxy inválido ou ausente.' } }, allowedOrigin);
-            }
         }
 
         const verdict = limitsFor(env).hit(clientIp(request), Date.now());
@@ -120,8 +124,6 @@ export default {
         }
 
         const upstreamAuth = { Authorization: `Bearer ${(env.NVIDIA_API_KEY ?? '').trim()}` };
-        const pathname = new URL(request.url).pathname;
-
         try {
             if (pathname === '/v1/models' && request.method === 'GET') {
                 const upstream = await fetch(`${UPSTREAM_BASE}/models`, {
@@ -131,13 +133,25 @@ export default {
             }
 
             if (pathname === '/v1/chat/completions' && request.method === 'POST') {
+                const contentType = request.headers.get('Content-Type') ?? '';
+                if (!/^application\/json(?:\s*;|$)/i.test(contentType)) {
+                    return jsonResponse(415, { error: { message: 'Envie o corpo como application/json.' } }, allowedOrigin);
+                }
+                const declaredLength = Number(request.headers.get('Content-Length') ?? 0);
+                if (declaredLength > MAX_BODY_BYTES) {
+                    return jsonResponse(413, { error: { message: 'Corpo do pedido grande demais.' } }, allowedOrigin);
+                }
                 const raw = await request.text();
-                if (raw.length > MAX_BODY_BYTES) {
+                if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
                     return jsonResponse(413, { error: { message: 'Corpo do pedido grande demais.' } }, allowedOrigin);
                 }
                 let parsed: { model?: unknown; stream?: unknown } = {};
                 try {
-                    parsed = JSON.parse(raw) as { model?: unknown; stream?: unknown };
+                    const decoded: unknown = JSON.parse(raw);
+                    if (typeof decoded !== 'object' || decoded === null || Array.isArray(decoded)) {
+                        return jsonResponse(400, { error: { message: 'O corpo deve ser um objeto JSON.' } }, allowedOrigin);
+                    }
+                    parsed = decoded as { model?: unknown; stream?: unknown };
                 } catch {
                     return jsonResponse(400, { error: { message: 'Corpo não é um JSON válido.' } }, allowedOrigin);
                 }
@@ -171,8 +185,8 @@ export default {
         }
 
         return jsonResponse(
-            404,
-            { error: { message: 'Rota não encontrada. Use /v1/chat/completions (POST), /v1/models (GET) ou /health.' } },
+            pathname === '/v1/models' || pathname === '/v1/chat/completions' ? 405 : 404,
+            { error: { message: 'Rota ou método não permitido. Use /v1/chat/completions (POST), /v1/models (GET) ou /health (GET).' } },
             allowedOrigin
         );
     },

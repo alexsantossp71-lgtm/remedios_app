@@ -3,20 +3,21 @@
 //
 // Todos os cadastros do app vivem no localStorage deste dispositivo, então
 // "limpar dados de navegação" ou trocar de aparelho apagaria tudo. O backup
-// cobre lembretes (com o histórico de doses), médicos, consultas, planos e
-// exames. A chave da API NVIDIA NUNCA é incluída (dado sensível do usuário).
+// cobre lembretes (com o histórico de doses), médicos, consultas, planos,
+// exames e laudos laboratoriais. A chave da API NVIDIA NUNCA é incluída (dado sensível do usuário).
 
 import {
     STORAGE_KEYS,
     isAppointmentArray,
     isDoctorArray,
     isExamArray,
+    isLabResultArray,
     isHealthPlanArray,
     isReminderArray,
     loadJson,
     saveJson,
 } from '../storage';
-import { Appointment, Doctor, Exam, HealthPlan, Reminder } from '../types';
+import { Appointment, Doctor, Exam, HealthPlan, LabResult, Reminder } from '../types';
 import { toDateTimeInputValue } from '../utils/datetime';
 
 /** Marcadores do formato, para rejeitar arquivos de outros apps/versões. */
@@ -29,6 +30,7 @@ interface BackupData {
     appointments?: Appointment[];
     plans?: HealthPlan[];
     exams?: Exam[];
+    labs?: LabResult[];
 }
 
 export interface BackupFile {
@@ -38,32 +40,40 @@ export interface BackupFile {
     data: BackupData;
 }
 
+type BackupCategory = 'reminders' | 'doctors' | 'appointments' | 'plans' | 'exams' | 'labs';
+
+const BACKUP_CATEGORIES: BackupCategory[] = ['reminders', 'doctors', 'appointments', 'plans', 'exams', 'labs'];
+
 export interface BackupSummary {
     reminders: number;
     doctors: number;
     appointments: number;
     plans: number;
     exams: number;
+    labs: number;
+    included: BackupCategory[];
 }
 
 export type ParseResult =
-    | { ok: true; data: Required<BackupData>; summary: BackupSummary }
+    | { ok: true; data: Partial<Required<BackupData>>; summary: BackupSummary }
     | { ok: false; error: string };
 
-const VALIDATORS = {
+const VALIDATORS: Record<BackupCategory, (value: unknown) => boolean> = {
     reminders: isReminderArray,
     doctors: isDoctorArray,
     appointments: isAppointmentArray,
     plans: isHealthPlanArray,
     exams: isExamArray,
+    labs: isLabResultArray,
 } as const;
 
-const LABELS: Record<keyof BackupSummary, string> = {
+const LABELS: Record<BackupCategory, string> = {
     reminders: 'lembrete(s)',
     doctors: 'médico(s)',
     appointments: 'consulta(s)',
     plans: 'plano(s) de saúde',
     exams: 'exame(s)',
+    labs: 'laudo(s) laboratorial(is)',
 };
 
 /** Monta o objeto de backup a partir dos dados válidos atuais. */
@@ -74,6 +84,7 @@ export function buildBackup(): BackupFile {
         appointments: loadJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? [],
         plans: loadJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? [],
         exams: loadJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? [],
+        labs: loadJson<LabResult[]>(STORAGE_KEYS.labs, isLabResultArray) ?? [],
     };
     return { app: APP_ID, version: FORMAT_VERSION, exportedAt: toDateTimeInputValue(new Date()), data };
 }
@@ -116,34 +127,37 @@ export function parseBackup(text: string): ParseResult {
     }
 
     const source = file.data as Record<string, unknown>;
-    const data: Required<BackupData> = { reminders: [], doctors: [], appointments: [], plans: [], exams: [] };
-    const summary: BackupSummary = { reminders: 0, doctors: 0, appointments: 0, plans: 0, exams: 0 };
+    const data: Partial<Required<BackupData>> = {};
+    const summary: BackupSummary = { reminders: 0, doctors: 0, appointments: 0, plans: 0, exams: 0, labs: 0, included: [] };
 
-    for (const key of Object.keys(VALIDATORS) as Array<keyof BackupSummary>) {
+    for (const key of BACKUP_CATEGORIES) {
         const value = source[key];
         if (value === undefined) continue; // categoria ausente: mantém a atual
         if (!VALIDATORS[key](value)) {
             return { ok: false, error: `Conteúdo inválido na seção "${LABELS[key]}". A importação foi cancelada.` };
         }
-        (data[key] as unknown[]) = value as unknown[];
+        (data as Record<string, unknown>)[key] = value;
         summary[key] = (value as unknown[]).length;
+        summary.included.push(key);
     }
     return { ok: true, data, summary };
 }
 
 /** Texto do diálogo de confirmação, ex.: "3 lembrete(s), 1 médico(s)...". */
 export function describeSummary(summary: BackupSummary): string {
-    return (Object.keys(summary) as Array<keyof BackupSummary>)
-        .filter((key) => summary[key] > 0)
+    return summary.included
         .map((key) => `${summary[key]} ${LABELS[key]}`)
         .join(', ');
 }
 
 /** Grava os dados do backup no localStorage (sobrescreve cada categoria presente). */
-export function applyBackup(data: Required<BackupData>): void {
-    saveJson(STORAGE_KEYS.reminders, data.reminders);
-    saveJson(STORAGE_KEYS.doctors, data.doctors);
-    saveJson(STORAGE_KEYS.appointments, data.appointments);
-    saveJson(STORAGE_KEYS.plans, data.plans);
-    saveJson(STORAGE_KEYS.exams, data.exams);
+export function applyBackup(data: Partial<Required<BackupData>>): void {
+    // Só substitui categorias presentes no arquivo. Isso preserva os laudos
+    // (e demais dados) ao importar backups antigos que ainda não os incluíam.
+    if (data.reminders !== undefined) saveJson(STORAGE_KEYS.reminders, data.reminders);
+    if (data.doctors !== undefined) saveJson(STORAGE_KEYS.doctors, data.doctors);
+    if (data.appointments !== undefined) saveJson(STORAGE_KEYS.appointments, data.appointments);
+    if (data.plans !== undefined) saveJson(STORAGE_KEYS.plans, data.plans);
+    if (data.exams !== undefined) saveJson(STORAGE_KEYS.exams, data.exams);
+    if (data.labs !== undefined) saveJson(STORAGE_KEYS.labs, data.labs);
 }

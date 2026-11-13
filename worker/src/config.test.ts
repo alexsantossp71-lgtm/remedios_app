@@ -16,7 +16,7 @@ describe('parseConfig', () => {
         expect(cfg.dayMax).toBe(200);
         expect(cfg.allowedOrigins).toEqual([]);
         expect(cfg.allowedModels).toBe('*');
-        expect(cfg.requiresToken).toBe(false);
+        expect(cfg.requiresToken).toBe(true);
     });
 
     it('lê as listas separadas por vírgula', () => {
@@ -32,7 +32,7 @@ describe('parseConfig', () => {
         expect(parseConfig({ ALLOWED_MODELS: '*' }).allowedModels).toBe('*');
     });
 
-    it('lê os limites de rate-limit e exige token quando PROXY_TOKEN existe', () => {
+    it('sempre exige token, inclusive antes de o segredo ser configurado', () => {
         const cfg = parseConfig({
             RATE_LIMIT_WINDOW_MS: '60000',
             RATE_LIMIT_MAX: '10',

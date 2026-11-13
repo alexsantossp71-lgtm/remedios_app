@@ -110,8 +110,8 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
 
         const summaryText = describeSummary(parsed.summary);
         const confirmed = summaryText
-            ? window.confirm(`Substituir os dados atuais por: ${summaryText}? Esta ação não pode ser desfeita.`)
-            : window.confirm('Este backup está vazio. Todos os cadastros atuais serão apagados. Continuar?');
+            ? window.confirm(`Substituir as categorias presentes no backup por: ${summaryText}? Categorias ausentes no arquivo serão preservadas. Esta ação não pode ser desfeita.`)
+            : window.confirm('Este backup não contém categorias de dados reconhecidas. Nenhum dado será alterado. Continuar?');
         if (!confirmed) return;
 
         applyBackup(parsed.data);
@@ -186,27 +186,27 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
                     />
                     <p className={helperClass}>
                         Se você hospedou o Worker do repositório (pasta <code>worker/</code>), cole a URL dele aqui:
-                        a IA funciona <span className="font-semibold">sem chave por pessoa</span>, com rate-limit no servidor.
+                        a IA funciona <span className="font-semibold">sem chave NVIDIA por pessoa</span>; cada chamada exige o token privado do proxy.
                         {DEFAULT_PROXY_URL
                             ? ' Vazio = usa a URL padrão deste build.'
                             : ' Vazio = desativado (a IA exige a chave da NVIDIA acima).'}
                     </p>
                 </div>
                 <div>
-                    <label htmlFor="settings-proxy-token" className={labelClass}>Token do proxy (opcional)</label>
+                    <label htmlFor="settings-proxy-token" className={labelClass}>Token do proxy (obrigatório para usar o proxy)</label>
                     <input
                         id="settings-proxy-token"
                         type="password"
                         value={proxyToken}
                         onChange={(e) => { setProxyToken(e.target.value); setTestResult(null); }}
                         className={inputClass()}
-                        placeholder="só se o Worker define PROXY_TOKEN"
+                        placeholder="token fornecido pelo administrador do proxy"
                         autoComplete="off"
                         spellCheck={false}
                     />
                     <p className={helperClass}>
-                        Preencha apenas quando o dono do proxy definiu o segredo PROXY_TOKEN. O valor fica salvo
-                        somente neste dispositivo.
+                        O proxy protegido exige este token para cada chamada. Solicite o token ao administrador; ele fica salvo
+                        somente neste dispositivo. Não publique o token no código do aplicativo.
                     </p>
                 </div>
             </FormSection>
@@ -271,7 +271,7 @@ const SettingsModal: React.FC<Props> = ({ onClose }) => {
 
             <FormSection title="Backup dos dados">
                 <p className={helperClass}>
-                    Seus dados (lembretes, histórico de doses, médicos, consultas, planos e exames) ficam salvos apenas neste navegador.
+                    Seus dados (lembretes, histórico de doses, médicos, consultas, planos, exames e laudos laboratoriais) ficam salvos apenas neste navegador.
                     Exporte um arquivo de vez em quando para não perder nada ao limpar o navegador ou trocar de aparelho.
                     <span className="font-semibold"> A chave da IA não é incluída.</span>
                 </p>
