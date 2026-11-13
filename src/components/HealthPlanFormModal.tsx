@@ -22,7 +22,6 @@ interface Props {
     onSave: (plan: Omit<HealthPlan, 'id'>) => void;
     /** Plano em edição; `null`/ausente = novo cadastro. */
     editing?: HealthPlan | null;
-    onOpenSettings?: () => void;
 }
 
 type Errors = Partial<Record<'operator' | 'planName' | 'cardNumber' | 'phone', string>>;
