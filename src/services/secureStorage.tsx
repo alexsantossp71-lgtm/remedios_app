@@ -29,6 +29,7 @@ type VaultData = Record<string, string>;
 let activeKey: CryptoKey | null = null;
 let activeData: VaultData | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
+let lastWriteError: unknown = null;
 
 const toBase64 = (bytes: Uint8Array): string => {
     let binary = '';
@@ -193,8 +194,10 @@ export function saveSecureJson(key: string, value: unknown): boolean {
             const envelope = await readEnvelope();
             if (!envelope) throw new Error('Cofre protegido não encontrado.');
             await writeEnvelope(await makeEnvelope(snapshot, keySnapshot, fromBase64(envelope.salt)));
+            lastWriteError = null;
         })
         .catch((error: unknown) => {
+            lastWriteError = error;
             console.error('Não foi possível persistir os dados protegidos.', error);
         });
     return true;
@@ -202,6 +205,7 @@ export function saveSecureJson(key: string, value: unknown): boolean {
 
 export async function flushSecureWrites(): Promise<void> {
     await writeQueue;
+    if (lastWriteError) throw new Error('Não foi possível confirmar a gravação dos últimos dados. Mantenha o aplicativo aberto e tente novamente.');
 }
 
 export function SecurityGate({ onUnlock }: { onUnlock: () => void }) {
