@@ -50,7 +50,7 @@ export interface BackupSummary {
 }
 
 export type ParseResult =
-    | { ok: true; data: Required<BackupData>; summary: BackupSummary }
+    | { ok: true; data: Partial<Required<BackupData>>; summary: BackupSummary }
     | { ok: false; error: string };
 
 const VALIDATORS = {
