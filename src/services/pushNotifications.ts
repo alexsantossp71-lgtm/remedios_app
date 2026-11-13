@@ -98,7 +98,7 @@ export async function syncDoseSchedule(reminders: Reminder[]): Promise<void> {
         }
     }
 
-    await apiRequest('/push/schedule', token, { events: [...new Set(events)].sort((a, b) => a - b) });
+    await apiRequest('/push/schedule', token, { events: [...new Set(events)].sort((a, b) => a - b).slice(0, 500) });
 }
 
 export async function disablePush(): Promise<void> {
