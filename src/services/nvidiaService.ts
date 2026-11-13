@@ -803,42 +803,27 @@ export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promis
 /** Consulta a lista de modelos da conta e devolve um resumo do status. */
 export const testConnection = async (): Promise<string> => {
     const settings = readAiSettings();
-    const apiKey = settings.nvidiaApiKey.trim();
     const proxy = effectiveProxyUrl(settings);
-    if (!apiKey && !proxy) throw new AiError('Informe a chave da API NVIDIA ou a URL do proxy antes de testar.');
+    if (!proxy) throw new AiError(NO_CREDENTIALS_MESSAGE);
 
-    const viaProxy = Boolean(proxy);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 20_000);
     let response: Response;
     try {
-        response = await fetch(viaProxy ? `${proxy}/models` : `${baseUrl()}/models`, {
-            headers: viaProxy ? proxyHeaders(settings) : directHeaders(apiKey),
+        response = await fetch(`${proxy}/models`, {
+            headers: proxyHeaders(),
             signal: controller.signal,
         });
     } catch {
-        throw new AiError(
-            viaProxy
-                ? 'Não foi possível conectar ao proxy de IA. Verifique sua internet e a URL do proxy nas Configurações.'
-                : 'Não foi possível conectar à API da NVIDIA. Verifique sua conexão com a internet.'
-        );
+        throw new AiError('Não foi possível conectar ao serviço de IA. Verifique sua internet e tente novamente.');
     } finally {
         window.clearTimeout(timeout);
     }
-    if (!response.ok) throw new AiError(await describeHttpError(response, viaProxy));
+    if (!response.ok) throw new AiError(await describeHttpError(response, true));
 
     const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
     const ids = Array.isArray(data?.data)
         ? data!.data!.map((m) => (typeof m?.id === 'string' ? m.id : '')).filter(Boolean)
         : [];
-
-    const warnings: string[] = [];
-    if (ids.length && !ids.includes(settings.visionModel)) warnings.push(`o modelo de visão "${settings.visionModel}" não consta na sua conta`);
-    if (ids.length && !ids.includes(settings.textModel)) warnings.push(`o modelo de texto "${settings.textModel}" não consta na sua conta`);
-
-    const via = viaProxy ? 'no serviço de IA' : 'à NVIDIA';
-    if (warnings.length) return `Conectado ${via}. Atenção: ${warnings.join(' e ')}.`;
-    return ids.length
-        ? `Conectado ${via}! ${ids.length} modelos disponíveis.`
-        : `Conectado ${via}!`;
+    return ids.length ? `Serviço de IA conectado. ${ids.length} modelos disponíveis.` : 'Serviço de IA conectado.';
 };
