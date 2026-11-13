@@ -44,7 +44,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpen
     const [coverage, setCoverage] = useState(editing?.coverage ?? '');
     const [errors, setErrors] = useState<Errors>({});
 
-    // Scanner de carteirinha (foto -> OCR via modelo de visão da NVIDIA -> preenche os campos)
+    // Leitura automática da carteirinha para preencher os dados do plano.
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [photo, setPhoto] = useState<string | null>(null);
     const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
@@ -201,7 +201,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpen
                     </div>
                 )}
                 <p className={helperClass}>
-                    A foto é enviada à API da NVIDIA (modelo de visão definido nas Configurações) apenas para ler os dados da carteirinha. A chave fica salva somente neste dispositivo.
+                    A foto é usada para identificar os dados da carteirinha e preencher o cadastro. Confira as informações antes de salvar.
                 </p>
                 </>
                 ) : (
@@ -215,7 +215,7 @@ const HealthPlanFormModal: React.FC<Props> = ({ onClose, onSave, editing, onOpen
                             onClick={() => onOpenSettings?.()}
                             className="mt-2 text-sm font-semibold text-brand-blue hover:underline"
                         >
-                            Configurar IA (proxy ou chave)
+                            Tentar novamente
                         </button>
                     </div>
                 )}
