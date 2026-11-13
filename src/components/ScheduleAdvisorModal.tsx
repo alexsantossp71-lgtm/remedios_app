@@ -13,7 +13,6 @@ interface Props {
     /** Aplica os horários escolhidos (um item por lembrete selecionado). */
     onApply: (updates: Array<{ id: string; times: string[] }>) => void;
     onClose: () => void;
-    onOpenSettings?: () => void;
 }
 
 type Status = 'loading' | 'done' | 'error' | 'nokey';
@@ -42,7 +41,7 @@ const TimeChip: React.FC<{ time: string }> = ({ time }) => (
  * Agendamento inteligente (IA): sugere novos horários respeitando jejum,
  * intervalos e a rotina de sono; o usuário revisa, marca e aplica por lembrete.
  */
-const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose, onOpenSettings }) => {
+const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose }) => {
     const aiSettings = useAiSettings();
     const canUseAi = hasAiAccess(aiSettings);
 
