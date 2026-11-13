@@ -16,7 +16,7 @@ export interface AiSettings {
     nvidiaApiKey: string;
     /** URL do proxy de IA (Cloudflare Worker). Vazio = usa a URL padrão do build, se houver. */
     proxyUrl: string;
-    /** Token opcional do proxy (enviado no cabeçalho x-proxy-token quando o Worker define PROXY_TOKEN). */
+    /** Token obrigatório ao usar o proxy autenticado (enviado em x-proxy-token). */
     proxyToken: string;
     /** Modelo com visão usado no OCR da carteirinha. */
     visionModel: string;
