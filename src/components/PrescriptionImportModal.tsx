@@ -146,7 +146,6 @@ const PrescriptionImportModal: React.FC<Props> = ({ onClose, onImport, onOpenSet
                     Importar receita com IA
                 </h3>
                 <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 mb-4">
-                    A foto/texto é enviado à API da NVIDIA apenas para leitura; os lembretes criados ficam salvos somente neste dispositivo.
                 </p>
 
                 {!hasApiKey ? (
