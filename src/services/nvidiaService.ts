@@ -664,7 +664,8 @@ Regras:
 - value: o resultado medido EXATAMENTE como número escrito (ex.: "95", "5,4", "10.200"); não inclua a unidade aqui.
 - unit: unidade (ex.: "mg/dL", "g/dL"); string vazia se não houver.
 - reference: a faixa de referência impressa para esse exame (ex.: "70 - 99", "até 100", "≥ 4,0"); string vazia se não houver.
-- Transcreva fielmente; NÃO interprete nem classifique valores como normais/alterados.
+- Transcreva fielmente; NÃO interprete, diagnostique, recomende tratamento nem classifique valores como normais/alterados. A comparação com a faixa impressa é calculada separadamente pelo aplicativo e também não é diagnóstico.
+- A única fonte de referência desta extração é o próprio laudo enviado pelo usuário. Não consulte nem invente faixas de referência externas.
 - Um item por marcador, na ordem do laudo, até 40 itens. Qualquer campo ilegível deve ser string vazia.
 - Se a imagem não for um laudo com valores de exames, responda apenas {"error":"not_a_report"}.`;
 
