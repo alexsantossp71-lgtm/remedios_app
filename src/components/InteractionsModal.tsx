@@ -9,8 +9,7 @@ interface Props {
     /** Lembretes ativos (nome + dosagem) enviados à análise. */
     medications: Array<{ name: string; dosage?: string }>;
     onClose: () => void;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
+    
 }
 
 type Status = 'loading' | 'done' | 'error' | 'nokey';
@@ -24,7 +23,7 @@ const severityChip: Record<InteractionReport['interactions'][number]['severity']
 };
 
 /** Análise educativa de interações/duplicidades; roda sozinha ao abrir. */
-const InteractionsModal: React.FC<Props> = ({ medications, onClose, onOpenSettings }) => {
+const InteractionsModal: React.FC<Props> = ({ medications, onClose }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
 
