@@ -10,6 +10,7 @@ import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/da
 import { showSystemNotification, vibrateAlarm } from './utils/notify';
 import MissedDosesModal from './components/MissedDosesModal';
 import { findMissedDoses, MissedDose } from './utils/missedDoses';
+import { isPushEnabled, syncDoseSchedule } from './services/pushNotifications';
 import NotificationsBanner from './components/NotificationsBanner';
 import AddReminderModal from './components/AddReminderModal';
 import Calendar from './components/Calendar';
@@ -121,6 +122,15 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
 
     useEffect(() => {
         saveSecureJson(STORAGE_KEYS.reminders, reminders);
+    }, [reminders]);
+
+    // Quando o usuário optou por Push, sincroniza somente instantes UTC.
+    // O serviço nunca recebe nome, dose, histórico ou qualquer dado clínico.
+    useEffect(() => {
+        if (!isPushEnabled()) return;
+        void syncDoseSchedule(reminders).catch((error: unknown) => {
+            console.warn('Não foi possível atualizar os horários Push neste momento.', error);
+        });
     }, [reminders]);
 
     useEffect(() => {
@@ -864,7 +874,7 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
             )}
 
             {isSettingsOpen && (
-                <SettingsModal onClose={() => setSettingsOpen(false)} onLock={onLock} />
+                <SettingsModal onClose={() => setSettingsOpen(false)} onLock={onLock} reminders={reminders} />
             )}
 
             {examNotification && (
