@@ -8,6 +8,7 @@ import {
     isEncryptedBackup,
     parseBackup,
 } from '../services/backup';
+import { flushSecureWrites } from '../services/secureStorage';
 import { notificationStatus, NotificationSupport, requestNotificationPermission } from '../utils/notify';
 import {
     FormModalShell,
@@ -79,6 +80,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock }) => {
         if (!confirmed) return;
 
         applyBackup(parsed.data);
+        await flushSecureWrites();
         window.location.reload(); // recarrega com os dados importados
     };
 
