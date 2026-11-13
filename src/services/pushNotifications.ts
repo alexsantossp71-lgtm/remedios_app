@@ -55,8 +55,10 @@ export async function enablePush(reminders: Reminder[]): Promise<void> {
         });
     }
 
-    const token = getToken();
+    const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
+    const token = bytesToBase64Url(tokenBytes);
     await apiRequest('/push/register', token, { subscription: subscription.toJSON() });
+    localStorage.setItem(TOKEN_KEY, token);
     await syncDoseSchedule(reminders);
 }
 
@@ -79,8 +81,9 @@ export async function syncDoseSchedule(reminders: Reminder[]): Promise<void> {
         for (let offset = 0; offset < horizon; offset += 1) {
             const dayDate = new Date(startToday);
             dayDate.setDate(dayDate.getDate() + offset);
-            const dayStart = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate());
-            const diffDays = Math.floor((dayStart.getTime() - startDate.getTime()) / 86400000);
+                    const dayNumber = Date.UTC(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate());
+            const startNumber = Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+            const diffDays = Math.round((dayNumber - startNumber) / 86400000);
             if (diffDays < 0) continue;
             if (reminder.duration.type === 'days' && diffDays >= reminder.duration.days) continue;
             if (reminder.frequency.type === 'interval' &&
