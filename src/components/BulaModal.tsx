@@ -11,7 +11,6 @@ interface Props {
     /** Lembrete cujo medicamento será explicado (nome + dosagem + instruções). */
     reminder: Reminder;
     onClose: () => void;
-    
 }
 
 type Status = 'loading' | 'done' | 'error' | 'nokey';
