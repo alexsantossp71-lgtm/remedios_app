@@ -928,7 +928,7 @@ async function pollinationsChatCompletion(
         window.clearTimeout(catalogTimeout);
     }
 
-    let lastError: unknown;
+    const errors: Error[] = [];
     for (const model of models) {
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), 7_000);
@@ -956,14 +956,14 @@ async function pollinationsChatCompletion(
             options.validateResponse(content);
             return content;
         } catch (error) {
-            lastError = controller.signal.aborted
+            errors.push(controller.signal.aborted
                 ? new AiError(`O modelo Pollinations ${model} excedeu o limite de 7 segundos.`)
-                : error;
+                : error instanceof Error ? error : new AiError('Falha desconhecida no modelo Pollinations.'));
         } finally {
             window.clearTimeout(timeout);
         }
     }
-    throw lastError instanceof Error ? lastError : new AiError('Nenhum modelo Pollinations conseguiu concluir a análise.');
+    throw new AiError(errors.map((error) => error.message).join(' | ') || 'Nenhum modelo Pollinations conseguiu concluir a análise.');
 }
 
 /** Analisa os lembretes ativos: Pollinations é principal e NVIDIA é fallback. */
