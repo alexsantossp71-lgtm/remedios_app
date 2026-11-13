@@ -13,6 +13,7 @@ import { createSecureVault, disableSecureVault, flushSecureWrites, inspectSecure
 import { notificationStatus, NotificationSupport, requestNotificationPermission } from '../utils/notify';
 import type { Reminder } from '../types';
 import { disablePush, enablePush, isPushEnabled } from '../services/pushNotifications';
+import AiDiagnosticsModal from './AiDiagnosticsModal';
 import {
     FormModalShell,
     FormSection,
@@ -40,6 +41,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
     const [pushEnabled, setPushEnabled] = useState(() => isPushEnabled());
     const [pushBusy, setPushBusy] = useState(false);
     const [pushMessage, setPushMessage] = useState<{ ok: boolean; text: string } | null>(null);
+    const [aiDiagnosticsOpen, setAiDiagnosticsOpen] = useState(false);
 
     React.useEffect(() => { inspectSecureStorage().then(status => setIsProtected(status.configured)).catch(() => setIsProtected(false)); }, []);
 
@@ -238,7 +240,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                 )}
             </FormSection>
 
-            <FormSection title="Privacidade e segurança">
+            <FormSection title="Diagnóstico da inteligência artificial">\n                <p className={helperClass}>Compare os modelos disponíveis no serviço NVIDIA. O teste usa somente exemplos fictícios e não envia os medicamentos ou horários cadastrados neste aparelho.</p>\n                <button type="button" onClick={() => setAiDiagnosticsOpen(true)} className="w-full rounded-lg border border-brand-blue px-4 py-2.5 text-sm font-semibold text-brand-blue hover:bg-blue-50 dark:hover:bg-brand-gray-700">Testar velocidade e qualidade dos modelos</button>\n            </FormSection>\n            {aiDiagnosticsOpen && <AiDiagnosticsModal onClose={() => setAiDiagnosticsOpen(false)} />}\n\n            <FormSection title="Privacidade e segurança">
                 <div className={helperClass}>
                     <p>Medicamentos, horários, histórico de doses, médicos, consultas, carteirinha, exames, fotos e laudos ficam armazenados neste dispositivo. Se você ativar a senha, esses registros serão criptografados. O aplicativo não mantém uma conta nem sincroniza esses registros com um servidor próprio.</p>
                     <p className="mt-2">Quando você escolhe usar recursos de leitura ou análise inteligente, o conteúdo necessário para aquela função — que pode incluir texto, fotos ou dados de medicamentos — é enviado a um serviço externo para processamento. Não use esses recursos se não concordar com esse envio.</p>
