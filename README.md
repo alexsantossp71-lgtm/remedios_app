@@ -62,7 +62,7 @@ pnpm dev
 
 ## IA integrada
 
-A aplicação utiliza o Cloudflare Worker configurado internamente para acessar a API NVIDIA. A chave `NVIDIA_API_KEY` fica exclusivamente nos secrets do Worker. O endereço do serviço e os modelos são parâmetros internos do sistema; o navegador não recebe chave NVIDIA nem token compartilhado. O deploy do Worker é feito pelo workflow `.github/workflows/deploy-proxy.yml`.
+A aplicação utiliza o Cloudflare Worker configurado internamente para acessar a API NVIDIA. A chave `NVIDIA_API_KEY` fica exclusivamente nos secrets do Worker. Há também uma integração experimental e isolada com Pollinations.ai, desativada até que `POLLINATIONS_API_KEY` seja cadastrada como secret do Worker. O endereço do serviço e os modelos são parâmetros internos do sistema; o navegador não recebe chave NVIDIA nem token compartilhado. O deploy do Worker é feito pelo workflow `.github/workflows/deploy-proxy.yml`.
 
 ## Build de produção
 
