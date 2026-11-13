@@ -26,7 +26,7 @@ const getInitials = (name: string): string => {
 };
 
 const DoctorCard: React.FC<{ doctor: Doctor; onEdit: () => void; onDelete: () => void }> = ({ doctor, onEdit, onDelete }) => (
-    <div className="bg-brand-gray-100 dark:bg-brand-gray-700 p-4 rounded-lg shadow-sm relative">
+    <div className="app-record-card bg-brand-gray-100 dark:bg-brand-gray-700 p-4 rounded-xl shadow-sm relative">
         <div className="flex items-start space-x-3">
             <div className="flex-shrink-0 w-11 h-11 rounded-full bg-brand-blue text-white flex items-center justify-center font-bold">
                 {getInitials(doctor.name)}
