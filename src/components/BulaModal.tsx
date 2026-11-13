@@ -11,8 +11,7 @@ interface Props {
     /** Lembrete cujo medicamento será explicado (nome + dosagem + instruções). */
     reminder: Reminder;
     onClose: () => void;
-    /** Abre a tela de Configurações (mostrada quando a chave de IA não está definida). */
-    onOpenSettings?: () => void;
+    
 }
 
 type Status = 'loading' | 'done' | 'error' | 'nokey';
@@ -29,7 +28,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 );
 
 /** Explicação do medicamento ("bula simplificada") com cache no localStorage. */
-const BulaModal: React.FC<Props> = ({ reminder, onClose, onOpenSettings }) => {
+const BulaModal: React.FC<Props> = ({ reminder, onClose }) => {
     const aiSettings = useAiSettings();
     const hasApiKey = hasAiAccess(aiSettings);
 
