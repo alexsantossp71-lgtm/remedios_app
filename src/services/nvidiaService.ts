@@ -55,7 +55,7 @@ const proxyHeaders = (): Record<string, string> => ({
 async function chatCompletion(
     messages: ChatMessage[],
     model: string,
-    options?: { maxTokens?: number; temperature?: number }
+    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void }
 ): Promise<string> {
     const settings = readAiSettings();
     const proxy = effectiveProxyUrl(settings);
@@ -97,12 +97,16 @@ async function chatCompletion(
 
         const data = (await response.json().catch(() => null)) as { choices?: ChatChoice[] } | null;
         const content = data?.choices?.[0]?.message?.content;
-        if (typeof content === 'string' && content.trim()) return content;
+        const validateContent = (value: string): string => {
+            options?.validateResponse?.(value);
+            return value;
+        };
+        if (typeof content === 'string' && content.trim()) return validateContent(content);
         if (Array.isArray(content)) {
             const text = content
                 .map((part) => (typeof part === 'string' ? part : typeof (part as ChatContentPart)?.text === 'string' ? (part as ChatContentPart).text! : ''))
                 .join('');
-            if (text.trim()) return text;
+            if (text.trim()) return validateContent(text);
         }
         throw new AiError('Não foi possível concluir a leitura. Tente novamente.');
     };
@@ -591,7 +595,7 @@ export const analyzeInteractions = async (
             },
         ],
         textModel,
-        { maxTokens: 1800, temperature: 0.1 }
+        { maxTokens: 1800, temperature: 0.1, validateResponse: (value) => { extractJson(value); } }
     );
 
     return sanitizeInteractionReport(extractJson(content));
@@ -854,7 +858,7 @@ export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promis
     const content = await chatCompletion(
         [{ role: 'user', content: `${SCHEDULE_PROMPT}\n\n${buildScheduleDataBlock(medications)}` }],
         textModel,
-        { maxTokens: 1600, temperature: 0.2 }
+        { maxTokens: 1600, temperature: 0.2, validateResponse: (value) => { extractJson(value); } }
     );
     return sanitizeScheduleAdvice(extractJson(content), medications);
 };
