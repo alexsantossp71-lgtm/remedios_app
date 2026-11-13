@@ -14,6 +14,7 @@ import { notificationStatus, NotificationSupport, requestNotificationPermission 
 import type { Reminder } from '../types';
 import { runAiModelDiagnostics, type ModelDiagnosticProgress, type ModelDiagnosticResult } from '../services/nvidiaService';
 import { disablePush, enablePush, isPushEnabled } from '../services/pushNotifications';
+import { isPollinationsConsentEnabled, setPollinationsConsentEnabled } from '../services/settings';
 import {
     FormModalShell,
     FormSection,
@@ -73,6 +74,8 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
     const [diagnosticProgress, setDiagnosticProgress] = useState<ModelDiagnosticProgress | null>(null);
     const [diagnosticResults, setDiagnosticResults] = useState<ModelDiagnosticResult[] | null>(null);
     const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
+    const [pollinationsConsent, setPollinationsConsent] = useState(() => isPollinationsConsentEnabled());
+    const [pollinationsConsentError, setPollinationsConsentError] = useState<string | null>(null);
 
     React.useEffect(() => { inspectSecureStorage().then(status => setIsProtected(status.configured)).catch(() => setIsProtected(false)); }, []);
 
@@ -374,6 +377,37 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
                         {backupMessage.text}
                     </p>
                 )}
+            </FormSection>
+
+            <FormSection title="Privacidade: uso do Pollinations.ai">
+                <p className={helperClass}>
+                    Opcional. Quando ativado, o Pollinations.ai será tentado primeiro nas funções de IA, incluindo análise de medicamentos, sugestões para consulta e leitura de receitas, carteirinhas, pedidos de exames e laudos. Se falhar, o aplicativo tentará a NVIDIA. O conteúdo necessário para cada tarefa — que pode incluir nomes de medicamentos, doses, histórico, texto ou imagens — será enviado ao provedor externo para processamento.
+                </p>
+                <p className={helperClass}>
+                    O consentimento fica salvo apenas neste dispositivo e pode ser revogado a qualquer momento. Desativado, o aplicativo usa somente a NVIDIA. Consulte as políticas de privacidade e retenção dos provedores antes de compartilhar dados reais. Não envie documentos de outra pessoa sem autorização.
+                </p>
+                <label className="flex items-start gap-3 rounded-lg border border-brand-gray-200 dark:border-brand-gray-600 p-3">
+                    <input
+                        type="checkbox"
+                        checked={pollinationsConsent}
+                        onChange={(event) => {
+                            const enabled = event.target.checked;
+                            try {
+                                setPollinationsConsentEnabled(enabled);
+                                setPollinationsConsent(enabled);
+                                setPollinationsConsentError(null);
+                            } catch (error) {
+                                setPollinationsConsent(!enabled);
+                                setPollinationsConsentError(error instanceof Error ? error.message : 'Não foi possível salvar a preferência.');
+                            }
+                        }}
+                        className="mt-1 h-4 w-4 accent-brand-blue"
+                    />
+                    <span className="text-sm font-medium text-brand-gray-800 dark:text-brand-gray-100">
+                        Concordo em enviar os dados necessários das funções de IA ao Pollinations.ai, com fallback para NVIDIA.
+                    </span>
+                </label>
+                {pollinationsConsentError && <p className="text-sm text-brand-red" role="alert">{pollinationsConsentError}</p>}
             </FormSection>
 
             <FormSection title="Privacidade e segurança">

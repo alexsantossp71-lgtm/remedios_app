@@ -7,6 +7,8 @@ export interface AiSettings {
     proxyToken: string;
     visionModel: string;
     textModel: string;
+    /** Consentimento explícito, salvo somente neste dispositivo. */
+    pollinationsConsent: boolean;
 }
 
 export const DEFAULT_VISION_MODEL = 'meta/llama-3.2-90b-vision-instruct';
@@ -14,6 +16,22 @@ export const DEFAULT_TEXT_MODEL = 'z-ai/glm-5.3-flash';
 export const DEFAULT_PROXY_URL = 'https://remedios-ai-proxy.alexsantossp71.workers.dev';
 
 const EVENT_NAME = 'ai-settings-changed';
+const POLLINATIONS_CONSENT_KEY = 'pollinationsAiConsent';
+
+export function isPollinationsConsentEnabled(): boolean {
+    try { return localStorage.getItem(POLLINATIONS_CONSENT_KEY) === 'true'; }
+    catch { return false; }
+}
+
+export function setPollinationsConsentEnabled(enabled: boolean): void {
+    try {
+        if (enabled) localStorage.setItem(POLLINATIONS_CONSENT_KEY, 'true');
+        else localStorage.removeItem(POLLINATIONS_CONSENT_KEY);
+    } catch {
+        throw new Error('Não foi possível salvar a preferência de privacidade neste dispositivo.');
+    }
+    window.dispatchEvent(new Event(EVENT_NAME));
+}
 
 export function normalizeProxyUrl(raw: string): string {
     const value = raw.trim().replace(/\/+$/, '');
@@ -40,6 +58,7 @@ export function readAiSettings(): AiSettings {
         proxyToken: '',
         visionModel: DEFAULT_VISION_MODEL,
         textModel: DEFAULT_TEXT_MODEL,
+        pollinationsConsent: isPollinationsConsentEnabled(),
     };
 }
 

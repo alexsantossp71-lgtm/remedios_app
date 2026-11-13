@@ -76,12 +76,26 @@ export function extractChatContent(value: unknown): string {
 async function chatCompletion(
     messages: ChatMessage[],
     model: string,
-    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void; requestTimeoutMs?: number; catalogTimeoutMs?: number; maxModels?: number }
+    options?: { maxTokens?: number; temperature?: number; validateResponse?: (content: string) => void; requestTimeoutMs?: number; catalogTimeoutMs?: number; maxModels?: number; provider?: 'auto' | 'nvidia-only' }
 ): Promise<string> {
     const settings = readAiSettings();
     const proxy = effectiveProxyUrl(settings);
     if (!proxy) {
         throw new AiError(NO_CREDENTIALS_MESSAGE);
+    }
+
+    // Pollinations é o provedor principal quando habilitado; NVIDIA permanece como fallback.
+    let pollinationsFailure = '';
+    if (options?.provider !== 'nvidia-only' && readAiSettings().pollinationsConsent) {
+        try {
+            return await pollinationsChatCompletion(messages, {
+                maxTokens: options?.maxTokens ?? 1024,
+                temperature: options?.temperature ?? 0.2,
+                validateResponse: options?.validateResponse ?? ((value) => { extractJson(value); }),
+            });
+        } catch (error) {
+            pollinationsFailure = error instanceof Error ? error.message : 'Falha desconhecida no Pollinations.';
+        }
     }
 
     const attempt = async (url: string, headers: Record<string, string>, candidateModel: string): Promise<string> => {
@@ -196,7 +210,11 @@ async function chatCompletion(
             if (!canFallback) throw error;
         }
     }
-    if (lastError instanceof Error) throw lastError;
+    if (lastError instanceof Error) {
+        if (pollinationsFailure) throw new AiError(`Pollinations não respondeu (${pollinationsFailure}). A alternativa NVIDIA também falhou (${lastError.message}).`);
+        throw lastError;
+    }
+    if (pollinationsFailure) throw new AiError(`Pollinations não respondeu (${pollinationsFailure}) e a NVIDIA não está disponível.`);
     throw new AiError(NO_CREDENTIALS_MESSAGE);
 }
 
@@ -529,6 +547,27 @@ async function describeHttpError(response: Response): Promise<string> {
 }
 
 /** Extrai o primeiro objeto JSON da resposta do modelo (tolerante a blocos de código). */
+/** Valida campos obrigatórios do JSON antes de aceitar a resposta do provedor. */
+function validateJsonFields(
+    content: string,
+    fields: string[],
+    allowError = false,
+    arrayFields: string[] = [],
+    stringFields: string[] = [],
+): void {
+    const parsed = extractJson(content);
+    if (allowError && typeof parsed.error === 'string') return;
+    const missing = fields.filter((field) => !(field in parsed));
+    if (missing.length) {
+        throw new AiError(`A resposta da IA não trouxe os campos esperados: ${missing.join(', ')}.`);
+    }
+    const invalidArrays = arrayFields.filter((field) => !Array.isArray(parsed[field]));
+    const invalidStrings = stringFields.filter((field) => typeof parsed[field] !== 'string');
+    if (invalidArrays.length || invalidStrings.length) {
+        throw new AiError('A IA devolveu campos em formato inválido. A resposta será solicitada a outro provedor.');
+    }
+}
+
 export function extractJson(text: string): Record<string, unknown> {
     const cleaned = text.replace(/```(?:json)?/gi, '');
     const start = cleaned.indexOf('{');
@@ -588,7 +627,7 @@ export const scanHealthCard = async (
             },
         ],
         visionModel,
-        { maxTokens: 800, temperature: 0.1 }
+        { maxTokens: 800, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['operator', 'planName', 'cardNumber', 'holder', 'validity', 'phone', 'coverage'], true, [], ['operator', 'planName', 'cardNumber', 'holder', 'validity', 'phone', 'coverage']) }
     );
 
     const parsed = extractJson(content);
@@ -648,7 +687,7 @@ export const scanExamRequest = async (
             },
         ],
         visionModel,
-        { maxTokens: 500, temperature: 0.1 }
+        { maxTokens: 500, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['name', 'category', 'doctorName', 'place', 'date'], true, [], ['name', 'category', 'doctorName', 'place', 'date']) }
     );
 
     const parsed = extractJson(content);
@@ -681,7 +720,7 @@ export const getMedications = async (): Promise<Medication[]> => {
             },
         ],
         textModel,
-        { maxTokens: 2000, temperature: 0.3 }
+        { maxTokens: 2000, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['medicamentos'], false, ['medicamentos']) }
     );
 
     const parsed = extractJson(content);
@@ -751,7 +790,7 @@ export const scanPrescription = async (
             },
         ],
         visionModel,
-        { maxTokens: 1500, temperature: 0.1 }
+        { maxTokens: 1500, temperature: 0.1, validateResponse: (value) => { validateJsonFields(value, ['medicamentos']); const parsed = extractJson(value); if (!Array.isArray(parsed.medicamentos) || !parsed.medicamentos.length) throw new AiError('A IA não reconheceu medicamentos nesta receita.'); } }
     );
 
     const entries = ensurePrescriptionEntries(extractJson(content));
@@ -780,7 +819,7 @@ export const parsePrescriptionText = async (text: string): Promise<PrescriptionE
             },
         ],
         textModel,
-        { maxTokens: 1500, temperature: 0.2 }
+        { maxTokens: 1500, temperature: 0.2, validateResponse: (value) => { validateJsonFields(value, ['medicamentos']); const parsed = extractJson(value); if (!Array.isArray(parsed.medicamentos) || !parsed.medicamentos.length) throw new AiError('A IA não encontrou medicamentos no texto da receita.'); } }
     );
 
     const entries = ensurePrescriptionEntries(extractJson(content));
@@ -893,8 +932,10 @@ const POLLINATIONS_INTERACTION_MODELS = [
 ];
 
 /** Seleciona no máximo dois modelos Pollinations realmente anunciados no catálogo. */
-export function selectAvailablePollinationsModels(availableIds: string[]): string[] {
+export function selectAvailablePollinationsModels(availableIds: string[], hasImages = false): string[] {
     const available = new Set(availableIds);
+    // Só tentamos imagens com Gemini; se não estiver anunciado, usamos NVIDIA Vision.
+    if (hasImages) return available.has('google/gemini-3.8-flash') ? ['google/gemini-3.8-flash'] : [];
     return POLLINATIONS_INTERACTION_MODELS.filter((model) => available.has(model)).slice(0, 2);
 }
 
@@ -903,7 +944,11 @@ async function pollinationsChatCompletion(
     messages: ChatMessage[],
     options: { maxTokens: number; temperature: number; validateResponse: (content: string) => void }
 ): Promise<string> {
-    const proxy = effectiveProxyUrl(readAiSettings());
+    const settings = readAiSettings();
+    if (!settings.pollinationsConsent) {
+        throw new AiError('O uso do Pollinations.ai está desativado nas configurações de privacidade.');
+    }
+    const proxy = effectiveProxyUrl(settings);
     if (!proxy) throw new AiError(NO_CREDENTIALS_MESSAGE);
 
     const catalogController = new AbortController();
@@ -919,8 +964,12 @@ async function pollinationsChatCompletion(
         const availableIds = Array.isArray(catalog?.data)
             ? catalog.data.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean)
             : [];
-        models = selectAvailablePollinationsModels(availableIds);
-        if (!models.length) throw new AiError('O catálogo Pollinations não apresentou nenhum dos modelos compatíveis configurados.');
+        const hasImages = messages.some((message) => Array.isArray(message.content)
+            && message.content.some((part) => part.type === 'image_url'));
+        models = selectAvailablePollinationsModels(availableIds, hasImages);
+        if (!models.length) throw new AiError(hasImages
+            ? 'Pollinations não anunciou um modelo de visão compatível; a operação será encaminhada à alternativa NVIDIA.'
+            : 'O catálogo Pollinations não apresentou nenhum dos modelos compatíveis configurados.');
     } catch (error) {
         if (catalogController.signal.aborted) throw new AiError('Tempo limite ao consultar os modelos Pollinations (3 segundos).');
         throw error instanceof Error ? error : new AiError('Não foi possível consultar os modelos Pollinations.');
@@ -1003,6 +1052,7 @@ export const analyzeInteractions = async (
                 requestTimeoutMs: 9_000,
                 catalogTimeoutMs: 3_000,
                 maxModels: 2,
+                provider: 'nvidia-only',
             });
             return sanitizeInteractionReport(extractJson(content));
         } catch (nvidiaError) {
@@ -1072,7 +1122,7 @@ export const explainMedication = async (
     const content = await chatCompletion(
         [{ role: 'user', content: `${GUIDE_PROMPT}\n\nMedicamento: ${context}` }],
         textModel,
-        { maxTokens: 1200, temperature: 0.3 }
+        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['whatFor', 'howToUse', 'commonSideEffects', 'warnings', 'note'], false, ['commonSideEffects', 'warnings'], ['whatFor', 'howToUse', 'note']) }
     );
 
     return sanitizeMedicationGuide(extractJson(content));
@@ -1108,7 +1158,7 @@ export const analyzeAdherenceInsights = async (report: AdherenceReport): Promise
                 content: `${ADHERENCE_PROMPT}\n\nRelatório de adesão (JSON):\n${JSON.stringify(report)}`,
             },
         ],        textModel,
-        { maxTokens: 1200, temperature: 0.3 }
+        { maxTokens: 1200, temperature: 0.3, validateResponse: (value) => validateJsonFields(value, ['summary', 'insights'], false, ['insights'], ['summary']) }
     );
 
     return sanitizeAdherenceAnalysis(extractJson(content));
@@ -1149,7 +1199,7 @@ export const suggestConsultationQuestions = async (context: ConsultationContext)
     const content = await chatCompletion(
         [{ role: 'user', content: `${QUESTIONS_PROMPT}\n\nDados do paciente:\n${payload}` }],
         textModel,
-        { maxTokens: 700, temperature: 0.4 }
+        { maxTokens: 700, temperature: 0.4, validateResponse: (value) => validateJsonFields(value, ['questions'], false, ['questions']) }
     );
 
     return sanitizeConsultationQuestions(extractJson(content));
@@ -1191,7 +1241,7 @@ export const extractLabValues = async (
             },
         ],
         visionModel,
-        { maxTokens: 2000, temperature: 0.1 }
+        { maxTokens: 2000, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['labName', 'examDate', 'resultados'], true, ['resultados'], ['labName', 'examDate']) }
     );
 
     const parsed = extractJson(content);
@@ -1236,7 +1286,7 @@ export const identifyMedication = async (
             },
         ],
         visionModel,
-        { maxTokens: 300, temperature: 0.1 }
+        { maxTokens: 300, temperature: 0.1, validateResponse: (value) => validateJsonFields(value, ['medication', 'confidence', 'detail'], false, [], ['medication', 'confidence', 'detail']) }
     );
 
     return sanitizeMedicationId(extractJson(content));
@@ -1268,7 +1318,7 @@ export const suggestSchedule = async (medications: ScheduleAdvisorMed[]): Promis
     const content = await chatCompletion(
         [{ role: 'user', content: `${SCHEDULE_PROMPT}\n\n${buildScheduleDataBlock(medications)}` }],
         textModel,
-        { maxTokens: 1600, temperature: 0.2, validateResponse: (value) => { extractJson(value); } }
+        { maxTokens: 1600, temperature: 0.2, validateResponse: (value) => validateJsonFields(value, ['summary', 'suggestions'], false, ['suggestions'], ['summary']) }
     );
     return sanitizeScheduleAdvice(extractJson(content), medications);
 };
