@@ -257,7 +257,7 @@ const ScheduleAdvisorModal: React.FC<Props> = ({ reminders, onApply, onClose }) 
                         )}
 
                         <p className="text-xs text-brand-gray-500 dark:text-brand-gray-400 border-t border-brand-gray-200 dark:border-brand-gray-600 pt-3">
-                            Sugestões geradas por IA apenas para revisão. Não alteram dose, frequência ou duração. Se a receita tiver horários fixos ou se o intervalo prescrito não estiver claro, mantenha a prescrição e consulte seu médico ou farmacêutico. A IA não dispõe necessariamente de todas as informações clínicas.
+                            Sugestões geradas por IA apenas para revisão, com base nos dados cadastrados. Nenhuma fonte clínica externa foi consultada nesta sugestão. Não alteram dose, frequência ou duração. Se a receita tiver horários fixos ou se o intervalo prescrito não estiver claro, mantenha a prescrição e consulte seu médico ou farmacêutico.
                         </p>
                     </div>
                 )}
