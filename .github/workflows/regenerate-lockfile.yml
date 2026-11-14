@@ -1,4 +1,4 @@
-name: Regenerate pnpm lockfile
+name: Validate frozen pnpm lockfile
 
 on:
   push:
@@ -6,32 +6,27 @@ on:
       - maintenance/regenerate-pnpm-lock
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  regenerate:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: maintenance/regenerate-pnpm-lock
-          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 10.34.5
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Regenerate lockfile from manifests
-        run: pnpm install --lockfile-only --no-frozen-lockfile
-      - name: Commit generated lockfile
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pnpm-lock.yaml
-          if git diff --cached --quiet; then
-            echo "Lockfile already matches package manifests."
-          else
-            git commit -m "chore: regenerate pnpm lockfile [skip ci]"
-            git push
-          fi
+          cache: pnpm
+      - name: Install with frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
