@@ -19,7 +19,7 @@ import {
 } from '../storage';
 import { Appointment, Doctor, Exam, HealthPlan, LabResult, Reminder } from '../types';
 import { toDateTimeInputValue } from '../utils/datetime';
-import { loadSecureJson, saveSecureJson, isVaultUnlocked } from './secureStorage';
+import { loadSecureJson, saveSecureJson, isVaultUnlocked, replaceSecureJsonBatch } from './secureStorage';
 
 /** Marcadores do formato, para rejeitar arquivos de outros apps/versões. */
 const APP_ID = 'remedio-na-hora';
@@ -295,33 +295,46 @@ export function describeSummary(summary: BackupSummary): string {
         .join(', ');
 }
 
-/** Grava os dados do backup no localStorage (sobrescreve cada categoria presente). */
-export function applyBackup(data: Partial<Required<BackupData>>): void {
-    // Só substitui categorias presentes no arquivo. Isso preserva os laudos
-    // (e demais dados) ao importar backups antigos que ainda não os incluíam.
-    if (data.reminders !== undefined) {
-        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.reminders, data.reminders);
-        else saveJson(STORAGE_KEYS.reminders, data.reminders);
+/** Restaura as categorias presentes. No cofre, grava o envelope inteiro em uma operação;
+ * sem cofre, mantém snapshots brutos e tenta restaurá-los se qualquer gravação falhar. */
+export async function applyBackup(data: Partial<Required<BackupData>>): Promise<void> {
+    const entries: Array<[BackupCategory, string, unknown]> = [
+        ['reminders', STORAGE_KEYS.reminders, data.reminders],
+        ['doctors', STORAGE_KEYS.doctors, data.doctors],
+        ['appointments', STORAGE_KEYS.appointments, data.appointments],
+        ['plans', STORAGE_KEYS.plans, data.plans],
+        ['exams', STORAGE_KEYS.exams, data.exams],
+        ['labs', STORAGE_KEYS.labs, data.labs],
+    ].filter((entry): entry is [BackupCategory, string, unknown] => entry[2] !== undefined);
+
+    if (entries.length === 0) return;
+
+    if (isVaultUnlocked()) {
+        const values = Object.fromEntries(entries.map(([, key, value]) => [key, value]));
+        await replaceSecureJsonBatch(values);
+        return;
     }
-    if (data.doctors !== undefined) {
-        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.doctors, data.doctors);
-        else saveJson(STORAGE_KEYS.doctors, data.doctors);
-    }
-    if (data.appointments !== undefined) {
-        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.appointments, data.appointments);
-        else saveJson(STORAGE_KEYS.appointments, data.appointments);
-    }
-    if (data.plans !== undefined) {
-        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.plans, data.plans);
-        else saveJson(STORAGE_KEYS.plans, data.plans);
-    }
-    if (data.exams !== undefined) {
-        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.exams, data.exams);
-        else saveJson(STORAGE_KEYS.exams, data.exams);
-    }
-    // Restaura a categoria healthLabResults completa, sem descartar fotos nem campos dos valores.
-    if (data.labs !== undefined) {
-        if (isVaultUnlocked()) saveSecureJson(STORAGE_KEYS.labs, data.labs);
-        else saveJson(STORAGE_KEYS.labs, data.labs);
+
+    const previous = new Map<string, string | null>();
+    for (const [, key] of entries) previous.set(key, localStorage.getItem(key));
+
+    try {
+        for (const [, key, value] of entries) {
+            if (!saveJson(key, value)) throw new Error('Não foi possível gravar todos os dados do backup.');
+        }
+    } catch (error) {
+        let rollbackFailed = false;
+        for (const [key, raw] of previous) {
+            try {
+                if (raw === null) localStorage.removeItem(key);
+                else localStorage.setItem(key, raw);
+            } catch {
+                rollbackFailed = true;
+            }
+        }
+        if (rollbackFailed) {
+            throw new Error('A restauração falhou e não foi possível reverter todos os dados. Não feche o aplicativo; preserve este dispositivo para recuperação.');
+        }
+        throw error instanceof Error ? error : new Error('Não foi possível concluir a restauração. Os dados anteriores foram preservados.');
     }
 }
