@@ -46,7 +46,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Instalar dependências travadas
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm run lint
@@ -87,7 +87,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Instalar dependências necessárias ao bundle do Worker
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
         working-directory: .
 
       - name: Validar secrets obrigatórios
