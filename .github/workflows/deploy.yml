@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -51,8 +51,7 @@ jobs:
 
       - name: Validar build do Cloudflare Worker (sem deploy)
         run: |
-          npm install --prefix worker --no-audit --no-fund
-          npx wrangler@4 deploy --dry-run --config worker/wrangler.toml
+          pnpm dlx wrangler@4 deploy --dry-run --config worker/wrangler.toml
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
