@@ -106,7 +106,7 @@ describe('notificações Push e agenda de doses', () => {
         values.set(TOKEN_KEY, 'device-token');
         const { syncDoseSchedule } = await import('./pushNotifications');
         const reminder = makeReminder({
-            startDate: '2026-11-13',
+            startDate: '2026-11-14',
             duration: { type: 'days', days: 3 },
             frequency: { type: 'interval', days: 2 },
             times: ['11:00'],
@@ -116,12 +116,8 @@ describe('notificações Push e agenda de doses', () => {
         await syncDoseSchedule([reminder]);
 
         const body = JSON.parse(String(fetchMock.mock.calls[0][1].body)) as { events: number[] };
-        // Dia 14: marcado como tomado. Dia 15: não corresponde ao intervalo de 2 dias.
-        expect(body.events).toEqual([
-            new Date('2026-11-15T11:00:00.000Z').getTime() === 0
-                ? 0
-                : new Date('2026-11-15T11:00:00.000Z').getTime(),
-        ]);
+        // Dia 14: marcado como tomado. Dia 15: fora do intervalo. Dia 16: próxima dose.
+        expect(body.events).toEqual([new Date('2026-11-16T11:00:00.000Z').getTime()]);
     });
 
     it('limita a agenda enviada a 500 eventos ordenados e sem duplicatas', async () => {
