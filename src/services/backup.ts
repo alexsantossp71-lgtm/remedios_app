@@ -298,14 +298,13 @@ export function describeSummary(summary: BackupSummary): string {
 /** Restaura as categorias presentes. No cofre, grava o envelope inteiro em uma operação;
  * sem cofre, mantém snapshots brutos e tenta restaurá-los se qualquer gravação falhar. */
 export async function applyBackup(data: Partial<Required<BackupData>>): Promise<void> {
-    const entries: Array<[BackupCategory, string, unknown]> = [
-        ['reminders', STORAGE_KEYS.reminders, data.reminders],
-        ['doctors', STORAGE_KEYS.doctors, data.doctors],
-        ['appointments', STORAGE_KEYS.appointments, data.appointments],
-        ['plans', STORAGE_KEYS.plans, data.plans],
-        ['exams', STORAGE_KEYS.exams, data.exams],
-        ['labs', STORAGE_KEYS.labs, data.labs],
-    ].filter((entry): entry is [BackupCategory, string, unknown] => entry[2] !== undefined);
+    const entries: Array<[BackupCategory, string, unknown]> = [];
+    if (data.reminders !== undefined) entries.push(['reminders', STORAGE_KEYS.reminders, data.reminders]);
+    if (data.doctors !== undefined) entries.push(['doctors', STORAGE_KEYS.doctors, data.doctors]);
+    if (data.appointments !== undefined) entries.push(['appointments', STORAGE_KEYS.appointments, data.appointments]);
+    if (data.plans !== undefined) entries.push(['plans', STORAGE_KEYS.plans, data.plans]);
+    if (data.exams !== undefined) entries.push(['exams', STORAGE_KEYS.exams, data.exams]);
+    if (data.labs !== undefined) entries.push(['labs', STORAGE_KEYS.labs, data.labs]);
 
     if (entries.length === 0) return;
 
