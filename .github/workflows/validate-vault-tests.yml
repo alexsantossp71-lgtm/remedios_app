@@ -1,0 +1,34 @@
+name: Validate secure vault tests
+
+on:
+  push:
+    branches:
+      - security/aud-002-vault-tests
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install with frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Run vault tests
+        run: pnpm exec vitest run src/services/secureStorage.test.ts
+      - name: Run full test suite
+        run: pnpm test
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Build
+        run: pnpm build
