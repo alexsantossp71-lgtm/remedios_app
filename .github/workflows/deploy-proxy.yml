@@ -86,6 +86,10 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
+      - name: Instalar dependências necessárias ao bundle do Worker
+        run: pnpm install --no-frozen-lockfile
+        working-directory: .
+
       - name: Validar secrets obrigatórios
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
