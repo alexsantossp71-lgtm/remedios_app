@@ -2,56 +2,58 @@
 
 ## Estado da inspeção
 
-O binding PUSH_DB aponta para o banco remedios-push, configurado em worker/wrangler.toml. O código worker/src/push.ts consulta e altera duas tabelas: push_subscriptions e scheduled_notifications.
+O binding `PUSH_DB` aponta para o banco `remedios-push`, configurado em `worker/wrangler.toml`.
 
-**Limite importante:** não foi localizada uma migração SQL versionada que declare o DDL oficial. Este documento descreve o contrato exigido pelo código; não afirma tipos, índices, constraints ou foreign keys que não foram verificados no banco.
+**Migração versionada encontrada:** `worker/migrations/0001_push_schema.sql`. Ela declara as tabelas `push_subscriptions` e `scheduled_notifications`, os índices de seleção/relacionamento e a chave estrangeira de `scheduled_notifications.subscription_id` para `push_subscriptions.id`.
 
-## Tabela lógica: push_subscriptions
+A existência da migração no repositório não comprova, por si só, que ela foi aplicada no banco remoto correto. A confirmação do estado remoto exige consulta autorizada ao Cloudflare D1.
 
-| Coluna | Uso observado |
-|---|---|
-| id | Identificador interno |
-| endpoint | URL do serviço Push do navegador |
-| p256dh | Chave pública da inscrição |
-| auth | Segredo de autenticação da inscrição |
-| token_hash | Hash SHA-256 do token Bearer |
-| created_at_ms | Criação em epoch milliseconds |
-| updated_at_ms | Última atualização em epoch milliseconds |
+## 1. Tabela `push_subscriptions`
 
-O código faz upsert com conflito em endpoint, procura inscrição por token_hash e remove inscrição por id.
+| Coluna | Tipo SQL | Restrições / uso |
+|---|---|---|
+| `id` | TEXT | PRIMARY KEY |
+| `endpoint` | TEXT | NOT NULL, UNIQUE; endpoint Push do navegador |
+| `p256dh` | TEXT | NOT NULL; chave pública da inscrição |
+| `auth` | TEXT | NOT NULL; material de autenticação da inscrição |
+| `token_hash` | TEXT | NOT NULL, UNIQUE; hash do token Bearer |
+| `created_at_ms` | INTEGER | NOT NULL; epoch milliseconds |
+| `updated_at_ms` | INTEGER | NOT NULL; epoch milliseconds |
+| `expires_at_ms` | INTEGER | Opcional |
 
-## Tabela lógica: scheduled_notifications
+## 2. Tabela `scheduled_notifications`
 
-| Coluna | Uso observado |
-|---|---|
-| id | Identificador do evento |
-| subscription_id | Referência à inscrição |
-| fire_at_ms | Instante previsto, epoch milliseconds |
-| created_at_ms | Criação do evento |
-| sent_at_ms | Nulo enquanto pendente; preenchido após envio ou encerramento |
-| attempts | Contagem de tentativas |
+| Coluna | Tipo SQL | Restrições / uso |
+|---|---|---|
+| `id` | TEXT | PRIMARY KEY |
+| `subscription_id` | TEXT | NOT NULL; FK para `push_subscriptions(id)`, ON DELETE CASCADE |
+| `fire_at_ms` | INTEGER | NOT NULL; instante previsto em epoch milliseconds |
+| `created_at_ms` | INTEGER | NOT NULL; criação em epoch milliseconds |
+| `sent_at_ms` | INTEGER | Opcional; nulo enquanto pendente |
+| `attempts` | INTEGER | NOT NULL, DEFAULT 0 |
 
-O Worker seleciona eventos não encerrados cujo fire_at_ms já venceu, ordenados pelo horário e com limite de cinco por execução.
+## 3. Índices versionados
 
-## Invariantes observados
+- `idx_scheduled_due` em `(sent_at_ms, fire_at_ms)`.
+- `idx_scheduled_subscription` em `(subscription_id, fire_at_ms)`.
 
-- Tokens são validados por formato e armazenados como SHA-256.
-- Endpoint deve usar HTTPS e host Push permitido.
-- Eventos devem ser inteiros seguros, futuros e limitados a 31 dias.
-- Cada agendamento aceita até 500 eventos.
-- O novo agendamento substitui os eventos pendentes anteriores em lote.
-- A mensagem Push é genérica e não inclui medicamento, dose ou histórico.
-- Respostas 404/410 removem a inscrição.
-- Falhas são tentadas novamente até cinco vezes.
+A migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`.
 
-## Verificações necessárias no painel D1
+## 4. Comportamento observado no código
 
-1. Exportar o DDL real com ferramenta autorizada, sem publicar dados.
-2. Versionar migrações SQL em diretório próprio.
-3. Confirmar índices para endpoint, token_hash e seleção de eventos pendentes.
-4. Confirmar foreign key de scheduled_notifications.subscription_id e política de exclusão.
-5. Confirmar constraints de unicidade e tipos numéricos.
-6. Testar migrações em banco de desenvolvimento.
-7. Definir limpeza de eventos enviados e inscrições obsoletas.
+- O código faz upsert com conflito em `endpoint`, procura inscrição por `token_hash` e remove inscrição por `id`.
+- Eventos pendentes são selecionados pelo horário de vencimento e processados pelo Worker.
+- A mensagem Push é genérica e não deve incluir medicamento, dose ou histórico clínico.
+- Respostas de endpoint expirado/inválido podem levar à remoção da inscrição.
+- O Worker limita tentativas de envio e mantém os horários em UTC/epoch milliseconds.
 
-Nunca executar alteração destrutiva em produção sem backup, revisão e plano de reversão. Não publicar endpoints Push, chaves ou dumps com dados reais.
+## 5. Verificações operacionais ainda necessárias
+
+1. Confirmar no painel/CLI Cloudflare que a migração `0001_push_schema.sql` foi aplicada no banco remoto `remedios-push`.
+2. Comparar o schema remoto com a migração versionada, sem exportar ou publicar dados de usuários.
+3. Testar aplicação da migração em banco de desenvolvimento e validar o procedimento de rollback/recuperação.
+4. Definir limpeza e retenção de eventos enviados e inscrições obsoletas.
+5. Confirmar backup e restauração do D1, com acesso restrito e ensaio documentado.
+6. Registrar o responsável e a data da última verificação operacional.
+
+Nunca executar alteração destrutiva em produção sem backup, revisão e plano de reversão. Não publicar endpoints Push, tokens, chaves privadas ou dumps com dados reais.
