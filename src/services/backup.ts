@@ -19,7 +19,7 @@ import {
 } from '../storage';
 import { Appointment, Doctor, Exam, HealthPlan, LabResult, Reminder } from '../types';
 import { toDateTimeInputValue } from '../utils/datetime';
-import { loadSecureJson, saveSecureJson, isVaultUnlocked, replaceSecureJsonBatch } from './secureStorage';
+import { loadSecureJson, isVaultUnlocked, replaceSecureJsonBatch } from './secureStorage';
 
 /** Marcadores do formato, para rejeitar arquivos de outros apps/versões. */
 const APP_ID = 'remedio-na-hora';
@@ -335,6 +335,6 @@ export async function applyBackup(data: Partial<Required<BackupData>>): Promise<
         if (rollbackFailed) {
             throw new Error('A restauração falhou e não foi possível reverter todos os dados. Não feche o aplicativo; preserve este dispositivo para recuperação.');
         }
-        throw error instanceof Error ? error : new Error('Não foi possível concluir a restauração. Os dados anteriores foram preservados.');
+        throw error instanceof Error ? error : new Error('Não foi possível concluir a restauração. Os dados anteriores foram preservados.', { cause: error });
     }
 }
