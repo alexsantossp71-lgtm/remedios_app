@@ -78,6 +78,24 @@ async function writeEnvelope(envelope: VaultEnvelope): Promise<void> {
     });
 }
 
+/** Cria o primeiro envelope sem substituir um cofre já configurado. */
+async function createEnvelope(envelope: VaultEnvelope): Promise<void> {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(VAULT_STORE, 'readwrite');
+        transaction.objectStore(VAULT_STORE).add(envelope, VAULT_ID);
+        transaction.oncomplete = () => { db.close(); resolve(); };
+        transaction.onerror = () => {
+            const error = transaction.error;
+            db.close();
+            reject(error?.name === 'ConstraintError'
+                ? new Error('Já existe um cofre protegido neste dispositivo. Desbloqueie-o antes de qualquer alteração.')
+                : error ?? new Error('Não foi possível criar o armazenamento protegido.'));
+        };
+        transaction.onabort = () => { db.close(); reject(transaction.error ?? new Error('A criação do cofre foi cancelada.')); };
+    });
+}
+
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
     const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey(
@@ -135,34 +153,59 @@ export async function createSecureVault(password: string): Promise<void> {
     const key = await deriveKey(password, salt);
     const data = collectLegacyData();
     const envelope = await makeEnvelope(data, key, salt);
-    await writeEnvelope(envelope);
+    // add() é atômico e recusa substituir um cofre que já exista.
+    await createEnvelope(envelope);
+    // A cópia criptografada já está confirmada; se a limpeza falhar, o cofre fica bloqueado
+    // e os dados protegidos podem ser recuperados em uma nova tentativa de desbloqueio.
+    removeLegacyData();
     activeKey = key;
     activeData = data;
-    // Só remove os dados antigos depois que a cópia criptografada foi confirmada no IndexedDB.
-    removeLegacyData();
 }
 
 /** Desbloqueia os dados com a senha; falha sem alterar o conteúdo em caso de senha incorreta. */
 export async function unlockSecureVault(password: string): Promise<void> {
+    // Uma tentativa de desbloqueio sempre começa em estado fechado.
+    activeKey = null;
+    activeData = null;
     const envelope = await readEnvelope();
     if (!envelope) throw new Error('A proteção ainda não foi configurada neste dispositivo.');
+
+    let key: CryptoKey;
+    let data: VaultData;
     try {
         if (envelope.version !== 1 || envelope.kdf !== 'PBKDF2-SHA-256' || envelope.iterations !== PBKDF2_ITERATIONS) {
             throw new Error('Formato não reconhecido.');
         }
         const salt = fromBase64(envelope.salt);
         const iv = fromBase64(envelope.iv);
-        const key = await deriveKey(password, salt);
-        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(fromBase64(envelope.ciphertext)));
+        if (salt.length !== 16 || iv.length !== 12) throw new Error('Parâmetros criptográficos inválidos.');
+        key = await deriveKey(password, salt);
+        const ciphertext = fromBase64(envelope.ciphertext);
+        if (ciphertext.length < 16) throw new Error('Conteúdo criptografado inválido.');
+        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(ciphertext));
         const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext));
-        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Dados inválidos.');
-        activeKey = key;
-        activeData = parsed as VaultData;
-        // Limpeza de eventual cópia antiga deixada por interrupção durante uma migração anterior.
-        removeLegacyData();
+        if (
+            typeof parsed !== 'object' ||
+            parsed === null ||
+            Array.isArray(parsed) ||
+            !Object.entries(parsed).every(([name, value]) => DATA_KEYS.includes(name as typeof DATA_KEYS[number]) && typeof value === 'string')
+        ) {
+            throw new Error('Dados inválidos.');
+        }
+        data = parsed as VaultData;
     } catch {
         throw new Error('Senha incorreta ou dados protegidos inválidos. Tente novamente.');
     }
+
+    // Não liberar o cofre antes de concluir a limpeza de eventual cópia legada.
+    // Se o navegador negar a remoção, a próxima tentativa pode repetir a operação com segurança.
+    try {
+        removeLegacyData();
+    } catch {
+        throw new Error('Os dados estão protegidos, mas não foi possível concluir a limpeza dos dados antigos. O cofre permanece bloqueado; tente novamente.');
+    }
+    activeKey = key;
+    activeData = data;
 }
 
 /** Desativa a senha, preservando os registros no armazenamento local sem criptografia. */
