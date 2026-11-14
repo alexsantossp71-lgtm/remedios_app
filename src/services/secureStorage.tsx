@@ -272,6 +272,19 @@ export function saveSecureJson(key: string, value: unknown): boolean {
     return true;
 }
 
+/** Substitui várias categorias em uma única gravação do envelope criptografado. */
+export async function replaceSecureJsonBatch(values: Record<string, unknown>): Promise<void> {
+    if (!activeData || !activeKey) throw new Error('Desbloqueie o cofre antes de restaurar o backup.');
+    await flushSecureWrites();
+    const snapshot = { ...activeData };
+    for (const [key, value] of Object.entries(values)) snapshot[key] = JSON.stringify(value);
+    const envelope = await readEnvelope();
+    if (!envelope) throw new Error('Cofre protegido não encontrado. Nenhum dado foi alterado.');
+    const nextEnvelope = await makeEnvelope(snapshot, activeKey, fromBase64(envelope.salt));
+    await writeEnvelope(nextEnvelope);
+    activeData = snapshot;
+}
+
 export async function flushSecureWrites(): Promise<void> {
     await writeQueue;
     if (lastWriteError) throw new Error('Não foi possível confirmar a gravação dos últimos dados. Mantenha o aplicativo aberto e tente novamente.');
