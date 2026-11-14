@@ -8,9 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/test-service-worker.mjs",
     "test:watch": "vitest",
-    "lint": "eslint src worker"
+    "lint": "eslint src worker",
+    "test:service-worker": "node --test scripts/test-service-worker.mjs"
   },
   "packageManager": "pnpm@10.34.5",
   "devDependencies": {
