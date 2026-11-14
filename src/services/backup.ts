@@ -333,7 +333,7 @@ export async function applyBackup(data: Partial<Required<BackupData>>): Promise<
             }
         }
         if (rollbackFailed) {
-            throw new Error('A restauração falhou e não foi possível reverter todos os dados. Não feche o aplicativo; preserve este dispositivo para recuperação.');
+            throw new Error('A restauração falhou e não foi possível reverter todos os dados. Não feche o aplicativo; preserve este dispositivo para recuperação.', { cause: error });
         }
         throw error instanceof Error ? error : new Error('Não foi possível concluir a restauração. Os dados anteriores foram preservados.', { cause: error });
     }
