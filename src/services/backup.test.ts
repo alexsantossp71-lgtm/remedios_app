@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '../storage';
 import { applyBackup, buildBackup, decryptBackup, encryptBackup, parseBackup } from './backup';
-import type { LabResult } from '../types';
+import type { LabResult, Reminder } from '../types';
 
 const lab: LabResult = {
     id: 'lab-1',
@@ -74,8 +74,8 @@ describe('backup de laudos laboratoriais', () => {
     });
 
     it('reverte as categorias já gravadas quando uma gravação posterior falha', async () => {
-        const oldReminders = [{ id: 'old', medicationName: 'Registro anterior', startDate: '2026-11-01', duration: { type: 'continuous', days: 0 }, frequency: { type: 'daily', days: 1 }, times: ['08:00'], history: {} }];
-        const newReminders = [{ ...oldReminders[0], id: 'new', medicationName: 'Novo registro' }];
+        const oldReminders: Reminder[] = [{ id: 'old', medicationName: 'Registro anterior', startDate: '2026-11-01', duration: { type: 'continuous', days: 0 }, frequency: { type: 'daily', days: 1 }, times: ['08:00'], history: {} }];
+        const newReminders: Reminder[] = [{ ...oldReminders[0], id: 'new', medicationName: 'Novo registro' }];
         store.set(STORAGE_KEYS.reminders, JSON.stringify(oldReminders));
         const originalSetItem = localStorage.setItem.bind(localStorage);
         vi.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
