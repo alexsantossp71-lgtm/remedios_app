@@ -29,7 +29,8 @@
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.72.2",
     "vite": "^5.2.13",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "fake-indexeddb": "^6.2.4"
   },
   "dependencies": {
     "@block65/webcrypto-web-push": "1.0.2"
