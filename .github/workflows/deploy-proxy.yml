@@ -1,10 +1,8 @@
 name: Deploy AI Proxy (Cloudflare Worker)
 
-# Deploy do proxy de IA para o Cloudflare, sem terminal local.
-# Requer estes secrets no repositório (Settings → Secrets → Actions):
-#   CLOUDFLARE_API_TOKEN   — token com permissão de editar Workers
-#   CLOUDFLARE_ACCOUNT_ID  — Account ID do painel do Cloudflare
-#   NVIDIA_API_KEY         — chave nvapi- da NVIDIA
+# O deploy remoto só começa depois de toda a validação do projeto.
+# Requer CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID e NVIDIA_API_KEY.
+# POLLINATIONS_API_KEY é opcional.
 
 on:
   push:
@@ -13,13 +11,57 @@ on:
     paths:
       - 'worker/**'
       - '.github/workflows/deploy-proxy.yml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
+concurrency:
+  group: cloudflare-worker-production
+  cancel-in-progress: false
+
 jobs:
+  validate:
+    name: Validar aplicação e Worker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Instalar dependências travadas
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Testes unitários
+        run: pnpm test
+
+      - name: Build do frontend
+        run: pnpm run build
+        env:
+          VITE_DEFAULT_PROXY_URL: https://remedios-ai-proxy.alexsantossp71.workers.dev
+
+      - name: Validar Worker sem publicar
+        run: pnpm dlx wrangler@4 deploy --dry-run --config worker/wrangler.toml
+
   deploy:
+    name: Publicar Worker e migrações D1
+    needs: validate
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,6 +69,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Instalar dependências travadas
+        run: pnpm install --frozen-lockfile
+        working-directory: .
 
       - name: Validar secrets obrigatórios
         env:
@@ -39,43 +94,29 @@ jobs:
             if [ -z "${!name}" ]; then echo "::error::Secret obrigatório ausente: $name"; missing=1; fi
           done
           exit "$missing"
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Instalar dependências do Worker
-        run: npm install --no-audit --no-fund
+        working-directory: .
 
       - name: Aplicar migrações do banco D1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler@4 d1 migrations apply remedios-push --remote
+        run: pnpm dlx wrangler@4 d1 migrations apply remedios-push --remote
+        working-directory: .
 
-      - name: Deploy do Worker (código + configurações)
+      - name: Deploy do Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler@4 deploy
+        run: pnpm dlx wrangler@4 deploy --config worker/wrangler.toml
+        working-directory: .
 
-      - name: Publicar o secret NVIDIA_API_KEY no Worker
+      - name: Publicar secret NVIDIA_API_KEY
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-        run: |
-          if [ -z "$NVIDIA_API_KEY" ]; then
-            echo "::error::Secret NVIDIA_API_KEY ausente no repositório GitHub."
-            exit 1
-          fi
-          printf '%s' "$NVIDIA_API_KEY" | npx wrangler@4 secret put NVIDIA_API_KEY
-
-      - name: Resumo
-        run: |
-          echo "Worker deployado. Teste: curl https://remedios-ai-proxy.<sua-conta>.workers.dev/health"
-          echo "Confira a URL exata em: dash.cloudflare.com → Workers & Pages → remedios-ai-proxy"
+        run: printf '%s' "$NVIDIA_API_KEY" | pnpm dlx wrangler@4 secret put NVIDIA_API_KEY --config worker/wrangler.toml
+        working-directory: .
 
       - name: Publicar secret Pollinations (opcional)
         env:
@@ -84,7 +125,8 @@ jobs:
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
         run: |
           if [ -n "$POLLINATIONS_API_KEY" ]; then
-            printf '%s' "$POLLINATIONS_API_KEY" | npx wrangler@4 secret put POLLINATIONS_API_KEY
+            printf '%s' "$POLLINATIONS_API_KEY" | pnpm dlx wrangler@4 secret put POLLINATIONS_API_KEY --config worker/wrangler.toml
           else
             echo "Pollinations desativado: secret POLLINATIONS_API_KEY não cadastrado."
           fi
+        working-directory: .
