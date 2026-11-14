@@ -194,7 +194,7 @@ describe('notificações Push e agenda de doses', () => {
     });
 
     it('informa claramente quando o navegador não oferece suporte a Push', async () => {
-        vi.stubGlobal('navigator', { serviceWorker: undefined });
+        vi.stubGlobal('navigator', {});
         const { enablePush } = await import('./pushNotifications');
 
         await expect(enablePush([])).rejects.toThrow('Este navegador não oferece suporte a notificações Push.');
