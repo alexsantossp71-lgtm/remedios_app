@@ -1,10 +1,10 @@
 # Documentação técnica — Remédio na Hora
 
 **Projeto:** Remédio na Hora (`remedios_app`)  
-**Versão documental:** 1.2  
+**Versão documental:** 1.3  
 **Data:** 14/11/2026  
-**Base de inspeção:** branch `main`, consultada durante a elaboração desta documentação.  
-**Status:** documentação técnica ampliada; itens não verificados estão identificados como pendências.
+**Base de inspeção:** branch `main` e baseline da auditoria de profissionalização.  
+**Status:** documentação técnica ampliada; auditoria de profissionalização em andamento.
 
 Esta pasta é a referência técnica do aplicativo. Os documentos descrevem o comportamento observado no código e distinguem controles implementados, recomendações e pontos ainda não auditados.
 
@@ -39,7 +39,7 @@ Esta pasta é a referência técnica do aplicativo. Os documentos descrevem o co
 |---|---|
 | [Integração com IA](./AI_INTEGRATION.md) | NVIDIA, Pollinations, modelos e limites |
 | [Notificações Push](./PUSH_NOTIFICATIONS.md) | Inscrição, agendamento, D1 e envio |
-| [Esquema D1](./D1_SCHEMA.md) | Contrato observado das tabelas de notificações |
+| [Esquema D1](./D1_SCHEMA.md) | Migração SQL versionada e contrato do banco de notificações |
 | [PWA e modo offline](./PWA_OFFLINE.md) | Manifesto, Service Worker e cache |
 | [Configuração](./CONFIGURATION.md) | Variáveis, secrets e limites |
 
@@ -55,6 +55,7 @@ Esta pasta é a referência técnica do aplicativo. Os documentos descrevem o co
 | [Compatibilidade](./COMPATIBILITY.md) | APIs de navegador e matriz de testes |
 | [Acessibilidade](./ACCESSIBILITY.md) | Critérios e testes recomendados |
 | [Controle de mudanças](./CHANGE_CONTROL.md) | Branches, PRs e atualização documental |
+| [Auditoria de profissionalização](./PROFESSIONALIZATION_AUDIT.md) | Achados, evidências, gravidade, correções e critérios de prontidão |
 
 ## 5. Manutenção da documentação
 
@@ -66,13 +67,13 @@ Esta pasta é a referência técnica do aplicativo. Os documentos descrevem o co
 
 ## 6. Pendências de engenharia identificadas
 
-1. Confirmar o DDL e as migrações reais do Cloudflare D1; ver [Esquema D1](./D1_SCHEMA.md), que descreve o contrato observado sem inventar o DDL.
-2. Auditar integralmente o módulo de cofre, incluindo custo PBKDF2, concorrência entre abas e recuperação após falhas.
-3. Auditar a implementação real de exportação/importação e alinhar o formato executado ao contrato proposto em [Contrato de backup](./BACKUP_FORMAT.md).
+1. Confirmar no Cloudflare D1 remoto que a migração versionada em `worker/migrations/0001_push_schema.sql` foi aplicada ao banco correto.
+2. Auditar integralmente o módulo de cofre, incluindo testes dedicados, concorrência entre abas e recuperação após falhas.
+3. Auditar a implementação real de exportação/importação e testar o formato criptografado e não criptografado.
 4. Avaliar limites globais persistentes para o proxy; o rate limit atual é em memória por isolate.
 5. Definir RPO/RTO, retenção, monitoramento e rollback testado.
-6. Realizar auditoria de segurança, acessibilidade e privacidade independente antes de uso institucional/comercial.
+6. Realizar homologação em navegadores/dispositivos e revisão independente de segurança, acessibilidade e privacidade antes de uso institucional/comercial.
 
 ## 7. Escopo e ressalvas
 
-A documentação foi elaborada a partir de arquivos do repositório, incluindo `package.json`, `src/App.tsx`, `src/types.ts`, `src/storage.ts`, serviços de IA e Push, `worker/src`, `worker/wrangler.toml`, Service Worker, manifesto e workflows. Ela não substitui auditoria de segurança, validação clínica, avaliação jurídica ou testes em produção.
+A documentação foi elaborada a partir de arquivos do repositório, incluindo `package.json`, `src/App.tsx`, `src/types.ts`, `src/storage.ts`, serviços de IA e Push, `worker/src`, `worker/migrations`, `worker/wrangler.toml`, Service Worker, manifesto e workflows. Ela não substitui auditoria independente de segurança, validação clínica, avaliação jurídica ou testes em produção.
