@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Reminder } from '../types';
+import { ReminderStatus, type Reminder } from '../types';
 import { getNextReminderAlarm } from './reminderScheduler';
 
 const makeReminder = (overrides: Partial<Reminder> = {}): Reminder => ({
@@ -29,7 +29,7 @@ describe('agendamento local de lembretes', () => {
     it('ignora horários passados e doses já registradas no histórico', () => {
         const reminder = makeReminder({
             times: ['08:00', '10:00', '11:00', '12:00'],
-            history: { '2026-11-14': { '11:00': 'taken' } },
+            history: { '2026-11-14': { '11:00': ReminderStatus.TAKEN } },
         });
 
         const result = getNextReminderAlarm([reminder], now);
@@ -81,7 +81,7 @@ describe('agendamento local de lembretes', () => {
     it('não dispara quando todos os horários do dia já passaram ou foram respondidos', () => {
         const reminder = makeReminder({
             times: ['08:00', '09:30'],
-            history: { '2026-11-14': { '09:30': 'skipped' } },
+            history: { '2026-11-14': { '09:30': ReminderStatus.SKIPPED } },
         });
 
         expect(getNextReminderAlarm([reminder], now).nextAlarmTime).toBeNull();
