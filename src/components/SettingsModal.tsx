@@ -127,7 +127,7 @@ const SettingsModal: React.FC<Props> = ({ onClose, onLock, reminders }) => {
         if (!confirmed) return;
 
         try {
-            applyBackup(parsed.data);
+            await applyBackup(parsed.data);
             await flushSecureWrites();
             window.location.reload(); // recarrega com os dados importados
         } catch (error) {

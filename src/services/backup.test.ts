@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '../storage';
 import { applyBackup, buildBackup, decryptBackup, encryptBackup, parseBackup } from './backup';
-import type { LabResult } from '../types';
+import type { LabResult, Reminder } from '../types';
 
 const lab: LabResult = {
     id: 'lab-1',
@@ -42,7 +42,7 @@ describe('backup de laudos laboratoriais', () => {
         expect(buildBackup().data.labs).toEqual([lab]);
     });
 
-    it('valida e restaura os laudos completos, inclusive foto e valores, na importação', () => {
+    it('valida e restaura os laudos completos, inclusive foto e valores, na importação', async () => {
         const file = {
             app: 'remedio-na-hora',
             version: 1,
@@ -53,11 +53,11 @@ describe('backup de laudos laboratoriais', () => {
         expect(parsed.ok).toBe(true);
         if (!parsed.ok) return;
         expect(parsed.data.labs).toEqual([lab]);
-        applyBackup(parsed.data);
+        await applyBackup(parsed.data);
         expect(JSON.parse(store.get(STORAGE_KEYS.labs) ?? 'null')).toEqual([lab]);
     });
 
-    it('preserva laudos existentes ao importar backup antigo sem a categoria labs', () => {
+    it('preserva laudos existentes ao importar backup antigo sem a categoria labs', async () => {
         store.set(STORAGE_KEYS.labs, JSON.stringify([lab]));
         const legacy = {
             app: 'remedio-na-hora',
@@ -71,6 +71,21 @@ describe('backup de laudos laboratoriais', () => {
         applyBackup(parsed.data);
         expect(JSON.parse(store.get(STORAGE_KEYS.labs) ?? 'null')).toEqual([lab]);
         expect(JSON.parse(store.get(STORAGE_KEYS.reminders) ?? 'null')).toEqual([]);
+    });
+
+    it('reverte as categorias já gravadas quando uma gravação posterior falha', async () => {
+        const oldReminders: Reminder[] = [{ id: 'old', medicationName: 'Registro anterior', startDate: '2026-11-01', duration: { type: 'continuous', days: 0 }, frequency: { type: 'daily', days: 1 }, times: ['08:00'], history: {} }];
+        const newReminders: Reminder[] = [{ ...oldReminders[0], id: 'new', medicationName: 'Novo registro' }];
+        store.set(STORAGE_KEYS.reminders, JSON.stringify(oldReminders));
+        const originalSetItem = localStorage.setItem.bind(localStorage);
+        vi.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+            if (key === STORAGE_KEYS.labs) throw new Error('quota exceeded');
+            originalSetItem(key, value);
+        });
+
+        await expect(applyBackup({ reminders: newReminders, labs: [lab] })).rejects.toThrow('gravar todos os dados');
+        expect(JSON.parse(store.get(STORAGE_KEYS.reminders) ?? 'null')).toEqual(oldReminders);
+        expect(store.has(STORAGE_KEYS.labs)).toBe(false);
     });
 
     it('rejeita laudos com estrutura inválida sem aplicar parcialmente', () => {
