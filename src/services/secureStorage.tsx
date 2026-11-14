@@ -83,10 +83,10 @@ async function createEnvelope(envelope: VaultEnvelope): Promise<void> {
     const db = await openDatabase();
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(VAULT_STORE, 'readwrite');
-        transaction.objectStore(VAULT_STORE).add(envelope, VAULT_ID);
+        const request = transaction.objectStore(VAULT_STORE).add(envelope, VAULT_ID);
         transaction.oncomplete = () => { db.close(); resolve(); };
         transaction.onerror = () => {
-            const error = transaction.error;
+            const error = request.error ?? transaction.error;
             db.close();
             reject(error?.name === 'ConstraintError'
                 ? new Error('Já existe um cofre protegido neste dispositivo. Desbloqueie-o antes de qualquer alteração.')
