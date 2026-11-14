@@ -178,4 +178,72 @@ describe('cofre criptográfico — AUD-002', () => {
         expect(storage.isVaultUnlocked()).toBe(false);
         expect(await storage.inspectSecureStorage()).toEqual({ configured: false, hasLegacyData: true });
     });
+    it('não substitui um cofre existente ao tentar configurá-lo novamente', async () => {
+        const original = [{ id: 'preservado' }];
+        await storage.createSecureVault('senha-original-123');
+        storage.saveSecureJson(STORAGE_KEYS.reminders, original);
+        await storage.flushSecureWrites();
+        storage.lockSecureVault();
+
+        await expect(storage.createSecureVault('outra-senha-123')).rejects.toThrow('Já existe um cofre protegido');
+        await storage.unlockSecureVault('senha-original-123');
+        expect(storage.loadSecureJson(STORAGE_KEYS.reminders, Array.isArray)).toEqual(original);
+    });
+
+    it('mantém o cofre bloqueado se a limpeza de dados legados falhar durante o desbloqueio', async () => {
+        await storage.createSecureVault('senha-segura-123');
+        storage.lockSecureVault();
+        localStorage.setItem(STORAGE_KEYS.reminders, JSON.stringify([{ id: 'legado' }]));
+        vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
+            throw new DOMException('Acesso negado', 'SecurityError');
+        });
+
+        await expect(storage.unlockSecureVault('senha-segura-123')).rejects.toThrow('O cofre permanece bloqueado');
+        expect(storage.isVaultUnlocked()).toBe(false);
+        expect(localStorage.getItem(STORAGE_KEYS.reminders)).not.toBeNull();
+    });
+
+    it('permite recuperar o cofre após uma falha temporária na limpeza de dados legados', async () => {
+        await storage.createSecureVault('senha-segura-123');
+        storage.lockSecureVault();
+        localStorage.setItem(STORAGE_KEYS.reminders, JSON.stringify([{ id: 'recuperado' }]));
+        const removeSpy = vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
+            throw new DOMException('Acesso negado', 'SecurityError');
+        });
+        await expect(storage.unlockSecureVault('senha-segura-123')).rejects.toThrow('O cofre permanece bloqueado');
+        removeSpy.mockRestore();
+
+        await storage.unlockSecureVault('senha-segura-123');
+        expect(storage.isVaultUnlocked()).toBe(true);
+        expect(localStorage.getItem(STORAGE_KEYS.reminders)).toBeNull();
+    });
+
+    it('rejeita envelope com estrutura de dados inválida', async () => {
+        await storage.createSecureVault('senha-segura-123');
+        storage.lockSecureVault();
+        const envelope = await readStoredEnvelope();
+        expect(envelope).not.toBeNull();
+        const salt = Uint8Array.from(atob(String(envelope?.salt)), (char) => char.charCodeAt(0));
+        const iv = Uint8Array.from(atob(String(envelope?.iv)), (char) => char.charCodeAt(0));
+        const material = await crypto.subtle.importKey('raw', new TextEncoder().encode('senha-segura-123'), 'PBKDF2', false, ['deriveKey']);
+        const key = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt, iterations: 310_000, hash: 'SHA-256' },
+            material,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt'],
+        );
+        const invalidCiphertext = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            key,
+            new TextEncoder().encode(JSON.stringify({ unexpectedKey: 'value' })),
+        );
+        const bytes = new Uint8Array(invalidCiphertext);
+        const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+        await replaceStoredEnvelope({ ...envelope, ciphertext: btoa(binary) });
+
+        await expect(storage.unlockSecureVault('senha-segura-123')).rejects.toThrow('dados protegidos inválidos');
+        expect(storage.isVaultUnlocked()).toBe(false);
+    });
+
 });
