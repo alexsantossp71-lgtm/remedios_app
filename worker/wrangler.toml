@@ -18,9 +18,9 @@ crons = ["* * * * *"]
 
 [vars]
 # Origens autorizadas a chamar o proxy (CORS, exact match, separadas por vírgula).
-# CONFIRME o endereço real do seu Pages após o deploy:
-# https://alexsantossp71-lgtm.github.io  (cobre /remedios_app/)
-ALLOWED_ORIGINS = "https://alexsantossp71-lgtm.github.io,http://localhost:5173,http://127.0.0.1:5173"
+# https://alexsantossp71-lgtm.github.io — PWA React hospedado no GitHub Pages (cobre /remedios_app/)
+# https://remedios-app-flutter.vercel.app — app Flutter web hospedado na Vercel
+ALLOWED_ORIGINS = "https://alexsantossp71-lgtm.github.io,https://remedios-app-flutter.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
 
 # Modelos que o proxy aceita (protege contra uso arbitrário da chave).
 # Lista curada de modelos NVIDIA para texto e visão. O app consulta /models e
