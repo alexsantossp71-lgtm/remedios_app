@@ -52,7 +52,7 @@ const installBrowserMocks = () => {
             }),
         },
     });
-    vi.stubGlobal('window', { PushManager: class PushManager {} });
+    vi.stubGlobal('window', { PushManager: class PushManager {}, Notification: class BrowserNotification {} });
     vi.stubGlobal('Notification', {
         permission: 'granted',
         requestPermission,
@@ -93,10 +93,12 @@ describe('notificações Push e agenda de doses', () => {
         const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
         expect(url).toBe(`${API_BASE}/push/schedule`);
         const body = JSON.parse(String(options.body)) as { events: number[] };
-        expect(body.events).toEqual([
+        expect(body.events.slice(0, 2)).toEqual([
             new Date('2026-11-14T11:00:00.000Z').getTime(),
             new Date('2026-11-14T12:30:00.000Z').getTime(),
         ]);
+        expect(body.events.length).toBeGreaterThan(2);
+        expect(body.events.every(event => event > Date.now())).toBe(true);
         expect(String(options.body)).not.toContain('Medicamento confidencial');
         expect(String(options.body)).not.toContain('1 comprimido');
         expect(String(options.body)).not.toContain(reminder.id);
