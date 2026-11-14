@@ -86,10 +86,6 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Instalar dependências travadas
-        run: pnpm install --frozen-lockfile
-        working-directory: .
-
       - name: Validar secrets obrigatórios
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
