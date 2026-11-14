@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Reminder } from '../types';
+import { ReminderStatus, type Reminder } from '../types';
 
 const TOKEN_KEY = 'remedioPushDeviceToken';
 const API_BASE = 'https://remedios-ai-proxy.alexsantossp71.workers.dev';
@@ -110,7 +110,7 @@ describe('notificações Push e agenda de doses', () => {
             duration: { type: 'days', days: 3 },
             frequency: { type: 'interval', days: 2 },
             times: ['11:00'],
-            history: { '2026-11-14': { '11:00': 'taken' } },
+            history: { '2026-11-14': { '11:00': ReminderStatus.TAKEN } },
         });
 
         await syncDoseSchedule([reminder]);
