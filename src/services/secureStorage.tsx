@@ -209,23 +209,62 @@ export async function unlockSecureVault(password: string): Promise<void> {
 }
 
 /** Desativa a senha, preservando os registros no armazenamento local sem criptografia. */
+function restoreLocalStorageSnapshot(snapshot: Map<string, string | null>): void {
+    let failed = false;
+    for (const [key, raw] of snapshot) {
+        try {
+            if (raw === null) localStorage.removeItem(key);
+            else localStorage.setItem(key, raw);
+        } catch {
+            failed = true;
+        }
+    }
+    if (failed) {
+        throw new Error('Não foi possível reverter todos os arquivos locais. O cofre protegido continua ativo; mantenha este dispositivo e tente a recuperação antes de limpar os dados.');
+    }
+}
+
+/** Desativa a senha somente depois de restaurar todos os dados e remover o envelope. */
 export async function disableSecureVault(): Promise<void> {
     if (!activeData) throw new Error('Desbloqueie o aplicativo antes de desativar a proteção.');
     await flushSecureWrites();
-    for (const key of DATA_KEYS) {
-        const raw = activeData[key];
-        if (raw !== undefined && !saveJson(key, JSON.parse(raw))) {
-            throw new Error('Não foi possível salvar todos os dados sem criptografia. A proteção foi mantida.');
-        }
+
+    // Snapshot permite desfazer gravações parciais se localStorage ou IndexedDB falhar.
+    const previous = new Map<string, string | null>();
+    try {
+        for (const key of DATA_KEYS) previous.set(key, localStorage.getItem(key));
+    } catch (error) {
+        throw new Error('Não foi possível verificar o armazenamento local. A proteção foi mantida.', { cause: error });
     }
-    const db = await openDatabase();
-    await new Promise<void>((resolve, reject) => {
-        const transaction = db.transaction(VAULT_STORE, 'readwrite');
-        transaction.objectStore(VAULT_STORE).delete(VAULT_ID);
-        transaction.oncomplete = () => { db.close(); resolve(); };
-        transaction.onerror = () => { db.close(); reject(transaction.error ?? new Error('Não foi possível desativar a proteção.')); };
-        transaction.onabort = () => { db.close(); reject(transaction.error ?? new Error('A operação foi cancelada.')); };
-    });
+
+    try {
+        for (const key of DATA_KEYS) {
+            const raw = activeData[key];
+            if (raw !== undefined && !saveJson(key, JSON.parse(raw))) {
+                throw new Error('Não foi possível salvar todos os dados sem criptografia.');
+            }
+        }
+    } catch (error) {
+        restoreLocalStorageSnapshot(previous);
+        throw error instanceof Error
+            ? new Error(`${error.message} A proteção foi mantida.`, { cause: error })
+            : new Error('Não foi possível restaurar todos os dados. A proteção foi mantida.', { cause: error });
+    }
+
+    try {
+        const db = await openDatabase();
+        await new Promise<void>((resolve, reject) => {
+            const transaction = db.transaction(VAULT_STORE, 'readwrite');
+            transaction.objectStore(VAULT_STORE).delete(VAULT_ID);
+            transaction.oncomplete = () => { db.close(); resolve(); };
+            transaction.onerror = () => { db.close(); reject(transaction.error ?? new Error('Não foi possível desativar a proteção.')); };
+            transaction.onabort = () => { db.close(); reject(transaction.error ?? new Error('A operação foi cancelada.')); };
+        });
+    } catch (error) {
+        restoreLocalStorageSnapshot(previous);
+        throw new Error('Não foi possível remover o envelope protegido. A proteção foi mantida e os dados locais parciais foram revertidos; tente novamente.', { cause: error });
+    }
+
     activeKey = null;
     activeData = null;
 }
