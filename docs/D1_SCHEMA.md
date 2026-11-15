@@ -73,7 +73,7 @@ A migração 0001 usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS
 
 ## 6. Verificações operacionais ainda necessárias
 
-1. A migração `0001_push_schema.sql` foi aplicada com sucesso pelo workflow `43657583338` em 15/11/2026. As migrações `0002` e `0003` ainda dependem dos respectivos PRs e do deploy após merge.
+1. A migração `0001_push_schema.sql` foi aplicada com sucesso pelo workflow `43657583338` em 15/11/2026. A migração `0002_push_delivery_reliability.sql` foi incorporada à `main` pelo PR #44; a aplicação remota depende da conclusão do deploy desse commit. Esta branch acrescenta a migração `0003_persistent_rate_limits.sql`. A validação local deve executar as migrações em ordem (0001, 0002 e 0003) no commit de integração do PR.
 2. Comparar o schema remoto com a migração versionada, sem exportar ou publicar dados de usuários.
 3. Testar aplicação da migração em banco de desenvolvimento e validar o procedimento de rollback/recuperação.
 4. Definir limpeza e retenção de eventos enviados e inscrições obsoletas.
