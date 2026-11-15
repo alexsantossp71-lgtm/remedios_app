@@ -8,7 +8,7 @@
 // O app (GitHub Pages) chama https://<nome>.workers.dev/v1/chat/completions
 // sem chave por usuário; o proxy injeta o segredo no servidor. Proteções:
 // CORS por origem exata (não é autenticação), allowlist de modelos, sem
-// streaming, teto de corpo e rate limit em memória por isolate.
+// streaming, teto de corpo e rate limit persistente compartilhado via D1.
 
 import {
     MAX_BODY_BYTES,
@@ -17,7 +17,7 @@ import {
     isOriginAllowed,
     parseConfig,
 } from './config';
-import { RateLimits, clientIp } from './limiter';
+import { checkPersistentRateLimits, cleanupExpiredRateLimits, clientIp, type PersistentRateLimitConfig } from './limiter';
 import { handlePushRequest, sendDuePushes, type D1DatabaseLike, type PushEnv } from './push';
 
 /** Variáveis ([vars]) e segredos (`wrangler secret put`) do Worker. */
@@ -58,27 +58,6 @@ async function nvidiaCatalogIds(authHeaders: Record<string, string>): Promise<Se
     return ids;
 }
 
-/** Os vars podem mudar entre deploys: recria os limitadores quando mudarem. */
-let cachedDiagnosticLimits: RateLimits | null = null;
-function diagnosticLimitsFor(): RateLimits {
-    // O diagnóstico usa somente dois prompts fixos e dados fictícios. A cota
-    // separada permite avaliar catálogos maiores sem elevar o limite do proxy clínico.
-    if (!cachedDiagnosticLimits) {
-        cachedDiagnosticLimits = new RateLimits({ windowMs: 5 * 60_000, windowMax: 250, dayMax: 1_000 });
-    }
-    return cachedDiagnosticLimits;
-}
-
-let cachedLimits: { key: string; limits: RateLimits } | null = null;
-function limitsFor(env: WorkerEnv): RateLimits {
-    const cfg = parseConfig(env as unknown as Record<string, string | undefined>);
-    const key = `${cfg.windowMs}|${cfg.windowMax}|${cfg.dayMax}`;
-    if (!cachedLimits || cachedLimits.key !== key) {
-        cachedLimits = { key, limits: new RateLimits(cfg) };
-    }
-    return cachedLimits.limits;
-}
-
 function corsHeaders(origin: string, extra?: Record<string, string>): Headers {
     const headers = new Headers(extra);
     if (origin) {
@@ -94,6 +73,34 @@ function jsonResponse(status: number, body: unknown, origin: string, extra?: Rec
 }
 
 /** Repassa a resposta da NVIDIA ao navegador acrescentando os cabeçalhos CORS. */
+async function rateLimitResponse(
+    db: D1DatabaseLike | undefined,
+    ip: string,
+    now: number,
+    config: PersistentRateLimitConfig,
+    scope: string,
+    origin: string,
+): Promise<Response | null> {
+    if (!db) {
+        return jsonResponse(503, { error: { message: 'Controle de solicitações temporariamente indisponível.' } }, origin);
+    }
+    try {
+        const verdict = await checkPersistentRateLimits(db, ip, now, config, scope);
+        if (!verdict.allowed) {
+            return jsonResponse(
+                429,
+                { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } },
+                origin,
+                { 'Retry-After': String(verdict.retryAfterSec) },
+            );
+        }
+        return null;
+    } catch {
+        // Falhar fechado: sem o contador persistente não encaminhar chamadas pagas ao provedor.
+        return jsonResponse(503, { error: { message: 'Não foi possível validar o limite de uso. Tente novamente.' } }, origin);
+    }
+}
+
 function passThrough(upstream: Response, origin: string): Response {
     const headers = corsHeaders(origin);
     const contentType = upstream.headers.get('Content-Type');
@@ -134,10 +141,8 @@ export default {
         // Rotas de Web Push são independentes da chave NVIDIA e não recebem
         // dados clínicos. A autenticação é feita por token aleatório do dispositivo.
         if (pathname.startsWith('/push/')) {
-            const pushVerdict = limitsFor(env).hit(clientIp(request), Date.now());
-            if (!pushVerdict.allowed) {
-                return jsonResponse(429, { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } }, allowedOrigin, { 'Retry-After': String(pushVerdict.retryAfterSec) });
-            }
+            const pushLimitError = await rateLimitResponse(env.PUSH_DB, clientIp(request), Date.now(), cfg, 'default', allowedOrigin);
+            if (pushLimitError) return pushLimitError;
             if (!env.PUSH_DB) return jsonResponse(503, { error: { message: 'Banco de notificações indisponível.' } }, allowedOrigin);
             const pushResponse = await handlePushRequest(request, env as PushEnv, allowedOrigin);
             if (pushResponse) return pushResponse;
@@ -149,10 +154,8 @@ export default {
             if (!(env.POLLINATIONS_API_KEY ?? '').trim()) {
                 return jsonResponse(503, { error: { message: 'Pollinations.ai ainda não está configurado neste servidor. Cadastre POLLINATIONS_API_KEY como secret do Cloudflare Worker.' } }, allowedOrigin);
             }
-            const pollinationsVerdict = limitsFor(env).hit(clientIp(request), Date.now());
-            if (!pollinationsVerdict.allowed) {
-                return jsonResponse(429, { error: { message: 'Limite de solicitações atingido. Tente novamente mais tarde.' } }, allowedOrigin, { 'Retry-After': String(pollinationsVerdict.retryAfterSec) });
-            }
+            const pollinationsLimitError = await rateLimitResponse(env.PUSH_DB, clientIp(request), Date.now(), cfg, 'default', allowedOrigin);
+            if (pollinationsLimitError) return pollinationsLimitError;
             const pollinationsAuth = { Authorization: `Bearer ${(env.POLLINATIONS_API_KEY ?? '').trim()}` };
             try {
                 if (pathname === '/v1/pollinations/models' && request.method === 'GET') {
@@ -213,20 +216,20 @@ export default {
             );
         }
 
-        // O diagnóstico usa um limitador independente; todas as rotas normais
-        // continuam sujeitas à cota configurada para o proxy do aplicativo.
-        const limiter = pathname === '/v1/diagnostics/chat/completions'
-            ? diagnosticLimitsFor()
-            : limitsFor(env);
-        const verdict = limiter.hit(clientIp(request), Date.now());
-        if (!verdict.allowed) {
-            return jsonResponse(
-                429,
-                { error: { message: `Limite de uso do proxy atingido. Tente novamente em ~${verdict.retryAfterSec}s.` } },
-                allowedOrigin,
-                { 'Retry-After': String(verdict.retryAfterSec) }
-            );
-        }
+        // O diagnóstico usa escopo/cota próprios; demais rotas compartilham a cota padrão.
+        const isDiagnostic = pathname === '/v1/diagnostics/chat/completions';
+        const rateConfig: PersistentRateLimitConfig = isDiagnostic
+            ? { windowMs: 5 * 60_000, windowMax: 250, dayMax: 1_000 }
+            : cfg;
+        const rateLimitError = await rateLimitResponse(
+            env.PUSH_DB,
+            clientIp(request),
+            Date.now(),
+            rateConfig,
+            isDiagnostic ? 'diagnostics' : 'default',
+            allowedOrigin,
+        );
+        if (rateLimitError) return rateLimitError;
 
         const upstreamAuth = { Authorization: `Bearer ${(env.NVIDIA_API_KEY ?? '').trim()}` };
         try {
@@ -340,6 +343,8 @@ export default {
         );
     },
     async scheduled(_controller: { scheduledTime: number; cron: string }, env: WorkerEnv, context: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
-        context.waitUntil(sendDuePushes(env as PushEnv));
+        const tasks: Promise<unknown>[] = [sendDuePushes(env as PushEnv)];
+        if (env.PUSH_DB) tasks.push(cleanupExpiredRateLimits(env.PUSH_DB, Date.now()));
+        context.waitUntil(Promise.all(tasks));
     },
 };
