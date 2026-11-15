@@ -34,6 +34,6 @@
     "fake-indexeddb": "^6.2.4"
   },
   "dependencies": {
-    "@block65/webcrypto-web-push": "1.0.2"
+    "@block65/webcrypto-web-push": "2.0.0"
   }
 }
