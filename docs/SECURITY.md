@@ -27,6 +27,7 @@ Este documento registra controles observados no código e ações recomendadas. 
 - Utilizar HTTPS em todos os serviços externos.
 - Revisar dependências e corrigir vulnerabilidades.
 - Proteger endpoints do Worker contra abuso, replay, enumeração e consumo excessivo.
+- Aplicar rate limits persistentes compartilhados entre isolates, com armazenamento pseudonimizado de identificadores e retenção curta.
 - Definir limites de taxa, tamanho de payload e retenção.
 - Implementar resposta a incidentes e processo de comunicação aplicável.
 
@@ -52,7 +53,7 @@ A IA é ferramenta de apoio informacional. Não deve diagnosticar, prescrever ou
 ## 6. Pendências prioritárias
 
 1. Auditar a implementação de `secureStorage` e documentar o que protege, contra quais ameaças e quais limitações permanecem.
-2. Revisar autenticação, autorização, validação e rate limiting de todas as rotas do Worker.
+2. Revisar autenticação, autorização e validação de todas as rotas do Worker; o rate limit persistente em D1 reduz abuso, mas não substitui autenticação nem controle de cobrança.
 3. Revisar permissões e retenção do Cloudflare D1.
 4. Fazer análise de dependências e varredura de segredos.
 5. Criar plano de resposta a incidentes e procedimento de comunicação.
