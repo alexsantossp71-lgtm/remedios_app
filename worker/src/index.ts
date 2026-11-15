@@ -72,7 +72,7 @@ function jsonResponse(status: number, body: unknown, origin: string, extra?: Rec
     return new Response(JSON.stringify(body), { status, headers });
 }
 
-/** Repassa a resposta da NVIDIA ao navegador acrescentando os cabeçalhos CORS. */
+/** Aplica limites persistentes e falha fechado se o D1 não estiver disponível. */
 async function rateLimitResponse(
     db: D1DatabaseLike | undefined,
     ip: string,
@@ -101,6 +101,7 @@ async function rateLimitResponse(
     }
 }
 
+/** Repassa a resposta do provedor ao navegador acrescentando os cabeçalhos CORS. */
 function passThrough(upstream: Response, origin: string): Response {
     const headers = corsHeaders(origin);
     const contentType = upstream.headers.get('Content-Type');
