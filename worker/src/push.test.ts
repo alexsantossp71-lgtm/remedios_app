@@ -133,7 +133,8 @@ class FakeD1 {
     return new FakeStatement(this, sql);
   }
 
-  async batch<T = unknown>(_statements: unknown[]): Promise<Array<{ results?: T[] }>> {
+  async batch<T = unknown>(statements: unknown[]): Promise<Array<{ results?: T[] }>> {
+    void statements;
     return [];
   }
 }
