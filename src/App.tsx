@@ -6,7 +6,8 @@ import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray } from './storage';
 import { loadSecureJson, saveSecureJson, isVaultUnlocked, lockSecureVault, flushSecureWrites } from './services/secureStorage';
 import SecurityGate from './components/SecurityGate';
-import { formatDateTimeBR, parseLocalDate, parseLocalDateTime } from './utils/datetime';
+import { formatDateTimeBR, parseLocalDateTime } from './utils/datetime';
+import { getNextReminderAlarm } from './utils/reminderScheduler';
 import { showSystemNotification, vibrateAlarm } from './utils/notify';
 import MissedDosesModal from './components/MissedDosesModal';
 import { findMissedDoses, MissedDose } from './utils/missedDoses';
@@ -170,58 +171,7 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
         fetchMedications();
     }, []);
     
-    const getNextAlarm = useCallback((): {
-        nextAlarmTime: Date | null;
-        nextAlarmReminder: { reminder: Reminder; time: string } | null;
-    } => {
-        const now = new Date();
-        let nextAlarmTime: Date | null = null;
-        let nextAlarmReminder: { reminder: Reminder; time: string } | null = null;
-
-        // Compara sem deixar o TypeScript fazer narrowing indevido de
-        // `nextAlarmTime` (atribuído dentro de callbacks).
-        const isEarlier = (candidate: Date) =>
-            nextAlarmTime === null || candidate.getTime() < nextAlarmTime.getTime();
-
-        reminders.forEach(reminder => {
-            // parseLocalDate: 'YYYY-MM-DD' é data LOCAL; new Date() interpretaria
-            // como UTC e deslocaria um dia em fusos negativos (America/Sao_Paulo).
-            const startDate = parseLocalDate(reminder.startDate);
-            if (!startDate) return;
-
-            // Check if reminder is currently active
-            if (reminder.duration.type === 'days') {
-                const endDate = new Date(startDate);
-                endDate.setDate(endDate.getDate() + reminder.duration.days);
-                if (now > endDate) return;
-            }
-
-            // Calculate scheduled times for today
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const diffDays = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-
-            if (diffDays >= 0) {
-                 if (reminder.frequency.type === 'daily' || (reminder.frequency.type === 'interval' && diffDays % reminder.frequency.days === 0)) {
-                    reminder.times.forEach(time => {
-                        const [hour, minute] = time.split(':').map(Number);
-                        const alarmDateTime = new Date();
-                        alarmDateTime.setHours(hour, minute, 0, 0);
-
-                        const historyKey = `${alarmDateTime.getFullYear()}-${String(alarmDateTime.getMonth() + 1).padStart(2, '0')}-${String(alarmDateTime.getDate()).padStart(2, '0')}`;
-                        const dayHistory = reminder.history[historyKey] || {};
-
-                        if (alarmDateTime > now && !dayHistory[time] && isEarlier(alarmDateTime)) {
-                            nextAlarmTime = alarmDateTime;
-                            nextAlarmReminder = { reminder, time };
-                        }
-                    });
-                }
-            }
-        });
-        
-        return { nextAlarmTime, nextAlarmReminder };
-    }, [reminders]);
+    const getNextAlarm = useCallback(() => getNextReminderAlarm(reminders), [reminders]);
 
 
     // Function expression nomeada: o callback do setTimeout re-agenda o próximo
