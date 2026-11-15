@@ -10,8 +10,7 @@ O usuário final não precisa cadastrar chave, URL, token ou modelo.
 - CORS permite apenas as origens listadas em ALLOWED_ORIGINS; isso restringe
   navegadores, mas não é autenticação contra chamadas feitas fora do navegador.
 - Allowlist de modelos e bloqueio de streaming.
-- Limite de tamanho do corpo e rate limit por IP (melhor esforço, em memória por
-  isolate; para cotas rígidas use Cloudflare Rate Limiting ou Durable Objects).
+- Limite de tamanho do corpo e rate limit persistente por IP via Cloudflare D1, compartilhado entre isolates, com janela curta, teto diário por IP e teto agregado diário. O IP é armazenado apenas como hash SHA-256 e os contadores expirados são removidos pelo Cron.
 
 **Importante:** como o aplicativo é público e não possui login, o endpoint do
 proxy também é acessível publicamente por clientes que contornem CORS. Os limites
