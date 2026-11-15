@@ -30,7 +30,7 @@ Se o nome do repositório mudar, revisar o caminho base e os recursos do PWA.
 
 ## 2. Backend — Cloudflare Worker
 
-O workflow `.github/workflows/deploy-proxy.yml` realiza o deploy do Worker quando há alterações em `worker/**` ou no próprio workflow, além de permitir execução manual.
+O workflow `.github/workflows/deploy-proxy.yml` valida o frontend e o Worker, aplica todas as migrações D1 em banco local efêmero durante a validação e só então permite o deploy remoto. Ele é acionado quando há alterações em `worker/**` ou no próprio workflow, além de permitir execução manual.
 
 Secrets exigidos pelo workflow:
 - `CLOUDFLARE_API_TOKEN`
