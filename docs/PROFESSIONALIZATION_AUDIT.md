@@ -16,7 +16,7 @@ Desde a auditoria inicial, houve progresso verificável:
 - O workflow de publicação do Worker executa um job de validação e só inicia o deploy após `needs: validate`.
 - Os workflows usam instalação congelada com pnpm.
 - Há testes dedicados para o cofre, backup, lembretes, Push e Service Worker.
-- PRs #43 a #46 estão abertos com CI aprovado; nenhum deles foi mesclado até esta atualização.
+- PRs #43 a #47 estão abertos; os checks de lint, typecheck, testes e build passaram nos PRs de código, e o CodeQL v4 concluiu a análise do PR #47. Nenhum desses PRs foi mesclado até esta atualização.
 - PR #44 propõe claims/leases, timeout e backoff para Push; CI e aplicação local das migrações 0001/0002 passaram.
 - PR #45 propõe rate limits D1 compartilhados entre isolates e falha fechada; CI e aplicação local das migrações versionadas passaram.
 - PR #46 corrige rollback da desativação do cofre, com testes para falha parcial de localStorage e IndexedDB.
@@ -152,6 +152,7 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 - PR #44: confiabilidade de entrega Push; lint, typecheck, testes, build, dry-run e migrações D1 locais aprovados.
 - PR #45: rate limit persistente; lint, typecheck, testes, build, dry-run e migrações D1 locais aprovados.
 - PR #46: rollback da desativação do cofre; lint, typecheck, testes e build aprovados.
+- PR #47: CodeQL v4 com consultas `security-extended` executado com sucesso; lint, typecheck, testes e build também passaram na última execução. Dependency Review continua desabilitado até ativar o Dependency Graph.
 - Workflow `43657583338`: validação do projeto, aplicação de migrações D1, deploy do Worker e publicação de secrets concluídos com sucesso.
 - Workflow `43657583353`: build e publicação do GitHub Pages concluídos com sucesso.
 - Commit publicado: `1a3b959b1bfebfce638b426c6c94485bc9373919`.
