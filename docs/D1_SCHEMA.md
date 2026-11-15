@@ -4,7 +4,9 @@
 
 O binding `PUSH_DB` aponta para o banco `remedios-push`, configurado em `worker/wrangler.toml`.
 
-**Migração versionada encontrada:** `worker/migrations/0001_push_schema.sql`. Ela declara as tabelas `push_subscriptions` e `scheduled_notifications`, os índices de seleção/relacionamento e a chave estrangeira de `scheduled_notifications.subscription_id` para `push_subscriptions.id`.
+**Migrações versionadas:**
+- `0001_push_schema.sql`: cria `push_subscriptions`, `scheduled_notifications`, índices e chave estrangeira.
+- `0002_push_delivery_reliability.sql`: adiciona token/expiração de reserva, data da próxima tentativa, falha terminal e último status HTTP para tornar o processamento mais resiliente.
 
 A existência da migração no repositório não comprova, por si só, que ela foi aplicada no banco remoto correto. A confirmação do estado remoto exige consulta autorizada ao Cloudflare D1.
 
@@ -30,14 +32,20 @@ A existência da migração no repositório não comprova, por si só, que ela f
 | `fire_at_ms` | INTEGER | NOT NULL; instante previsto em epoch milliseconds |
 | `created_at_ms` | INTEGER | NOT NULL; criação em epoch milliseconds |
 | `sent_at_ms` | INTEGER | Opcional; nulo enquanto pendente |
-| `attempts` | INTEGER | NOT NULL, DEFAULT 0 |
+| `attempts` | INTEGER | NOT NULL, DEFAULT 0; número de tentativas realizadas |
+| `claim_token` | TEXT | Opcional; identificador técnico da execução que reservou o evento |
+| `claimed_until_ms` | INTEGER | Opcional; expiração da reserva (lease) |
+| `next_attempt_at_ms` | INTEGER | Opcional; próxima tentativa após falha temporária |
+| `failed_at_ms` | INTEGER | Opcional; falha terminal após o limite de tentativas |
+| `last_status` | INTEGER | Opcional; último status HTTP do provedor, sem corpo da resposta |
 
 ## 3. Índices versionados
 
 - `idx_scheduled_due` em `(sent_at_ms, fire_at_ms)`.
 - `idx_scheduled_subscription` em `(subscription_id, fire_at_ms)`.
+- `idx_scheduled_retry` em `(sent_at_ms, failed_at_ms, next_attempt_at_ms, claimed_until_ms, fire_at_ms)`.
 
-A migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`.
+A primeira migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`. A segunda adiciona colunas com `ALTER TABLE`; deve ser aplicada uma única vez pelo controle de migrações do Wrangler.
 
 ## 4. Comportamento observado no código
 
@@ -50,7 +58,7 @@ A migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`.
 ## 5. Verificações operacionais ainda necessárias
 
 1. Confirmar no painel/CLI Cloudflare que a migração `0001_push_schema.sql` foi aplicada no banco remoto `remedios-push`.
-2. Comparar o schema remoto com a migração versionada, sem exportar ou publicar dados de usuários.
+2. Comparar o schema remoto com as migrações versionadas, sem exportar ou publicar dados de usuários.
 3. Testar aplicação da migração em banco de desenvolvimento e validar o procedimento de rollback/recuperação.
 4. Definir limpeza e retenção de eventos enviados e inscrições obsoletas.
 5. Confirmar backup e restauração do D1, com acesso restrito e ensaio documentado.
