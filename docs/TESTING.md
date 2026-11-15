@@ -33,8 +33,9 @@ O Vitest roda em Node e cobre regras locais de alarmes, inscrição Push, geraç
 | Frequência e duração | Diário, intervalos, término e uso contínuo |
 | Datas e horários | Virada do dia, horário de verão/fuso, datas inválidas |
 | Histórico de doses | Tomada, ignorada, pendente e doses atrasadas |
-| Persistência | JSON inválido, chave ausente, cota excedida |
+| Persistência | JSON inválido, chave ausente, cota excedida, rollback da desativação do cofre |
 | Backup | Exportação, importação, arquivo malformado e compatibilidade |
+| Cofre | Migração, desbloqueio, adulteração, fila de gravação, falhas de IndexedDB e rollback ao desativar |
 | IA | Timeout, erro HTTP, resposta vazia, JSON inválido e fallback |
 | Agendamento inteligente | Não alterar dose, frequência ou duração |
 | Lembretes | Próximo horário, início, duração, frequência, histórico e horários inválidos |
