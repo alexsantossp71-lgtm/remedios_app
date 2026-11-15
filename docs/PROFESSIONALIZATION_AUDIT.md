@@ -94,10 +94,10 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 
 ### AUD-010 — Análise estática e grafo de dependências não habilitados
 - **Gravidade:** Média.
-- **Situação:** **CodeQL e Dependabot propostos no PR #47; análise CI ainda em execução. Dependency Review bloqueado por configuração do repositório.**
+- **Situação:** **CodeQL executado com sucesso no PR #47; Dependabot proposto; aguardando merge. Dependency Review bloqueado por configuração do repositório.**
 - **Evidência:** o repositório ainda não tinha workflow CodeQL nem configuração Dependabot. Ao testar Dependency Review, o GitHub respondeu que o Dependency Graph está desabilitado.
-- **Correção proposta:** CodeQL v4 com consultas `security-extended` em PRs, pushes na `main` e execução semanal; Dependabot semanal para dependências e GitHub Actions.
-- **Critério restante:** mesclar e observar a primeira análise CodeQL; habilitar Dependency Graph em Settings → Security & analysis antes de ativar Dependency Review. Dependabot não substitui revisão de atualizações nem testes.
+- **Evidência:** CodeQL v4 executou com sucesso no PR #47 e enviou os resultados ao Code Scanning. O workflow usa consultas `security-extended` em PRs, pushes na `main` e agenda semanal; Dependabot semanal foi configurado para dependências e GitHub Actions.
+- **Critério restante:** mesclar e revisar os alertas no painel Code Scanning; habilitar Dependency Graph em Settings → Security & analysis antes de ativar Dependency Review. Dependabot não substitui revisão de atualizações nem testes.
 
 ## 3. Pendências de operação, privacidade e produto
 
