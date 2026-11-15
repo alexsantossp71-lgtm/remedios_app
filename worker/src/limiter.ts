@@ -123,7 +123,7 @@ const RATE_LIMIT_UPSERT = `
     INSERT INTO api_rate_limits (scope, subject_hash, window_start_ms, count, expires_at_ms)
     VALUES (?, ?, ?, 1, ?)
     ON CONFLICT(scope, subject_hash, window_start_ms)
-    DO UPDATE SET count = api_rate_limits.count + 1, expires_at_ms = excluded.expires_at_ms
+    DO UPDATE SET count = MIN(api_rate_limits.count + 1, 1000000), expires_at_ms = excluded.expires_at_ms
     RETURNING count
 `;
 
