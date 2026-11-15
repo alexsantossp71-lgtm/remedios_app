@@ -34,6 +34,11 @@ A existência da migração no repositório não comprova, por si só, que ela f
 | `created_at_ms` | INTEGER | NOT NULL; criação em epoch milliseconds |
 | `sent_at_ms` | INTEGER | Opcional; nulo enquanto pendente |
 | `attempts` | INTEGER | NOT NULL, DEFAULT 0 |
+| `claim_token` | TEXT | Opcional; identificador técnico da execução que reservou o evento |
+| `claimed_until_ms` | INTEGER | Opcional; expiração da reserva (lease) |
+| `next_attempt_at_ms` | INTEGER | Opcional; próxima tentativa após falha temporária |
+| `failed_at_ms` | INTEGER | Opcional; falha terminal após o limite de tentativas |
+| `last_status` | INTEGER | Opcional; último status HTTP do provedor, sem corpo da resposta |
 
 ## 3. Tabela `api_rate_limits`
 
@@ -51,8 +56,10 @@ Chave primária composta: `(scope, subject_hash, window_start_ms)`.
 
 - `idx_scheduled_due` em `(sent_at_ms, fire_at_ms)`.
 - `idx_scheduled_subscription` em `(subscription_id, fire_at_ms)`.
+- `idx_scheduled_retry` em `(sent_at_ms, failed_at_ms, next_attempt_at_ms, claimed_until_ms, fire_at_ms)`.
+- `idx_api_rate_limits_expiry` em `(expires_at_ms)`.
 
-A migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`.
+A migração 0001 usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`. A 0002 usa `ALTER TABLE` e deve ser aplicada uma única vez pelo controle de migrações do Wrangler. A 0003 cria a tabela e o índice de expiração dos contadores.
 
 ## 5. Comportamento observado no código
 
@@ -66,7 +73,7 @@ A migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`.
 
 ## 6. Verificações operacionais ainda necessárias
 
-1. Confirmar no painel/CLI Cloudflare que a migração `0001_push_schema.sql` foi aplicada no banco remoto `remedios-push`.
+1. A migração `0001_push_schema.sql` foi aplicada com sucesso pelo workflow `43657583338` em 15/11/2026. As migrações `0002` e `0003` ainda dependem dos respectivos PRs e do deploy após merge.
 2. Comparar o schema remoto com a migração versionada, sem exportar ou publicar dados de usuários.
 3. Testar aplicação da migração em banco de desenvolvimento e validar o procedimento de rollback/recuperação.
 4. Definir limpeza e retenção de eventos enviados e inscrições obsoletas.
