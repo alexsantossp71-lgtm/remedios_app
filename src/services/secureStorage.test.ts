@@ -178,6 +178,41 @@ describe('cofre criptográfico — AUD-002', () => {
         expect(storage.isVaultUnlocked()).toBe(false);
         expect(await storage.inspectSecureStorage()).toEqual({ configured: false, hasLegacyData: true });
     });
+    it('reverte cópias parciais se uma gravação local falhar ao desativar o cofre', async () => {
+        await storage.createSecureVault('senha-segura-123');
+        storage.saveSecureJson(STORAGE_KEYS.reminders, [{ id: 'rem-4' }]);
+        storage.saveSecureJson(STORAGE_KEYS.doctors, [{ id: 'doc-4', name: 'Médico protegido' }]);
+        await storage.flushSecureWrites();
+
+        const originalSetItem = localStorage.setItem.bind(localStorage);
+        vi.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+            if (key === STORAGE_KEYS.doctors) throw new DOMException('Quota excedida', 'QuotaExceededError');
+            originalSetItem(key, value);
+        });
+
+        await expect(storage.disableSecureVault()).rejects.toThrow('A proteção foi mantida');
+
+        expect(localStorage.getItem(STORAGE_KEYS.reminders)).toBeNull();
+        expect(localStorage.getItem(STORAGE_KEYS.doctors)).toBeNull();
+        expect(storage.isVaultUnlocked()).toBe(true);
+    });
+
+    it('reverte cópias locais se o IndexedDB falhar antes de remover o envelope', async () => {
+        await storage.createSecureVault('senha-segura-123');
+        storage.saveSecureJson(STORAGE_KEYS.reminders, [{ id: 'rem-5' }]);
+        await storage.flushSecureWrites();
+
+        const openSpy = vi.spyOn(factory, 'open').mockImplementation(() => {
+            throw new DOMException('IndexedDB indisponível', 'UnknownError');
+        });
+        await expect(storage.disableSecureVault()).rejects.toThrow('A proteção foi mantida');
+        openSpy.mockRestore();
+
+        expect(localStorage.getItem(STORAGE_KEYS.reminders)).toBeNull();
+        expect(storage.isVaultUnlocked()).toBe(true);
+        expect(await storage.inspectSecureStorage()).toEqual({ configured: true, hasLegacyData: false });
+    });
+
     it('não substitui um cofre existente ao tentar configurá-lo novamente', async () => {
         const original = [{ id: 'preservado' }];
         await storage.createSecureVault('senha-original-123');
