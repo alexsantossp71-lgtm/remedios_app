@@ -26,6 +26,10 @@ Este documento registra controles observados no código e ações recomendadas. 
 - Evitar dados de saúde em logs, mensagens de erro, analytics ou notificações visíveis.
 - Utilizar HTTPS em todos os serviços externos.
 - Revisar dependências e corrigir vulnerabilidades.
+- Usar Dependabot para propor atualizações semanais de dependências npm/pnpm e GitHub Actions.
+- Executar CodeQL para análise estática de JavaScript/TypeScript em PRs, pushes na main e agenda semanal.
+- O Dependency Graph foi habilitado nas configurações do repositório. O workflow `.github/workflows/dependency-review.yml` executa Dependency Review em PRs direcionados à `main` e bloqueia novas dependências com vulnerabilidade de severidade alta ou crítica.
+- O Dependency Review compara as dependências introduzidas ou alteradas pelo PR; ele não substitui a análise completa e contínua de vulnerabilidades das dependências já existentes.
 - Proteger endpoints do Worker contra abuso, replay, enumeração e consumo excessivo.
 - Definir limites de taxa, tamanho de payload e retenção.
 - Implementar resposta a incidentes e processo de comunicação aplicável.
