@@ -6,7 +6,7 @@ O binding `PUSH_DB` aponta para o banco `remedios-push`, configurado em `worker/
 
 **Migração versionada encontrada:** `worker/migrations/0001_push_schema.sql`. Ela declara as tabelas `push_subscriptions` e `scheduled_notifications`, os índices de seleção/relacionamento e a chave estrangeira de `scheduled_notifications.subscription_id` para `push_subscriptions.id`.
 
-A existência da migração no repositório não comprova, por si só, que ela foi aplicada no banco remoto correto. A confirmação do estado remoto exige consulta autorizada ao Cloudflare D1.
+**Aplicação operacional registrada:** o workflow `Deploy AI Proxy (Cloudflare Worker)`, execução `43657583338` em 15/11/2026, concluiu com sucesso a etapa `wrangler d1 migrations apply remedios-push --remote` antes do deploy do Worker. Isso confirma que o comando de aplicação foi executado com sucesso para o banco configurado no workflow. Ainda falta uma comparação independente do schema remoto e um ensaio documentado de backup/restauração.
 
 ## 1. Tabela `push_subscriptions`
 
@@ -49,7 +49,7 @@ A migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`.
 
 ## 5. Verificações operacionais ainda necessárias
 
-1. Confirmar no painel/CLI Cloudflare que a migração `0001_push_schema.sql` foi aplicada no banco remoto `remedios-push`.
+1. Comparar o schema remoto de `remedios-push` com a migração `0001_push_schema.sql`; a execução do workflow `43657583338` registrou aplicação bem-sucedida em 15/11/2026.
 2. Comparar o schema remoto com a migração versionada, sem exportar ou publicar dados de usuários.
 3. Testar aplicação da migração em banco de desenvolvimento e validar o procedimento de rollback/recuperação.
 4. Definir limpeza e retenção de eventos enviados e inscrições obsoletas.
