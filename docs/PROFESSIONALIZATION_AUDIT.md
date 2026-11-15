@@ -20,6 +20,7 @@ Desde a auditoria inicial, houve progresso verificável:
 - PR #44 propõe claims/leases, timeout e backoff para Push; CI e aplicação local das migrações 0001/0002 passaram.
 - PR #45 propõe rate limits D1 compartilhados entre isolates e falha fechada; CI e aplicação local das migrações versionadas passaram.
 - PR #46 corrige rollback da desativação do cofre, com testes para falha parcial de localStorage e IndexedDB.
+- PR #47 propõe CodeQL v4 e Dependabot; Dependency Review foi adiado porque o Dependency Graph está desabilitado no GitHub.
 - O PR #42 ampliou os testes de lembretes/Push; o conjunto reportado no CI do PR foi de 237 testes Vitest e 6 testes do Service Worker.
 - Após o merge do PR #42, os workflows de GitHub Pages e Cloudflare Worker concluíram com sucesso no commit `1a3b959`. O job do Worker também concluiu com sucesso a etapa de aplicação das migrações D1.
 
@@ -90,6 +91,14 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 - **Correção proposta:** capturar snapshot local, reverter gravações parciais em falha e limpar a chave/dados em memória somente após confirmação da remoção do envelope.
 - **Critério restante:** mesclar e validar em navegador real, inclusive falha de cota e IndexedDB indisponível. Se o rollback também falhar, o usuário deve preservar o dispositivo para recuperação.
 
+
+### AUD-010 — Análise estática e grafo de dependências não habilitados
+- **Gravidade:** Média.
+- **Situação:** **CodeQL e Dependabot propostos no PR #47; análise CI ainda em execução. Dependency Review bloqueado por configuração do repositório.**
+- **Evidência:** o repositório ainda não tinha workflow CodeQL nem configuração Dependabot. Ao testar Dependency Review, o GitHub respondeu que o Dependency Graph está desabilitado.
+- **Correção proposta:** CodeQL v4 com consultas `security-extended` em PRs, pushes na `main` e execução semanal; Dependabot semanal para dependências e GitHub Actions.
+- **Critério restante:** mesclar e observar a primeira análise CodeQL; habilitar Dependency Graph em Settings → Security & analysis antes de ativar Dependency Review. Dependabot não substitui revisão de atualizações nem testes.
+
 ## 3. Pendências de operação, privacidade e produto
 
 | Área | Situação | Evidência necessária |
@@ -103,6 +112,7 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 | Privacidade/LGPD | Aberto | Definição de controlador/operadores, bases legais, retenção, direitos, fornecedores e revisão jurídica |
 | Acessibilidade | Aberto | Teclado, leitor de tela, contraste, foco, zoom/reflow e inspeção manual |
 | Segurança independente | Aberto | Revisão de código/pentest por profissional independente antes de uso institucional/comercial |
+| Análise contínua | PR #47 proposto; Dependency Graph desabilitado | CodeQL sem alertas, Dependabot ativo e Dependency Review após habilitar o grafo |
 
 ## 4. Critérios bloqueadores para prontidão profissional
 
