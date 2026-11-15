@@ -65,6 +65,9 @@ jobs:
       - name: Validar Worker sem publicar
         run: pnpm dlx wrangler@4 deploy --dry-run --config worker/wrangler.toml
 
+      - name: Validar migrações D1 em banco local efêmero
+        run: pnpm dlx wrangler@4 d1 migrations apply remedios-push --local --config worker/wrangler.toml
+
   deploy:
     name: Publicar Worker e migrações D1
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
