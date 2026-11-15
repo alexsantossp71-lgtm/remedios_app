@@ -32,22 +32,36 @@ A existência da migração no repositório não comprova, por si só, que ela f
 | `sent_at_ms` | INTEGER | Opcional; nulo enquanto pendente |
 | `attempts` | INTEGER | NOT NULL, DEFAULT 0 |
 
-## 3. Índices versionados
+## 3. Tabela `api_rate_limits`
+
+| Coluna | Tipo SQL | Restrições / uso |
+|---|---|---|
+| `scope` | TEXT | NOT NULL; separa proxy padrão, diagnóstico e outros escopos |
+| `subject_hash` | TEXT | NOT NULL; SHA-256 do IP ou identificador agregado `global`; não armazena IP em texto puro |
+| `window_start_ms` | INTEGER | NOT NULL; início da janela UTC |
+| `count` | INTEGER | NOT NULL; contador atômico |
+| `expires_at_ms` | INTEGER | NOT NULL; expiração para limpeza pelo Cron |
+
+Chave primária composta: `(scope, subject_hash, window_start_ms)`.
+
+## 4. Índices versionados
 
 - `idx_scheduled_due` em `(sent_at_ms, fire_at_ms)`.
 - `idx_scheduled_subscription` em `(subscription_id, fire_at_ms)`.
 
 A migração usa `CREATE TABLE IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`.
 
-## 4. Comportamento observado no código
+## 5. Comportamento observado no código
 
 - O código faz upsert com conflito em `endpoint`, procura inscrição por `token_hash` e remove inscrição por `id`.
 - Eventos pendentes são selecionados pelo horário de vencimento e processados pelo Worker.
 - A mensagem Push é genérica e não deve incluir medicamento, dose ou histórico clínico.
 - Respostas de endpoint expirado/inválido podem levar à remoção da inscrição.
 - O Worker limita tentativas de envio e mantém os horários em UTC/epoch milliseconds.
+- Os limites do proxy são contadores atômicos no D1, compartilhados entre isolates; apenas hash SHA-256 do IP é persistido.
+- O Cron remove contadores cuja expiração já passou.
 
-## 5. Verificações operacionais ainda necessárias
+## 6. Verificações operacionais ainda necessárias
 
 1. Confirmar no painel/CLI Cloudflare que a migração `0001_push_schema.sql` foi aplicada no banco remoto `remedios-push`.
 2. Comparar o schema remoto com a migração versionada, sem exportar ou publicar dados de usuários.
