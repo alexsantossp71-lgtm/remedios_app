@@ -1,8 +1,7 @@
 
-// Rate limit em memória por isolate do Worker. É uma defesa adicional de
-// melhor esforço, NÃO um limite global: contadores reiniciam e não são
-// compartilhados entre isolates. Para cotas rígidas, usar Durable Objects ou
-// Cloudflare Rate Limiting antes de disponibilizar o proxy publicamente.
+// Primitivas em memória mantidas para testes unitários legados. As rotas de
+// produção usam checkPersistentRateLimits(), com contadores atômicos no D1
+// compartilhados entre isolates; ver a migração 0003_persistent_rate_limits.sql.
 
 export interface RateVerdict {
     allowed: boolean;
