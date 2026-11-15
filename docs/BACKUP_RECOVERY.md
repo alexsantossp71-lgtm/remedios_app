@@ -21,6 +21,12 @@ O fluxo de importação deve validar JSON e estrutura antes de substituir regist
 
 A criptografia do cofre local é distinta da exportação JSON. Não presumir que o arquivo de backup esteja criptografado só porque o cofre está ativado. Se o formato exportado não tiver criptografia própria, tratar o arquivo como dado pessoal sensível.
 
+### Política de senha dos backups criptografados
+
+- Novos backups criptografados exigem senha com pelo menos 10 caracteres, alinhada à política do cofre local.
+- A regra é aplicada somente à criação de novos arquivos. A abertura continua aceitando os parâmetros KDF válidos gravados em backups anteriores, inclusive arquivos criados com senhas de 8 ou 9 caracteres.
+- A senha não é armazenada no aplicativo. Se for perdida, não há recuperação pelo servidor.
+
 ## 5. Recuperação técnica
 
 - Se o navegador ainda contém dados: não limpar armazenamento/cache antes de tentar exportar backup.
