@@ -2,7 +2,42 @@ import { describe, expect, it } from 'vitest';
 import worker from './index';
 
 const origin = 'https://alexsantossp71-lgtm.github.io';
+function makeRateLimitDb() {
+    const counts = new Map<string, number>();
+    return {
+        prepare(sql: string) {
+            let values: unknown[] = [];
+            const statement = {
+                bind(...args: unknown[]) {
+                    values = args;
+                    return statement;
+                },
+                async first<T = Record<string, unknown>>(): Promise<T | null> {
+                    if (!sql.includes('RETURNING count')) throw new Error(`Consulta inesperada: ${sql}`);
+                    const [scope, subjectHash, windowStart] = values as [string, string, number];
+                    const key = `${scope}:${subjectHash}:${windowStart}`;
+                    const count = (counts.get(key) ?? 0) + 1;
+                    counts.set(key, count);
+                    return { count } as T;
+                },
+                async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> {
+                    return { results: [] };
+                },
+                async run(): Promise<{ success: boolean }> {
+                    return { success: true };
+                },
+            };
+            return statement;
+        },
+        async batch<T = unknown>(statements: unknown[]): Promise<Array<{ results?: T[] }>> {
+            void statements;
+            return [];
+        },
+    } as unknown as import('./push').D1DatabaseLike;
+}
+
 const baseEnv = {
+    PUSH_DB: makeRateLimitDb(),
     ALLOWED_ORIGINS: origin,
     ALLOWED_MODELS: 'meta/llama-3.3-70b-instruct',
     NVIDIA_API_KEY: 'nvapi-test-key',
