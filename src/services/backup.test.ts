@@ -116,6 +116,51 @@ describe('backup protegido por senha', () => {
         await expect(decryptBackup(encrypted, 'senha-errada')).rejects.toThrow('Confira a senha');
     });
 
+    it('continua abrindo backups legados protegidos com senha de 8 caracteres', async () => {
+        const password = 'senha123';
+        const salt = new Uint8Array(16).fill(7);
+        const iv = new Uint8Array(12).fill(3);
+        const material = await crypto.subtle.importKey(
+            'raw',
+            new TextEncoder().encode(password),
+            'PBKDF2',
+            false,
+            ['deriveKey'],
+        );
+        const key = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt, iterations: 310_000, hash: 'SHA-256' },
+            material,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt'],
+        );
+        const legacyBackup = {
+            app: 'remedio-na-hora',
+            version: 1,
+            exportedAt: '2026-11-01T10:00',
+            data: { reminders: [] },
+        };
+        const ciphertext = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            key,
+            new TextEncoder().encode(JSON.stringify(legacyBackup)),
+        );
+        const base64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''));
+        const envelope = JSON.stringify({
+            app: 'remedio-na-hora-encrypted-backup',
+            version: 1,
+            algorithm: 'AES-GCM',
+            kdf: 'PBKDF2-SHA-256',
+            iterations: 310_000,
+            salt: base64(salt),
+            iv: base64(iv),
+            ciphertext: base64(new Uint8Array(ciphertext)),
+        });
+
+        const plaintext = await decryptBackup(envelope, password);
+        expect(JSON.parse(plaintext).data.reminders).toEqual([]);
+    });
+
     it('exige senha com pelo menos 10 caracteres para novos backups', async () => {
         await expect(encryptBackup('123456789')).rejects.toThrow('pelo menos 10 caracteres');
         await expect(encryptBackup('1234567890')).resolves.toContain('remedio-na-hora-encrypted-backup');
