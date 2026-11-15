@@ -2,7 +2,7 @@
 
 **Atualização:** 15/11/2026  
 **Repositório:** `alexsantossp71-lgtm/remedios_app`  
-**Commit de referência:** PR #42 mesclado em `1a3b959b1bfebfce638b426c6c94485bc9373919`; correções documentais e de política de backup em revisão no PR #43.
+**Commit de referência:** PR #42 mesclado em `1a3b959b1bfebfce638b426c6c94485bc9373919`; correções de backup e auditoria no PR #43; confiabilidade Push no PR #44; rate limit persistente no PR #45; rollback do cofre no PR #46.
 
 > **Status geral: EM HOMOLOGAÇÃO — AINDA NÃO DECLARAR PRONTO PARA USO PROFISSIONAL.**
 >
@@ -16,6 +16,10 @@ Desde a auditoria inicial, houve progresso verificável:
 - O workflow de publicação do Worker executa um job de validação e só inicia o deploy após `needs: validate`.
 - Os workflows usam instalação congelada com pnpm.
 - Há testes dedicados para o cofre, backup, lembretes, Push e Service Worker.
+- PRs #43 a #46 estão abertos com CI aprovado; nenhum deles foi mesclado até esta atualização.
+- PR #44 propõe claims/leases, timeout e backoff para Push; CI e aplicação local das migrações 0001/0002 passaram.
+- PR #45 propõe rate limits D1 compartilhados entre isolates e falha fechada; CI e aplicação local das migrações versionadas passaram.
+- PR #46 corrige rollback da desativação do cofre, com testes para falha parcial de localStorage e IndexedDB.
 - O PR #42 ampliou os testes de lembretes/Push; o conjunto reportado no CI do PR foi de 237 testes Vitest e 6 testes do Service Worker.
 - Após o merge do PR #42, os workflows de GitHub Pages e Cloudflare Worker concluíram com sucesso no commit `1a3b959`. O job do Worker também concluiu com sucesso a etapa de aplicação das migrações D1.
 
@@ -32,9 +36,9 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 
 ### AUD-002 — Cofre criptográfico sem testes dedicados
 - **Gravidade original:** Alta.
-- **Situação:** **Mitigado por testes automatizados; homologação multiaba ainda pendente.**
+- **Situação:** **Testes automatizados existentes; rollback de desativação reforçado no PR #46 (CI aprovado, aguardando merge).**
 - **Evidência:** `src/services/secureStorage.test.ts` cobre senha mínima, migração sem perda, falha de IndexedDB, senha incorreta, adulteração AES-GCM, parâmetros incompatíveis, fila de gravação, falha de persistência, desativação segura e prevenção de sobrescrita do cofre.
-- **Critério restante:** testar concorrência entre abas/contextos, interrupção abrupta do navegador e recuperação em navegadores reais. Não afirmar que o cofre protege contra malware, extensão maliciosa ou dispositivo já comprometido.
+- **Critério restante:** após merge do PR #46, testar concorrência entre abas/contextos, interrupção abrupta do navegador e recuperação em navegadores reais. Não afirmar que o cofre protege contra malware, extensão maliciosa ou dispositivo já comprometido.
 
 ### AUD-003 — Ausência de homologação ponta a ponta em dispositivos
 - **Gravidade:** Alta.
@@ -45,10 +49,11 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 
 ### AUD-004 — Rate limit do Worker é local ao isolate
 - **Gravidade:** Média, podendo tornar-se Alta conforme exposição e custo.
-- **Situação:** **Aberto — decisão de arquitetura e operação.**
+- **Situação:** **Correção proposta no PR #45; CI aprovado, aguardando merge e aplicação da migração 0003 no D1 remoto.**
 - **Evidência:** `worker/src/limiter.ts` declara que contadores são em memória, reiniciam e não são compartilhados entre isolates.
 - **Impacto:** limites atuais são defesa de melhor esforço, não cota global persistente.
-- **Critério de aceite:** documentar orçamento e abuso aceitável; escolher mecanismo distribuído (Cloudflare Rate Limiting, Durable Objects ou alternativa adequada); testar concorrência, reinício e comportamento quando o mecanismo estiver indisponível.
+- **Evidência da correção proposta:** contadores atômicos no D1 por janela/IP/dia/global, escopo separado para diagnóstico, hash SHA-256 do IP e limpeza por Cron; testes simulam isolates compartilhando banco.
+- **Critério restante:** mesclar, aplicar migração remota, verificar custo/retensão e testar operação no ambiente Cloudflare.
 
 ### AUD-005 — Instalação de dependências não reprodutível
 - **Gravidade original:** Média.
@@ -64,26 +69,35 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 
 ### AUD-007 — Política de senha diferente entre cofre e backup
 - **Gravidade:** Baixa.
-- **Situação:** **Correção proposta no PR #43.**
+- **Situação:** **Correção proposta no PR #43; CI aprovado, aguardando merge.**
 - **Evidência:** o cofre exige 10 caracteres; o backup criptografado aceitava 8.
 - **Correção proposta:** exigir 10 caracteres na criação de novos backups. A rotina de descriptografia mantém a compatibilidade com arquivos antigos, sem elevar o limite mínimo dos arquivos já existentes.
 - **Critério de aceite:** testes de limite 9/10 caracteres, teste de ida e volta com senha válida e preservação da abertura de backups legados.
 
 ### AUD-008 — Entrega Push sob concorrência e recuperação de falhas
 - **Gravidade:** Média/Alta, pendente de avaliação.
-- **Situação:** **Aberto — análise técnica necessária.**
+- **Situação:** **Correção proposta no PR #44; CI aprovado, aguardando merge e aplicação da migração 0002 no D1 remoto.**
 - **Evidência:** `worker/src/push.ts` busca eventos vencidos em lotes e atualiza o estado após tentar o envio. Ainda não há evidência de ensaio de execuções Cron concorrentes, idempotência de ponta a ponta, backoff progressivo ou monitoramento de backlog.
 - **Risco a investigar:** duplicidade ou atraso em condições de concorrência, indisponibilidade do provedor Push e acúmulo de eventos.
-- **Critério de aceite:** estratégia documentada de claim/lease ou mecanismo equivalente, política de retentativa/backoff, métricas sem dados clínicos e testes concorrentes determinísticos.
+- **Evidência da correção proposta:** claim atômico com lease, timeout de 10 s, backoff de 1 min/5 min/15 min/1 h, limite de 5 tentativas e testes concorrentes determinísticos.
+- **Critério restante:** mesclar, aplicar migração remota e validar entrega em dispositivos reais; a garantia continua sendo de melhor esforço, não exatamente uma vez.
+
+
+### AUD-009 — Desativação do cofre pode deixar cópias locais parciais
+- **Gravidade:** Alta.
+- **Situação:** **Correção proposta no PR #46; CI aprovado, aguardando merge.**
+- **Evidência:** a desativação grava os registros em localStorage antes de excluir o envelope criptografado. Se uma gravação intermediária ou a abertura/remoção do IndexedDB falhar, cópias em texto puro poderiam permanecer parcialmente gravadas.
+- **Correção proposta:** capturar snapshot local, reverter gravações parciais em falha e limpar a chave/dados em memória somente após confirmação da remoção do envelope.
+- **Critério restante:** mesclar e validar em navegador real, inclusive falha de cota e IndexedDB indisponível. Se o rollback também falhar, o usuário deve preservar o dispositivo para recuperação.
 
 ## 3. Pendências de operação, privacidade e produto
 
 | Área | Situação | Evidência necessária |
 |---|---|---|
-| D1 | Parcial | Comparação do schema remoto, backup e restauração ensaiada, retenção e limpeza |
-| Rate limit | Aberto | Limites distribuídos, carga/concorrência, custo e alertas |
+| D1 | Parcial; PRs #44/#45 aguardando merge | Comparação do schema remoto, migrações 0002/0003, backup/restore ensaiado e retenção |
+| Rate limit | PR #45 com CI aprovado; pendente de merge/deploy | Verificar custo, retenção, concorrência e comportamento em produção |
 | Observabilidade | Aberto | Métricas de disponibilidade, latência, erros, backlog e consumo sem conteúdo clínico |
-| Recuperação | Aberto | RPO/RTO aprovados, backup e restore testados, rollback exercitado |
+| Recuperação | Parcial; PR #46 corrige rollback local do cofre | RPO/RTO aprovados, backup/restore D1 e rollback de release exercitados |
 | Push real | Aberto | Homologação em aparelhos e navegadores suportados |
 | IA | Parcial | Casos sintéticos, timeout/fallback, validação de schema e revisão humana; não é validação clínica |
 | Privacidade/LGPD | Aberto | Definição de controlador/operadores, bases legais, retenção, direitos, fornecedores e revisão jurídica |
@@ -124,6 +138,10 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 ## 5. Evidências de CI e publicação
 
 - PR #42: testes de lembretes/Push ampliados; 237 testes Vitest e 6 testes do Service Worker reportados no CI do PR.
+- PR #43: senha mínima de backup e auditoria atualizada; lint, typecheck, testes, build e validação do Worker aprovados.
+- PR #44: confiabilidade de entrega Push; lint, typecheck, testes, build, dry-run e migrações D1 locais aprovados.
+- PR #45: rate limit persistente; lint, typecheck, testes, build, dry-run e migrações D1 locais aprovados.
+- PR #46: rollback da desativação do cofre; lint, typecheck, testes e build aprovados.
 - Workflow `43657583338`: validação do projeto, aplicação de migrações D1, deploy do Worker e publicação de secrets concluídos com sucesso.
 - Workflow `43657583353`: build e publicação do GitHub Pages concluídos com sucesso.
 - Commit publicado: `1a3b959b1bfebfce638b426c6c94485bc9373919`.
