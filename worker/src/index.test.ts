@@ -46,6 +46,26 @@ const baseEnv = {
 };
 
 describe('acesso ao proxy', () => {
+    it('falha fechado quando o D1 de rate limit não está disponível', async () => {
+        const originalFetch = globalThis.fetch;
+        let upstreamCalled = false;
+        globalThis.fetch = async () => {
+            upstreamCalled = true;
+            return new Response('{}', { status: 200 });
+        };
+        try {
+            const response = await worker.fetch(new Request('https://proxy.example/v1/chat/completions', {
+                method: 'POST',
+                headers: { Origin: origin, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: 'meta/llama-3.3-70b-instruct', messages: [], stream: false }),
+            }), { ...baseEnv, PUSH_DB: undefined });
+            expect(response.status).toBe(503);
+            expect(upstreamCalled).toBe(false);
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
     it('aceita chamadas do app sem segredo compartilhado no navegador', async () => {
         const request = new Request('https://proxy.example/v1/chat/completions', {
             method: 'POST',
