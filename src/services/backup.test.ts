@@ -116,7 +116,8 @@ describe('backup protegido por senha', () => {
         await expect(decryptBackup(encrypted, 'senha-errada')).rejects.toThrow('Confira a senha');
     });
 
-    it('exige senha mínima para exportar', async () => {
-        await expect(encryptBackup('123')).rejects.toThrow('pelo menos 8 caracteres');
+    it('exige senha com pelo menos 10 caracteres para novos backups', async () => {
+        await expect(encryptBackup('123456789')).rejects.toThrow('pelo menos 10 caracteres');
+        await expect(encryptBackup('1234567890')).resolves.toContain('remedio-na-hora-encrypted-backup');
     });
 });
