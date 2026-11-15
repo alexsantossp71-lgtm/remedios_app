@@ -4,7 +4,10 @@
 
 O binding `PUSH_DB` aponta para o banco `remedios-push`, configurado em `worker/wrangler.toml`.
 
-**Migração versionada encontrada:** `worker/migrations/0001_push_schema.sql`. Ela declara as tabelas `push_subscriptions` e `scheduled_notifications`, os índices de seleção/relacionamento e a chave estrangeira de `scheduled_notifications.subscription_id` para `push_subscriptions.id`.
+**Migrações versionadas:**
+- `0001_push_schema.sql`: cria `push_subscriptions` e `scheduled_notifications`.
+- `0002_push_delivery_reliability.sql`: adiciona reservas, retentativas e estado terminal de falha para eventos Push.
+- `0003_persistent_rate_limits.sql`: cria contadores persistentes de rate limit compartilhados entre isolates.
 
 A existência da migração no repositório não comprova, por si só, que ela foi aplicada no banco remoto correto. A confirmação do estado remoto exige consulta autorizada ao Cloudflare D1.
 
