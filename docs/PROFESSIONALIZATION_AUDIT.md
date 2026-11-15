@@ -1,196 +1,168 @@
 # Auditoria de profissionalização — Remédio na Hora
 
-**Data de referência:** 14/11/2026  
+**Atualização:** 15/11/2026  
 **Repositório:** `alexsantossp71-lgtm/remedios_app`  
-**Branch da auditoria:** `audit/professionalization-baseline`  
-**Commit-base:** `c52df6ddd41359abde19356a23f224c83e5f68d3`  
-**Escopo desta rodada:** inspeção estática do repositório, documentação, workflows e evidências recentes do GitHub Actions.
+**Commits de referência:** PR #42 (`1a3b959`), PR #44 (`a7a67c5`), PR #47 (`275ba0e`) e PR #56 (`d3307c6`) mesclados; PR #57 (rollback do cofre) e PR #58 (política de senha do backup e atualização desta auditoria) em validação.
 
-> **Status geral: EM AUDITORIA — NÃO DECLARAR PRONTO PARA USO PROFISSIONAL AINDA.**
+> **Status geral: EM HOMOLOGAÇÃO — AINDA NÃO DECLARAR PRONTO PARA USO PROFISSIONAL.**
 >
-> Esta é uma avaliação inicial baseada no código e nas evidências disponíveis no GitHub. Não equivale a pentest, auditoria independente, avaliação jurídica/LGPD, validação clínica, nem homologação em dispositivos ou no ambiente Cloudflare de produção. Itens sem evidência são marcados como pendentes, não como defeitos comprovados.
+> A avaliação separa evidências automatizadas de validações que exigem navegador/dispositivo, acesso operacional, revisão especializada ou ensaio de recuperação. CI verde não equivale a pentest, certificação, conformidade LGPD ou validação clínica.
 
 ## 1. Resumo executivo
 
-O projeto já tem uma base de engenharia relevante: TypeScript, React, Vitest, ESLint, build de produção, testes distribuídos por regras de negócio e serviços, migração SQL versionada do D1 e pipelines de publicação.
+O projeto possui uma base técnica consistente: React, TypeScript, ESLint, Vitest, build de produção, cofre local criptografado, backup com criptografia própria, migrações D1 versionadas, Worker, PWA e workflows de publicação.
 
-A execução mais recente do workflow **Deploy to GitHub Pages**, no commit-base desta auditoria, terminou com sucesso. Os jobs `build` e `deploy` foram concluídos; o job de build executou instalação, lint, typecheck, testes Vitest, build do frontend e dry-run do Worker. Isso comprova a aprovação daquela execução automatizada, mas não comprova funcionamento em dispositivos reais ou segurança clínica.
+Desde a auditoria inicial, houve progresso verificável:
+- O workflow de publicação do Worker executa um job de validação e só inicia o deploy após `needs: validate`.
+- Os workflows usam instalação congelada com pnpm.
+- Há testes dedicados para o cofre, backup, lembretes, Push e Service Worker.
+- PR #44 foi mesclado e publicado; o workflow do Worker concluiu com sucesso a validação, aplicação remota das migrações e deploy.
+- PR #47 foi mesclado; CodeQL v4, Dependabot e Dependency Review estão na `main`, com Dependency Graph habilitado.
+- PR #56 foi mesclado sobre a `main` atual; adiciona rate limits persistentes compartilhados no D1 e valida localmente as migrações 0001, 0002 e 0003.
+- PR #57 reaplica a correção de rollback da desativação do cofre sobre a `main` atual; testes e build estão em validação.
+- PR #58 reaplica a política de senha mínima de 10 caracteres para novos backups, preservando a abertura de backups legados, e atualiza este relatório.
+- O PR #42 ampliou os testes de lembretes/Push; o conjunto reportado no CI do PR foi de 237 testes Vitest e 6 testes do Service Worker.
+- Após o merge do PR #42, os workflows de GitHub Pages e Cloudflare Worker concluíram com sucesso no commit `1a3b959`. O job do Worker também concluiu com sucesso a etapa de aplicação das migrações D1.
 
-### Evidências positivas confirmadas
+Essas evidências demonstram automação e publicação aprovadas naquele commit. Não demonstram entrega confiável de Push em todos os aparelhos, ausência de vulnerabilidades, recuperação operacional ensaiada ou segurança clínica universal.
 
-- `pnpm lint`, `pnpm typecheck`, `pnpm test` e `pnpm build` são etapas do workflow de publicação.
-- O Worker passa por validação de deploy em modo dry-run no workflow do Pages.
-- Existem testes unitários em serviços e utilitários, incluindo backup, configurações, IA, adesão, datas, prescrições, doses perdidas e aconselhamento de horários.
-- Há uma migração versionada em `worker/migrations/0001_push_schema.sql`, com tabelas, índices e chave estrangeira para o fluxo de Push.
-- O cofre local usa PBKDF2-SHA-256 (310.000 iterações) e AES-GCM-256, com envelope armazenado no IndexedDB.
-- O backup possui formato identificado por aplicação/versão e implementação de criptografia própria.
+## 2. Registro de achados e situação atual
 
-### Limites da evidência
+### AUD-001 — Publicação do Worker sem bloqueio por validação
+- **Gravidade original:** Alta.
+- **Situação:** **Corrigido no workflow atual; requer manutenção.**
+- **Evidência:** `.github/workflows/deploy-proxy.yml` possui o job `validate` com instalação congelada, lint, typecheck, testes, build e dry-run do Worker. O job `deploy` declara `needs: validate`.
+- **Verificação:** execução `43657583338`, commit `1a3b959`: validação e publicação concluídas com sucesso.
+- **Critério de manutenção:** qualquer alteração no workflow deve preservar a dependência; PRs com falha não podem executar migração remota nem publicar o Worker.
 
-- CI verde é evidência de qualidade automatizada naquele commit, não de ausência de defeitos.
-- O ambiente de execução dos testes Vitest está configurado como Node; não é uma suíte de navegador.
-- Não foi apresentada evidência de testes ponta a ponta em Android/iOS/desktop, nem de ensaios de entrega de Push em condições reais.
-- O estado remoto do Cloudflare D1, secrets, retenção, alertas e backups não pode ser confirmado apenas pelo repositório.
-- Não foi realizada revisão clínica ou jurídica.
+### AUD-002 — Cofre criptográfico sem testes dedicados
+- **Gravidade original:** Alta.
+- **Situação:** **Testes automatizados existentes; rollback de desativação reforçado no PR #57, ainda aguardando conclusão dos checks e merge.**
+- **Evidência:** `src/services/secureStorage.test.ts` cobre senha mínima, migração sem perda, falha de IndexedDB, senha incorreta, adulteração AES-GCM, parâmetros incompatíveis, fila de gravação, falha de persistência, desativação segura e prevenção de sobrescrita do cofre.
+- **Critério restante:** após merge do PR #57, testar concorrência entre abas/contextos, interrupção abrupta do navegador e recuperação em navegadores reais. Não afirmar que o cofre protege contra malware, extensão maliciosa ou dispositivo já comprometido.
 
-## 2. Classificação de gravidade
+### AUD-003 — Ausência de homologação ponta a ponta em dispositivos
+- **Gravidade:** Alta.
+- **Situação:** **Aberto — bloqueia declaração de prontidão.**
+- **Evidência:** Vitest roda em Node; o script `scripts/test-service-worker.mjs` exercita o Service Worker real em harness controlado, mas APIs de navegador são simuladas nos testes de serviço. Não há evidência de homologação em Android/Chrome, iOS/Safari e desktop.
+- **Impacto:** permissões, suspensão do navegador, economia de bateria, atualização do PWA, reinstalação e conectividade variam por plataforma.
+- **Critério de aceite:** matriz datada de dispositivos/navegadores, roteiro reproduzível e resultados de criar/editar/excluir lembretes, reiniciar, ficar offline/online, receber Push com app fechado, abrir notificação e revogar permissão.
 
-| Nível | Significado | Regra de tratamento |
+### AUD-004 — Rate limit do Worker era local ao isolate
+- **Gravidade:** Média, podendo tornar-se Alta conforme exposição e custo.
+- **Situação:** **Correção mesclada no PR #56; validação local das migrações 0001/0002/0003 aprovada. A aplicação remota e a observação operacional da migração 0003 ainda precisam de confirmação.**
+- **Evidência:** `worker/src/limiter.ts` declara que contadores são em memória, reiniciam e não são compartilhados entre isolates.
+- **Impacto:** limites atuais são defesa de melhor esforço, não cota global persistente.
+- **Evidência da correção proposta:** contadores atômicos no D1 por janela/IP/dia/global, escopo separado para diagnóstico, hash SHA-256 do IP e limpeza por Cron; testes simulam isolates compartilhando banco.
+- **Critério restante:** mesclar, aplicar migração remota, verificar custo/retensão e testar operação no ambiente Cloudflare.
+
+### AUD-005 — Instalação de dependências não reprodutível
+- **Gravidade original:** Média.
+- **Situação:** **Corrigido nos workflows observados.**
+- **Evidência:** `.github/workflows/deploy.yml` e `.github/workflows/deploy-proxy.yml` executam `pnpm install --frozen-lockfile`; a validação do Worker também usa o lockfile do projeto.
+- **Critério de manutenção:** não reintroduzir `--no-frozen-lockfile` ou instalação sem lockfile no CI; revisar dependências e alertas de vulnerabilidade periodicamente.
+
+### AUD-006 — Estado da migração D1 e documentação
+- **Gravidade original:** Média.
+- **Situação:** **Migração versionada e aplicação pelo workflow confirmada; verificação independente do schema remoto ainda pendente.**
+- **Evidência:** `worker/migrations/0001_push_schema.sql` versiona as tabelas e índices. A execução `43657583338` concluiu com sucesso a etapa “Aplicar migrações do banco D1” para o banco configurado como `remedios-push`.
+- **Critério restante:** comparar o schema remoto com a migração, testar backup/restore e registrar retenção e responsável. Sucesso do comando de migração não substitui ensaio de restauração.
+
+### AUD-007 — Política de senha diferente entre cofre e backup
+- **Gravidade:** Baixa.
+- **Situação:** **Correção proposta no PR #58; aguardando checks e merge.**
+- **Evidência:** o cofre exige 10 caracteres; o backup criptografado aceitava 8.
+- **Correção proposta:** exigir 10 caracteres na criação de novos backups. A rotina de descriptografia mantém a compatibilidade com arquivos antigos, sem elevar o limite mínimo dos arquivos já existentes.
+- **Critério de aceite:** testes de limite 9/10 caracteres, teste de ida e volta com senha válida e preservação da abertura de backups legados.
+
+### AUD-008 — Entrega Push sob concorrência e recuperação de falhas
+- **Gravidade:** Média/Alta, pendente de avaliação.
+- **Situação:** **Correção mesclada no PR #44; workflow de produção concluiu com sucesso a validação, aplicação remota da migração 0002 e deploy do Worker.**
+- **Evidência:** `worker/src/push.ts` busca eventos vencidos em lotes e atualiza o estado após tentar o envio. Ainda não há evidência de ensaio de execuções Cron concorrentes, idempotência de ponta a ponta, backoff progressivo ou monitoramento de backlog.
+- **Risco a investigar:** duplicidade ou atraso em condições de concorrência, indisponibilidade do provedor Push e acúmulo de eventos.
+- **Evidência da correção proposta:** claim atômico com lease, timeout de 10 s, backoff de 1 min/5 min/15 min/1 h, limite de 5 tentativas e testes concorrentes determinísticos.
+- **Critério restante:** validar entrega em dispositivos reais; a garantia continua sendo de melhor esforço, não exatamente uma vez.
+
+
+### AUD-009 — Desativação do cofre pode deixar cópias locais parciais
+- **Gravidade:** Alta.
+- **Situação:** **Correção proposta no PR #57; aguardando conclusão dos checks e merge.**
+- **Evidência:** a desativação grava os registros em localStorage antes de excluir o envelope criptografado. Se uma gravação intermediária ou a abertura/remoção do IndexedDB falhar, cópias em texto puro poderiam permanecer parcialmente gravadas.
+- **Correção proposta:** capturar snapshot local, reverter gravações parciais em falha e limpar a chave/dados em memória somente após confirmação da remoção do envelope.
+- **Critério restante:** mesclar e validar em navegador real, inclusive falha de cota e IndexedDB indisponível. Se o rollback também falhar, o usuário deve preservar o dispositivo para recuperação.
+
+
+### AUD-010 — Análise estática e grafo de dependências
+- **Gravidade:** Média.
+- **Situação:** **CodeQL, Dependabot e Dependency Review mesclados no PR #47; Dependency Graph habilitado e revisão de dependências executando em PRs para `main`.**
+- **Evidência:** CodeQL v4 executa consultas `security-extended` em PRs, pushes na `main` e agenda semanal; Dependabot semanal foi configurado para dependências e GitHub Actions; o workflow Dependency Review está ativo e bloqueia adições com severidade alta ou crítica.
+- **Critério restante:** acompanhar alertas Code Scanning e Dependabot e manter a revisão de atualizações. Essas ferramentas não substituem testes, resposta a incidentes nem revisão independente.
+
+## 3. Pendências de operação, privacidade e produto
+
+| Área | Situação | Evidência necessária |
 |---|---|---|
-| **Crítica** | Risco imediato demonstrado de perda/exposição de dados ou comportamento clínico perigoso | Bloqueia release; correção e revalidação obrigatórias |
-| **Alta** | Falta de controle importante em fluxo sensível ou publicação | Bloqueia declaração de prontidão profissional até mitigação |
-| **Média** | Lacuna de confiabilidade, rastreabilidade ou manutenção | Deve ter responsável, prazo e critério de aceite |
-| **Baixa** | Melhoria de acabamento ou processo | Planejar sem bloquear, salvo impacto adicional |
+| D1 | Migrações 0001/0002/0003 versionadas; PR #44 publicou 0002 e PR #56 validou localmente a sequência completa | Comparação do schema remoto, confirmação da migração 0003, backup/restore ensaiado e retenção |
+| Rate limit | PR #56 mesclado; migração 0003 validada localmente | Verificar aplicação remota, custo, retenção, concorrência e comportamento em produção |
+| Observabilidade | Aberto | Métricas de disponibilidade, latência, erros, backlog e consumo sem conteúdo clínico |
+| Recuperação | PR #57 propõe rollback local reversível do cofre; checks em andamento | RPO/RTO aprovados, backup/restore D1 e rollback de release exercitados |
+| Push real | Aberto | Homologação em aparelhos e navegadores suportados |
+| IA | Parcial | Casos sintéticos, timeout/fallback, validação de schema e revisão humana; não é validação clínica |
+| Privacidade/LGPD | Aberto | Definição de controlador/operadores, bases legais, retenção, direitos, fornecedores e revisão jurídica |
+| Acessibilidade | Aberto | Teclado, leitor de tela, contraste, foco, zoom/reflow e inspeção manual |
+| Segurança independente | Aberto | Revisão de código/pentest por profissional independente antes de uso institucional/comercial |
+| Análise contínua | PR #47 mesclado; CodeQL, Dependabot e Dependency Review ativos | Acompanhar alertas, atualizações e resposta a vulnerabilidades |
 
-**Nesta rodada:** nenhum defeito crítico foi confirmado. Há lacunas altas e médias que precisam de validação/correção. A ausência de evidência não deve ser interpretada como aprovação.
+## 4. Critérios bloqueadores para prontidão profissional
 
-## 3. Registro inicial de achados
-
-### AUD-001 — Deploy do Worker não está condicionado ao resultado do pipeline de qualidade
-
-- **Gravidade:** Alta
-- **Categoria:** CI/CD e operação
-- **Evidência:** `.github/workflows/deploy-proxy.yml` é acionado por push na `main` quando arquivos `worker/**` ou o próprio workflow mudam. Esse workflow executa migrações remotas e deploy. A validação de lint, typecheck, testes e build está em outro workflow (`.github/workflows/deploy.yml`); não há dependência `needs` entre os workflows.
-- **Impacto potencial:** uma alteração do Worker pode iniciar o deploy mesmo que a execução independente de qualidade falhe.
-- **Correção proposta:** unificar o fluxo ou criar uma condição explícita de publicação após os checks obrigatórios aprovados; separar validação de migração e aplicação remota; manter aprovação manual para operações destrutivas ou de impacto no banco.
-- **Critério de aceite:** um teste de PR com falha em lint/teste/typecheck não pode publicar Worker nem aplicar migração remota; um push aprovado pode publicar e registrar o commit implantado.
-- **Status:** Aberto.
-
-### AUD-002 — Cofre criptográfico sem suíte de testes dedicada identificada
-
-- **Gravidade:** Alta
-- **Categoria:** Proteção de dados
-- **Evidência:** existe implementação em `src/services/secureStorage.tsx`, mas não foi encontrado arquivo `secureStorage.test.*` na listagem de testes do projeto. A implementação faz migração de dados legados, gravação no IndexedDB, desbloqueio, bloqueio e fila de gravações.
-- **Impacto potencial:** regressões na migração, desbloqueio, concorrência ou persistência podem causar perda de acesso ou inconsistência em dados sensíveis.
-- **Correção proposta:** criar testes unitários e de integração para senha incorreta, envelope adulterado/incompatível, falha de IndexedDB, interrupção de gravação, migração sem perda, múltiplas abas, bloqueio e restauração.
-- **Critério de aceite:** todos os cenários críticos automatizados passam; a migração nunca remove a cópia de origem antes da confirmação da cópia protegida; falhas de gravação são detectáveis e recuperáveis.
-- **Status:** Aberto.
-
-### AUD-003 — Fluxos essenciais ainda sem evidência de homologação ponta a ponta em dispositivos
-
-- **Gravidade:** Alta
-- **Categoria:** Lembretes, Push e experiência de uso
-- **Evidência:** `vite.config.ts` configura Vitest com ambiente `node`; a listagem contém testes unitários, mas não foi identificada suíte de navegador/E2E. A documentação também exige testes reais de navegador e dispositivo.
-- **Impacto potencial:** diferenças de permissões, suspensão do navegador, economia de bateria, reinstalação, atualização do Service Worker e conectividade podem não aparecer nos testes unitários.
-- **Correção proposta:** instituir matriz de homologação para Android/Chrome, iOS/Safari e desktop; testar agendamento, cancelamento, duplicidade, reinício, offline/retorno da rede, permissões e atualização do PWA.
-- **Critério de aceite:** roteiro reproduzível, evidências datadas por plataforma e nenhum defeito bloqueador nos fluxos críticos; a interface deve informar que Push depende das permissões e condições do sistema e não é garantia absoluta de entrega.
-- **Status:** Aberto.
-
-### AUD-004 — Limitação conhecida do rate limit em memória
-
-- **Gravidade:** Média
-- **Categoria:** Worker e operação
-- **Evidência:** `worker/src/limiter.ts` declara explicitamente que os contadores são locais ao isolate, reiniciam e não são compartilhados entre isolates.
-- **Impacto potencial:** os limites atuais são de melhor esforço e não representam uma cota global persistente para o proxy público.
-- **Correção proposta:** decidir o nível de exposição e custo aceitável; se forem necessárias cotas rígidas, avaliar Cloudflare Rate Limiting ou Durable Objects, com limites e alertas operacionais.
-- **Critério de aceite:** requisito de cota documentado e teste de carga/concorrência demonstrando o comportamento esperado; limites e custos monitoráveis.
-- **Status:** Aberto — decisão de arquitetura necessária.
-
-### AUD-005 — Instalação de dependências não é estritamente reprodutível nos workflows
-
-- **Gravidade:** Média
-- **Categoria:** Supply chain e CI
-- **Evidência:** o workflow principal usa `pnpm install --no-frozen-lockfile`; o workflow do Worker usa `npm install`. O repositório possui `pnpm-lock.yaml`, mas não foi identificada trava de dependências própria do Worker na pasta `worker`.
-- **Impacto potencial:** uma execução futura pode resolver versões diferentes das usadas em uma execução anterior.
-- **Correção proposta:** usar instalação congelada para o frontend; definir e versionar lockfile do Worker ou padronizar a instalação com uma estratégia reproduzível.
-- **Critério de aceite:** CI instala sem modificar lockfiles; duas execuções limpas sobre o mesmo commit resolvem a mesma árvore de dependências.
-- **Status:** Aberto.
-
-### AUD-006 — Documentação do D1 estava desatualizada
-
-- **Gravidade:** Média
-- **Categoria:** Documentação e operação
-- **Evidência:** `docs/D1_SCHEMA.md` dizia que não havia migração SQL versionada, mas existe `worker/migrations/0001_push_schema.sql` com as duas tabelas, índices e foreign key.
-- **Impacto potencial:** instruções operacionais incompletas e divergência entre documentação e código.
-- **Correção aplicada nesta branch:** atualizar `docs/D1_SCHEMA.md` para descrever a migração encontrada e distinguir o schema versionado do estado efetivamente aplicado no D1 remoto.
-- **Critério de aceite:** documentação corresponde à migração versionada; operador confirma que as migrações foram aplicadas no banco correto.
-- **Status:** Correção documental proposta nesta branch; confirmação remota pendente.
-
-### AUD-007 — Política de senha do cofre e do backup criptografado difere
-
-- **Gravidade:** Baixa
-- **Categoria:** Segurança e experiência
-- **Evidência:** `src/services/secureStorage.tsx` exige pelo menos 10 caracteres; `src/services/backup.ts` exige pelo menos 8 para o backup criptografado.
-- **Impacto potencial:** regras diferentes podem confundir o usuário e dificultar uma política consistente de orientação.
-- **Correção proposta:** decidir uma política comum ou documentar claramente por que os requisitos diferem; avaliar força da senha, usabilidade e compatibilidade antes de alterar arquivos existentes.
-- **Critério de aceite:** regra aprovada, mensagens coerentes e testes para limites mínimos e máximos.
-- **Status:** Aberto.
-
-## 4. Plano de execução
-
-| Fase | Entrega | Prioridade | Condição para encerrar |
-|---|---|---|---|
-| 0 — Baseline | Este relatório, registro de achados e correção documental D1 | Imediata | Relatório versionado e revisável |
-| 1 — Pipeline | Bloqueio de deploy do Worker por checks; instalação reproduzível | Alta | Falhas de CI impedem publicação |
-| 2 — Dados | Testes do cofre, backup, importação e restauração | Alta | Casos críticos automatizados aprovados |
-| 3 — Lembretes | Homologação E2E de lembretes, Push e PWA em dispositivos | Alta | Matriz de plataformas preenchida |
-| 4 — Operação | Rate limit adequado, observabilidade, alertas, retenção e rollback | Média/Alta | Evidências de operação e recuperação |
-| 5 — Privacidade | Inventário de dados, consentimentos, exclusão e revisão LGPD | Alta | Revisão especializada e documentos aprovados |
-| 6 — Release | Homologação completa e relatório final | Bloqueante | Todos os critérios obrigatórios aprovados |
-
-## 5. Critérios objetivos para declarar prontidão profissional
-
-A declaração de prontidão só poderá ocorrer quando todos os itens bloqueadores abaixo tiverem evidência registrada.
-
-### Engenharia e publicação
+### Engenharia e release
 - [ ] Lint, typecheck, testes e build aprovados no commit candidato.
-- [ ] Instalação reproduzível sem alteração de lockfile.
-- [ ] Deploy do Worker condicionado aos checks de qualidade.
-- [ ] PR revisada, diff inspecionado e rollback documentado.
-- [ ] Migrações D1 testadas em ambiente não produtivo antes de produção.
+- [ ] Instalação reproduzível com lockfile congelado.
+- [ ] Deploy do Worker condicionado à validação.
+- [ ] Diff revisado e PR aprovada; nenhuma alteração não revisada diretamente na `main`.
+- [ ] Rollback do frontend e Worker ensaiado; compatibilidade de migrações documentada.
 
 ### Dados e recuperação
-- [ ] Testes dedicados do cofre aprovados.
-- [ ] Testes de exportação, criptografia, importação e restauração aprovados.
-- [ ] Backup de dados sensíveis claramente identificado e protegido.
-- [ ] RPO/RTO definidos e restauração ensaiada.
-- [ ] Exclusão e retenção de dados documentadas.
+- [ ] Testes do cofre e backup aprovados, incluindo falhas e compatibilidade.
+- [ ] Backup protegido identificado e restauração testada.
+- [ ] RPO/RTO definidos e aprovados.
+- [ ] Política de retenção e exclusão aplicada aos dados locais e remotos.
+- [ ] Backup/restore D1 ensaiado com acesso restrito.
 
 ### Lembretes e IA
-- [ ] Fluxos de lembrete homologados nas plataformas suportadas.
-- [ ] Permissões, falhas de entrega e limitações de Push comunicadas.
-- [ ] IA testada com casos sintéticos, entradas inválidas, timeout e fallback.
-- [ ] Nenhuma operação de IA modifica dose, frequência ou duração prescrita.
-- [ ] Mensagens de incerteza e necessidade de confirmação profissional aparecem nos fluxos pertinentes.
+- [ ] Fluxos críticos homologados em plataformas suportadas.
+- [ ] Push real testado com app fechado; limitações comunicadas sem prometer entrega garantida.
+- [ ] Falhas, duplicidade, retentativa e backlog de notificações testados.
+- [ ] IA testada com entradas sintéticas, respostas inválidas, timeout e fallback.
+- [ ] Otimização de horários não altera dose, frequência ou duração prescrita e exige revisão humana.
 
-### Privacidade e operação
-- [ ] Mapa de dados e fornecedores atualizado.
-- [ ] Consentimentos de envio a provedores externos claros, específicos e revogáveis.
-- [ ] Revisão especializada de privacidade/LGPD concluída.
-- [ ] Monitoramento e alertas operacionais testados.
-- [ ] Plano de incidentes e rollback exercitado.
+### Privacidade, segurança e acessibilidade
+- [ ] Inventário de dados e fornecedores atualizado.
+- [ ] Consentimentos claros, específicos e revogáveis nos fluxos aplicáveis.
+- [ ] Revisão jurídica especializada de LGPD e textos legais concluída.
+- [ ] Revisão independente de segurança concluída.
+- [ ] Alertas operacionais e plano de incidentes testados.
+- [ ] Fluxos principais aprovados em teclado, leitor de tela, contraste e layout móvel.
 
-### Acessibilidade e experiência
-- [ ] Fluxos principais utilizáveis por teclado e leitor de tela.
-- [ ] Contraste, foco, rótulos e mensagens de erro revisados.
-- [ ] Layout validado em celular, tablet e desktop.
-- [ ] Estados de carregamento, erro, vazio e sucesso verificados.
+## 5. Evidências de CI e publicação
 
-## 6. Evidências consultadas
+- PR #42: testes de lembretes/Push ampliados; 237 testes Vitest e 6 testes do Service Worker reportados no CI do PR.
+- PR #44: confiabilidade de entrega Push; CI e deploy de produção aprovados, incluindo migração D1 remota.
+- PR #47: CodeQL v4, Dependabot e Dependency Review mesclados; análise CodeQL e revisão de dependências executadas com sucesso.
+- PR #56: rate limit persistente; lint, typecheck, testes, build, dry-run e migrações D1 locais 0001/0002/0003 aprovados.
+- PR #57: rollback da desativação do cofre reaplicado sobre a `main`; CodeQL e typecheck aprovados, build cancelado por concorrência e reexecutado.
+- PR #58: política de senha mínima do backup e auditoria atualizada; validação pendente.
+- Workflow `43713075383`: validação, aplicação remota das migrações e deploy do Worker após PR #44 concluídos com sucesso.
+- Workflow `43713401756`: validação local de todas as migrações D1 0001/0002/0003 após PR #56 concluída com sucesso.
+- Commit publicado após PR #44: `a7a67c56498d087a3aa7fe7b69dc34f928888551`.
+- Commit publicado após PR #56: `d3307c6516ca55a29b18d2ab493f3a85948cc978` (deploy remoto em verificação).
 
-- `package.json`: scripts de lint, typecheck, teste e build.
-- `.github/workflows/deploy.yml`: pipeline de qualidade e publicação Pages.
-- `.github/workflows/deploy-proxy.yml`: fluxo independente de deploy do Worker e aplicação de migrações remotas.
-- `vite.config.ts`: escopo e ambiente dos testes Vitest.
-- `src/services/secureStorage.tsx`: implementação do cofre local.
-- `src/services/backup.ts`: formato e criptografia do backup.
-- `worker/src/limiter.ts`: escopo local dos contadores de rate limit.
-- `worker/migrations/0001_push_schema.sql`: schema versionado do D1.
-- GitHub Actions: execução `43611900482`, commit `c52df6d`, concluída com sucesso em 14/11/2026; jobs `build` e `deploy` aprovados.
+## 6. Limites e governança
 
-## 7. Fora do escopo desta rodada
-
-- Não foram realizadas chamadas com dados reais de saúde.
-- Não foram alterados medicamentos, doses, frequências ou prescrições.
-- Não foi feita alteração de infraestrutura ou deploy no Cloudflare.
-- Não foi feita auditoria jurídica, certificação de segurança ou validação clínica.
-- Não foi confirmado o estado real dos recursos e secrets no painel Cloudflare.
-- Nenhuma alteração funcional foi integrada à `main`.
-
-## 8. Governança desta auditoria
-
-- Cada achado deve receber identificador estável, gravidade, evidência, responsável, correção, critério de aceite e status.
-- Correções devem ocorrer em branches separadas e entrar por PR.
-- Não fechar achado apenas porque o código foi alterado: exigir teste e evidência.
-- Reabrir o achado se a regressão reaparecer.
-- Atualizar este relatório após cada fase e emitir uma conclusão final apenas depois da homologação.
+- Nenhum teste automatizado comprova ausência de defeitos ou segurança clínica universal.
+- Não foram usados dados reais de saúde nesta auditoria.
+- Não foi feita certificação, pentest independente, parecer jurídico ou validação clínica.
+- Não afirmar conformidade LGPD sem avaliação jurídica e operacional.
+- Não alterar dose, frequência ou duração de medicamentos por automação ou IA.
+- Cada achado só deve ser encerrado com evidência verificável; correção em código sem teste ou homologação não basta.
+- Manter este documento atualizado em cada PR e registrar commit, execução CI, evidência, pendências e responsável.
