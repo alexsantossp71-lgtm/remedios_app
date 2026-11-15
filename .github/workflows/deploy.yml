@@ -54,7 +54,7 @@ jobs:
           pnpm dlx wrangler@4 deploy --dry-run --config worker/wrangler.toml
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
