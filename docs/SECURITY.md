@@ -31,6 +31,7 @@ Este documento registra controles observados no código e ações recomendadas. 
 - O Dependency Graph foi habilitado nas configurações do repositório. O workflow `.github/workflows/dependency-review.yml` executa Dependency Review em PRs direcionados à `main` e bloqueia novas dependências com vulnerabilidade de severidade alta ou crítica.
 - O Dependency Review compara as dependências introduzidas ou alteradas pelo PR; ele não substitui a análise completa e contínua de vulnerabilidades das dependências já existentes.
 - Proteger endpoints do Worker contra abuso, replay, enumeração e consumo excessivo.
+- Aplicar rate limits persistentes compartilhados entre isolates, com armazenamento pseudonimizado de identificadores e retenção curta.
 - Definir limites de taxa, tamanho de payload e retenção.
 - Implementar resposta a incidentes e processo de comunicação aplicável.
 
@@ -56,7 +57,7 @@ A IA é ferramenta de apoio informacional. Não deve diagnosticar, prescrever ou
 ## 6. Pendências prioritárias
 
 1. Auditar a implementação de `secureStorage` e documentar o que protege, contra quais ameaças e quais limitações permanecem.
-2. Revisar autenticação, autorização, validação e rate limiting de todas as rotas do Worker.
+2. Revisar autenticação, autorização e validação de todas as rotas do Worker; o rate limit persistente em D1 reduz abuso, mas não substitui autenticação nem controle de cobrança.
 3. Revisar permissões e retenção do Cloudflare D1.
 4. Fazer análise de dependências e varredura de segredos.
 5. Criar plano de resposta a incidentes e procedimento de comunicação.
