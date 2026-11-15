@@ -86,6 +86,21 @@ describe('rate limit persistente compartilhado por D1', () => {
     expect([...db.counters.keys()].some((key) => key.startsWith('diagnostics:window:'))).toBe(true);
   });
 
+  it('aplica teto agregado diário entre endereços IP distintos', async () => {
+    const db = new FakeRateLimitDatabase();
+    const now = Date.UTC(2026, 10, 15, 12, 0, 0);
+    const globalConfig = { windowMs: 300_000, windowMax: 10, dayMax: 1 };
+
+    for (let index = 1; index <= 4; index += 1) {
+      const result = await checkPersistentRateLimits(asD1(db), `203.0.113.${index}`, now, globalConfig);
+      expect(result.allowed).toBe(true);
+    }
+    const blocked = await checkPersistentRateLimits(asD1(db), '203.0.113.99', now, globalConfig);
+
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.reason).toBe('global-day');
+  });
+
   it('persiste apenas hash do IP, nunca o endereço em texto puro', async () => {
     const db = new FakeRateLimitDatabase();
     await checkPersistentRateLimits(asD1(db), '198.51.100.25', Date.UTC(2026, 10, 15), config);
