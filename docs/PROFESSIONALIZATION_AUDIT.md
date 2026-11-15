@@ -2,7 +2,7 @@
 
 **Atualização:** 15/11/2026  
 **Repositório:** `alexsantossp71-lgtm/remedios_app`  
-**Commits de referência:** PR #42 (`1a3b959`), PR #44 (`a7a67c5`), PR #47 (`275ba0e`) e PR #56 (`d3307c6`) mesclados; PR #57 (rollback do cofre) e PR #58 (política de senha do backup e atualização desta auditoria) em validação.
+**Commits de referência:** PR #42 (`1a3b959`), PR #44 (`a7a67c5`), PR #47 (`275ba0e`), PR #56 (`d3307c6`) e PR #57 (`bef4d93`) mesclados; PR #58 (política de senha do backup e atualização desta auditoria) em validação.
 
 > **Status geral: EM HOMOLOGAÇÃO — AINDA NÃO DECLARAR PRONTO PARA USO PROFISSIONAL.**
 >
@@ -19,7 +19,7 @@ Desde a auditoria inicial, houve progresso verificável:
 - PR #44 foi mesclado e publicado; o workflow do Worker concluiu com sucesso a validação, aplicação remota das migrações e deploy.
 - PR #47 foi mesclado; CodeQL v4, Dependabot e Dependency Review estão na `main`, com Dependency Graph habilitado.
 - PR #56 foi mesclado sobre a `main` atual; adiciona rate limits persistentes compartilhados no D1 e valida localmente as migrações 0001, 0002 e 0003.
-- PR #57 reaplica a correção de rollback da desativação do cofre sobre a `main` atual; testes e build estão em validação.
+- PR #57 foi mesclado após lint, typecheck, testes, build, CodeQL e Dependency Review aprovados; a desativação do cofre agora reverte gravações parciais quando ocorre falha.
 - PR #58 reaplica a política de senha mínima de 10 caracteres para novos backups, preservando a abertura de backups legados, e atualiza este relatório.
 - O PR #42 ampliou os testes de lembretes/Push; o conjunto reportado no CI do PR foi de 237 testes Vitest e 6 testes do Service Worker.
 - Após o merge do PR #42, os workflows de GitHub Pages e Cloudflare Worker concluíram com sucesso no commit `1a3b959`. O job do Worker também concluiu com sucesso a etapa de aplicação das migrações D1.
@@ -37,9 +37,9 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 
 ### AUD-002 — Cofre criptográfico sem testes dedicados
 - **Gravidade original:** Alta.
-- **Situação:** **Testes automatizados existentes; rollback de desativação reforçado no PR #57, ainda aguardando conclusão dos checks e merge.**
+- **Situação:** **Testes automatizados existentes; rollback de desativação reforçado e mesclado no PR #57, com checks aprovados.**
 - **Evidência:** `src/services/secureStorage.test.ts` cobre senha mínima, migração sem perda, falha de IndexedDB, senha incorreta, adulteração AES-GCM, parâmetros incompatíveis, fila de gravação, falha de persistência, desativação segura e prevenção de sobrescrita do cofre.
-- **Critério restante:** após merge do PR #57, testar concorrência entre abas/contextos, interrupção abrupta do navegador e recuperação em navegadores reais. Não afirmar que o cofre protege contra malware, extensão maliciosa ou dispositivo já comprometido.
+- **Critério restante:** ainda testar concorrência entre abas/contextos, interrupção abrupta do navegador e recuperação em navegadores reais. Não afirmar que o cofre protege contra malware, extensão maliciosa ou dispositivo já comprometido.
 
 ### AUD-003 — Ausência de homologação ponta a ponta em dispositivos
 - **Gravidade:** Alta.
@@ -50,7 +50,7 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 
 ### AUD-004 — Rate limit do Worker era local ao isolate
 - **Gravidade:** Média, podendo tornar-se Alta conforme exposição e custo.
-- **Situação:** **Correção mesclada no PR #56; validação local das migrações 0001/0002/0003 aprovada. A aplicação remota e a observação operacional da migração 0003 ainda precisam de confirmação.**
+- **Situação:** **Correção mesclada no PR #56; validação local e aplicação remota das migrações 0001/0002/0003 concluídas com sucesso pelo workflow de produção. A observação operacional contínua ainda precisa de confirmação.**
 - **Evidência:** `worker/src/limiter.ts` declara que contadores são em memória, reiniciam e não são compartilhados entre isolates.
 - **Impacto:** limites atuais são defesa de melhor esforço, não cota global persistente.
 - **Evidência da correção proposta:** contadores atômicos no D1 por janela/IP/dia/global, escopo separado para diagnóstico, hash SHA-256 do IP e limpeza por Cron; testes simulam isolates compartilhando banco.
@@ -86,7 +86,7 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 
 ### AUD-009 — Desativação do cofre pode deixar cópias locais parciais
 - **Gravidade:** Alta.
-- **Situação:** **Correção proposta no PR #57; aguardando conclusão dos checks e merge.**
+- **Situação:** **Correção mesclada no PR #57; checks aprovados.**
 - **Evidência:** a desativação grava os registros em localStorage antes de excluir o envelope criptografado. Se uma gravação intermediária ou a abertura/remoção do IndexedDB falhar, cópias em texto puro poderiam permanecer parcialmente gravadas.
 - **Correção proposta:** capturar snapshot local, reverter gravações parciais em falha e limpar a chave/dados em memória somente após confirmação da remoção do envelope.
 - **Critério restante:** mesclar e validar em navegador real, inclusive falha de cota e IndexedDB indisponível. Se o rollback também falhar, o usuário deve preservar o dispositivo para recuperação.
@@ -105,7 +105,7 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 | D1 | Migrações 0001/0002/0003 versionadas; PR #44 publicou 0002 e PR #56 validou localmente a sequência completa | Comparação do schema remoto, confirmação da migração 0003, backup/restore ensaiado e retenção |
 | Rate limit | PR #56 mesclado; migração 0003 validada localmente | Verificar aplicação remota, custo, retenção, concorrência e comportamento em produção |
 | Observabilidade | Aberto | Métricas de disponibilidade, latência, erros, backlog e consumo sem conteúdo clínico |
-| Recuperação | PR #57 propõe rollback local reversível do cofre; checks em andamento | RPO/RTO aprovados, backup/restore D1 e rollback de release exercitados |
+| Recuperação | PR #57 implementa rollback local reversível do cofre; testes automatizados aprovados | RPO/RTO aprovados, backup/restore D1 e rollback de release exercitados |
 | Push real | Aberto | Homologação em aparelhos e navegadores suportados |
 | IA | Parcial | Casos sintéticos, timeout/fallback, validação de schema e revisão humana; não é validação clínica |
 | Privacidade/LGPD | Aberto | Definição de controlador/operadores, bases legais, retenção, direitos, fornecedores e revisão jurídica |
@@ -150,12 +150,12 @@ Essas evidências demonstram automação e publicação aprovadas naquele commit
 - PR #44: confiabilidade de entrega Push; CI e deploy de produção aprovados, incluindo migração D1 remota.
 - PR #47: CodeQL v4, Dependabot e Dependency Review mesclados; análise CodeQL e revisão de dependências executadas com sucesso.
 - PR #56: rate limit persistente; lint, typecheck, testes, build, dry-run e migrações D1 locais 0001/0002/0003 aprovados.
-- PR #57: rollback da desativação do cofre reaplicado sobre a `main`; CodeQL e typecheck aprovados, build cancelado por concorrência e reexecutado.
+- PR #57: rollback da desativação do cofre; lint, typecheck, testes, build (após reexecução), CodeQL e Dependency Review aprovados.
 - PR #58: política de senha mínima do backup e auditoria atualizada; validação pendente.
 - Workflow `43713075383`: validação, aplicação remota das migrações e deploy do Worker após PR #44 concluídos com sucesso.
 - Workflow `43713401756`: validação local de todas as migrações D1 0001/0002/0003 após PR #56 concluída com sucesso.
 - Commit publicado após PR #44: `a7a67c56498d087a3aa7fe7b69dc34f928888551`.
-- Commit publicado após PR #56: `d3307c6516ca55a29b18d2ab493f3a85948cc978` (deploy remoto em verificação).
+- Commit publicado após PR #56: `d3307c6516ca55a29b18d2ab493f3a85948cc978`; Pages, Worker, migrações D1 e CodeQL concluíram com sucesso.
 
 ## 6. Limites e governança
 
