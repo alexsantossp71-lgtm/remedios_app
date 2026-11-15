@@ -97,7 +97,7 @@ export function buildBackup(): BackupFile {
 const ENCRYPTED_FORMAT = 'remedio-na-hora-encrypted-backup';
 const ENCRYPTION_VERSION = 1;
 const PBKDF2_ITERATIONS = 310_000;
-const MIN_PASSWORD_LENGTH = 8;
+const MIN_PASSWORD_LENGTH = 10;
 
 interface EncryptedBackupFile {
     app: typeof ENCRYPTED_FORMAT;
@@ -147,7 +147,7 @@ async function deriveBackupKey(password: string, salt: Uint8Array, iterations: n
 /** Criptografa o backup com AES-256-GCM e chave derivada da senha via PBKDF2. */
 export async function encryptBackup(password: string): Promise<string> {
     if (password.length < MIN_PASSWORD_LENGTH) {
-        throw new Error('Use uma senha com pelo menos 8 caracteres.');
+        throw new Error('Use uma senha com pelo menos 10 caracteres.');
     }
     if (!globalThis.crypto?.subtle) {
         throw new Error('Este navegador não oferece suporte à proteção necessária. Acesse pelo site seguro (HTTPS) e tente novamente.');
