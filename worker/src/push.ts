@@ -106,22 +106,60 @@ export async function handlePushRequest(request: Request, env: PushEnv, origin: 
   return json(404, { error: 'Rota não encontrada.' }, origin);
 }
 
+const MAX_PUSH_ATTEMPTS = 5;
+const PUSH_CLAIM_LEASE_MS = 30_000;
+const PUSH_REQUEST_TIMEOUT_MS = 10_000;
+const PUSH_RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000] as const;
+
+interface DuePush {
+  notification_id: string;
+  subscription_id: string;
+  attempts: number;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+/**
+ * Claims a small batch atomically before contacting external Push services.
+ * The lease allows another Cron execution to recover work if an isolate stops.
+ */
 export async function sendDuePushes(env: PushEnv): Promise<void> {
   const publicKey = env.VAPID_PUBLIC_KEY ?? '';
   const privateKey = env.VAPID_PRIVATE_KEY ?? '';
   if (!publicKey || !privateKey || !env.PUSH_DB) return;
+
+  const now = Date.now();
+  const claimToken = crypto.randomUUID();
+  const claimedUntil = now + PUSH_CLAIM_LEASE_MS;
+
+  // UPDATE ... RETURNING makes the claim a single atomic D1 statement. A
+  // concurrent Cron invocation will no longer see these rows as claimable.
+  await env.PUSH_DB.prepare(`
+    UPDATE scheduled_notifications
+    SET claim_token = ?, claimed_until_ms = ?
+    WHERE id IN (
+      SELECT id FROM scheduled_notifications
+      WHERE sent_at_ms IS NULL
+        AND failed_at_ms IS NULL
+        AND attempts < ?
+        AND fire_at_ms <= ?
+        AND (next_attempt_at_ms IS NULL OR next_attempt_at_ms <= ?)
+        AND (claimed_until_ms IS NULL OR claimed_until_ms <= ?)
+      ORDER BY fire_at_ms ASC
+      LIMIT 5
+    )
+    RETURNING id
+  `).bind(claimToken, claimedUntil, MAX_PUSH_ATTEMPTS, now, now, now).all();
 
   const due = await env.PUSH_DB.prepare(`
     SELECT n.id AS notification_id, n.subscription_id, n.attempts,
       s.endpoint, s.p256dh, s.auth
     FROM scheduled_notifications n
     JOIN push_subscriptions s ON s.id = n.subscription_id
-    WHERE n.sent_at_ms IS NULL AND n.fire_at_ms <= ?
-    ORDER BY n.fire_at_ms ASC LIMIT 5
-  `).bind(Date.now()).all<{
-    notification_id: string; subscription_id: string; attempts: number;
-    endpoint: string; p256dh: string; auth: string;
-  }>();
+    WHERE n.claim_token = ? AND n.claimed_until_ms = ?
+    ORDER BY n.fire_at_ms ASC
+  `).bind(claimToken, claimedUntil).all<DuePush>();
 
   const vapid: VapidKeys = {
     subject: 'https://alexsantossp71-lgtm.github.io/remedios_app/',
@@ -129,7 +167,21 @@ export async function sendDuePushes(env: PushEnv): Promise<void> {
     privateKey,
   };
 
-  for (const item of due.results ?? []) {
+  const markFailure = async (item: DuePush, status: number | null): Promise<void> => {
+    const attempts = item.attempts + 1;
+    const failedAt = attempts >= MAX_PUSH_ATTEMPTS ? Date.now() : null;
+    const nextAttempt = failedAt === null
+      ? Date.now() + PUSH_RETRY_DELAYS_MS[Math.min(attempts - 1, PUSH_RETRY_DELAYS_MS.length - 1)]
+      : null;
+    await env.PUSH_DB.prepare(`
+      UPDATE scheduled_notifications
+      SET attempts = ?, next_attempt_at_ms = ?, failed_at_ms = ?,
+          last_status = ?, claim_token = NULL, claimed_until_ms = NULL
+      WHERE id = ? AND claim_token = ?
+    `).bind(attempts, nextAttempt, failedAt, status, item.notification_id, claimToken).run();
+  };
+
+  await Promise.all((due.results ?? []).map(async (item) => {
     try {
       const subscription: PushSubscription = {
         endpoint: item.endpoint,
@@ -143,21 +195,33 @@ export async function sendDuePushes(env: PushEnv): Promise<void> {
         }),
         options: { ttl: 300, urgency: 'high' },
       }, subscription, vapid);
-      const response = await fetch(item.endpoint, { ...payload, body: new Uint8Array(payload.body).buffer as ArrayBuffer });
-      if (response.ok || response.status === 201 || response.status === 202) {
-        await env.PUSH_DB.prepare('UPDATE scheduled_notifications SET sent_at_ms = ?, attempts = attempts + 1 WHERE id = ?')
-          .bind(Date.now(), item.notification_id).run();
-      } else if (response.status === 404 || response.status === 410) {
-        await env.PUSH_DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(item.subscription_id).run();
-      } else {
-        const attempts = item.attempts + 1;
-        await env.PUSH_DB.prepare('UPDATE scheduled_notifications SET attempts = ?, sent_at_ms = ? WHERE id = ?')
-          .bind(attempts, attempts >= 5 ? Date.now() : null, item.notification_id).run();
+      const response = await fetch(item.endpoint, {
+        ...payload,
+        body: new Uint8Array(payload.body).buffer as ArrayBuffer,
+        signal: AbortSignal.timeout(PUSH_REQUEST_TIMEOUT_MS),
+      });
+
+      if (response.ok) {
+        await env.PUSH_DB.prepare(`
+          UPDATE scheduled_notifications
+          SET sent_at_ms = ?, attempts = attempts + 1, last_status = ?,
+              next_attempt_at_ms = NULL, claim_token = NULL, claimed_until_ms = NULL
+          WHERE id = ? AND claim_token = ?
+        `).bind(Date.now(), response.status, item.notification_id, claimToken).run();
+        return;
       }
+
+      if (response.status === 404 || response.status === 410) {
+        // A inscrição expirou ou foi removida pelo provedor; FK cascade limpa a agenda.
+        await env.PUSH_DB.prepare('DELETE FROM push_subscriptions WHERE id = ?')
+          .bind(item.subscription_id).run();
+        return;
+      }
+
+      await markFailure(item, response.status);
     } catch {
-      const attempts = item.attempts + 1;
-      await env.PUSH_DB.prepare('UPDATE scheduled_notifications SET attempts = ?, sent_at_ms = ? WHERE id = ?')
-        .bind(attempts, attempts >= 5 ? Date.now() : null, item.notification_id).run();
+      // Não armazenar mensagem/URL/inscrição do provedor: apenas o contador técnico.
+      await markFailure(item, null);
     }
-  }
+  }));
 }
