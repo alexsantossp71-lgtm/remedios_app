@@ -21,7 +21,7 @@
 3. **Uso:** dados são mantidos em memória enquanto o cofre está desbloqueado. Leituras e gravações passam por funções específicas.
 4. **Persistência:** gravações são serializadas por uma fila assíncrona; `flushSecureWrites` permite aguardar e detectar falha de persistência.
 5. **Bloqueio:** limpa referências à chave e aos dados em memória.
-6. **Desativação:** exige cofre desbloqueado, grava os dados em localStorage, remove o envelope e limpa o estado em memória. Se a gravação falhar, a proteção é mantida.
+6. **Desativação:** exige cofre desbloqueado, registra um snapshot do localStorage, restaura os dados, remove o envelope e só então limpa o estado em memória. Se qualquer gravação ou remoção do envelope falhar, tenta reverter as cópias locais para o snapshot; o cofre permanece ativo.
 
 ## Limites e ameaças
 
@@ -42,7 +42,7 @@
 ## Pendências de auditoria
 
 - Conferir e registrar o valor exato de iterações PBKDF2 usado na constante do código.
-- Revisar atomicidade e recuperação em falhas de IndexedDB.
+- Testar rollback da desativação quando localStorage falha parcialmente ou IndexedDB não consegue remover o envelope.
 - Confirmar se todas as chaves de dados atuais estão incluídas em `DATA_KEYS`.
 - Testar comportamento com múltiplas abas abertas.
 - Revisar política de timeout/bloqueio automático e exposição de dados em memória.
