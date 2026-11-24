@@ -5,6 +5,14 @@ import { test } from 'node:test';
 
 const source = await readFile(new URL('../public/sw.js', import.meta.url), 'utf8');
 
+// O nome do cache vem do próprio fonte: o teste sobrevive a bumps de versão
+// (basta que exista um cache de versão anterior para simular a ativação).
+const currentCache = (/CACHE_NAME = '(remedio-na-hora-cache-v\d+)'/.exec(source) ?? [])[1] ?? '';
+const previousCache = currentCache.replace(/v(\d+)$/, (_, n) => `v${Number(n) - 1}`);
+if (!currentCache || previousCache === currentCache) {
+    throw new Error(`CACHE_NAME inesperado no sw.js: ${currentCache || 'não encontrado'}`);
+}
+
 function createServiceWorkerHarness() {
     const handlers = new Map();
     const notifications = [];
@@ -33,7 +41,7 @@ function createServiceWorkerHarness() {
     };
     const caches = {
         open: async () => cache,
-        keys: async () => ['old-cache', 'remedio-na-hora-cache-v16'],
+        keys: async () => ['old-cache', previousCache],
         delete: async (name) => { deletedCaches.push(name); return true; },
         match: async () => null,
     };
@@ -66,7 +74,9 @@ test('remove caches antigos na ativação e assume as abas abertas', async () =>
     let waited;
     h.handlers.get('activate')({ waitUntil: (promise) => { waited = promise; } });
     await waited;
-    assert.deepEqual(h.deletedCaches, ['old-cache']);
+    // Ativação apaga todo cache que não seja o atual: o legado sem versão e o
+    // da versão anterior (o teste recalcula os dois a partir do sw.js).
+    assert.deepEqual(h.deletedCaches, ['old-cache', previousCache]);
 });
 
 test('Push inválido gera apenas uma notificação genérica, sem dados clínicos', async () => {
