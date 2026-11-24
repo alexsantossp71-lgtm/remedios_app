@@ -6,6 +6,10 @@ import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray } from './storage';
 import { loadSecureJson, saveSecureJson, isVaultUnlocked, lockSecureVault, flushSecureWrites } from './services/secureStorage';
 import SecurityGate from './components/SecurityGate';
+import SplashScreen from './components/SplashScreen';
+import RegisterScreen, { type UserProfile } from './components/RegisterScreen';
+import { decideBootRoute, isOnboardingDone, markOnboardingDone, isDemoMode, setDemoMode, type BootRoute } from './utils/boot';
+import { buildDemoReminders, buildDemoAppointments } from './utils/demoData';
 import { formatDateTimeBR, parseLocalDateTime } from './utils/datetime';
 import { getNextReminderAlarm } from './utils/reminderScheduler';
 import { showSystemNotification, vibrateAlarm } from './utils/notify';
@@ -64,11 +68,11 @@ const NavButton: React.FC<{ active: boolean; onClick: () => void; label: string;
 );
 
 const ALARM_SOUND_B64 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTSEUAAAAMAEduaXgtbGFtZSAzLjk5LjUAAAAAAAAAAAAAAD43eAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/x/EQoA8ADhyQREAMU3bW3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//3W3//-";
-const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
+const AppContent: React.FC<{ onLock: () => void; demoActive?: boolean; onExitDemo?: () => void }> = ({ onLock, demoActive = false, onExitDemo }) => {
     // Dados lidos do localStorage uma única vez, nos initializers (app 100%
     // cliente, sem SSR): o primeiro render já traz tudo, sem cascade de effect.
     const [reminders, setReminders] = useState<Reminder[]>(
-        () => loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? []
+        () => (demoActive ? buildDemoReminders(new Date()) : loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
     );
     const [medications, setMedications] = useState<Medication[]>([]);
     const [isLoadingMeds, setIsLoadingMeds] = useState(true);
@@ -77,7 +81,7 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
     // Cadastros de "Minha Saúde"
     const [doctors, setDoctors] = useState<Doctor[]>(() => loadSecureJson<Doctor[]>(STORAGE_KEYS.doctors, isDoctorArray) ?? []);
     const [appointments, setAppointments] = useState<Appointment[]>(
-        () => loadSecureJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? []
+        () => (demoActive ? buildDemoAppointments(new Date()) : loadSecureJson<Appointment[]>(STORAGE_KEYS.appointments, isAppointmentArray) ?? [])
     );
     const [plans, setPlans] = useState<HealthPlan[]>(() => loadSecureJson<HealthPlan[]>(STORAGE_KEYS.plans, isHealthPlanArray) ?? []);
     const [exams, setExams] = useState<Exam[]>(() => loadSecureJson<Exam[]>(STORAGE_KEYS.exams, isExamArray) ?? []);
@@ -107,10 +111,31 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
     const [scheduleOpen, setScheduleOpen] = useState(false);
     // Doses de hoje que passaram do horário sem resposta; null = ainda não verificado.
     const [missedDoses, setMissedDoses] = useState<MissedDose[] | null>(
-        () => findMissedDoses(loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
+        () => findMissedDoses(demoActive ? [] : loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? [])
     );
 
-    const audioRef = useRef<HTMLAudioElement>(null);
+    const [userName, setUserName] = useState<string | null>(() => {
+        const profile = demoActive ? null : loadSecureJson<UserProfile>(STORAGE_KEYS.profile, () => true);
+        return profile?.name?.trim() ? profile.name.trim().split(/\s+/)[0].slice(0, 20) : null;
+    });
+
+    // Ao sair da demo, o perfil real passa a valer (saudação personalizada).
+    useEffect(() => {
+        if (demoActive) { setUserName(null); return; }
+        const profile = loadSecureJson<UserProfile>(STORAGE_KEYS.profile, () => true);
+        setUserName(profile?.name?.trim() ? profile.name.trim().split(/\s+/)[0].slice(0, 20) : null);
+    }, [demoActive]);
+
+    // Sai do modo demo: descarta os dados de exemplo e volta para a splash.
+    const handleExitDemo = () => {
+        setDemoMode(false);
+        setReminders([]);
+        setAppointments([]);
+        setMissedDoses(null);
+        onExitDemo?.();
+    };
+
+const audioRef = useRef<HTMLAudioElement>(null);
     const timeoutRef = useRef<number | null>(null);
     const appointmentTimeoutRef = useRef<number | null>(null);
     const examTimeoutRef = useRef<number | null>(null);
@@ -122,37 +147,43 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
 
 
     useEffect(() => {
+        if (demoActive) return; // demo nunca grava dados
         saveSecureJson(STORAGE_KEYS.reminders, reminders);
-    }, [reminders]);
+    }, [reminders, demoActive]);
 
     // Quando o usuário optou por Push, sincroniza somente instantes UTC.
     // O serviço nunca recebe nome, dose, histórico ou qualquer dado clínico.
     useEffect(() => {
-        if (!isPushEnabled()) return;
+        if (demoActive || !isPushEnabled()) return; // demo não sincroniza push
         void syncDoseSchedule(reminders).catch((error: unknown) => {
             console.warn('Não foi possível atualizar os horários Push neste momento.', error);
         });
     }, [reminders]);
 
     useEffect(() => {
+        if (demoActive) return; // demo nunca grava dados
         saveSecureJson(STORAGE_KEYS.doctors, doctors);
-    }, [doctors]);
+    }, [doctors, demoActive]);
 
     useEffect(() => {
+        if (demoActive) return; // demo nunca grava dados
         saveSecureJson(STORAGE_KEYS.appointments, appointments);
-    }, [appointments]);
+    }, [appointments, demoActive]);
 
     useEffect(() => {
+        if (demoActive) return; // demo nunca grava dados
         saveSecureJson(STORAGE_KEYS.plans, plans);
-    }, [plans]);
+    }, [plans, demoActive]);
 
     useEffect(() => {
+        if (demoActive) return; // demo nunca grava dados
         saveSecureJson(STORAGE_KEYS.exams, exams);
-    }, [exams]);
+    }, [exams, demoActive]);
 
     useEffect(() => {
+        if (demoActive) return; // demo nunca grava dados
         saveSecureJson(STORAGE_KEYS.labs, labs);
-    }, [labs]);
+    }, [labs, demoActive]);
 
     useEffect(() => {
         const fetchMedications = async () => {
@@ -591,6 +622,14 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
                     </button>
                 </div>
             </header>
+                {demoActive && (
+                    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+                            <p className="text-xs font-semibold">Modo demonstração — os dados de exemplo não ficam salvos.</p>
+                            <button onClick={handleExitDemo} className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600">Sair da demo</button>
+                        </div>
+                    </div>
+                )}
 
             <nav className="mx-auto max-w-7xl px-4 pt-4 md:px-8 md:pt-6" aria-label="Navegação principal">
                 <div className="app-nav grid grid-cols-2 gap-1.5 rounded-2xl p-1.5 sm:grid-cols-4">
@@ -611,7 +650,7 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
                         <div className="relative grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-center">
                             <div>
                                 <p className="text-sm font-semibold capitalize text-teal-100">{todayLabel}</p>
-                                <h2 className="mt-2 max-w-xl text-2xl font-extrabold leading-tight md:text-3xl">Olá! Vamos cuidar da sua saúde hoje?</h2>
+                                <h2 className="mt-2 max-w-xl text-2xl font-extrabold leading-tight md:text-3xl">{userName ? `Olá, ${userName}!` : 'Olá!'} Vamos cuidar da sua saúde hoje?</h2>
                                 <p className="mt-3 max-w-lg text-sm leading-6 text-teal-50/90 md:text-base">Acompanhe seus medicamentos, horários e compromissos em um só lugar.</p>
                                 <div className="mt-6 flex flex-wrap gap-3">
                                     <button onClick={() => setReminderModal({ open: true, editing: null })} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-teal-800 shadow-md transition hover:bg-teal-50">
@@ -952,6 +991,14 @@ const AppContent: React.FC<{ onLock: () => void }> = ({ onLock }) => {
 };
 
 const App: React.FC = () => {
+    // Primeiro uso → splash (Demo/Iniciar); quem já usou vai direto para as
+    // doses do dia, sem splash e sem cadastro.
+    const [boot, setBoot] = useState<BootRoute>(() => decideBootRoute({
+        hasProfile: Boolean(loadSecureJson<UserProfile>(STORAGE_KEYS.profile, () => true)),
+        hasData: (loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? []).length > 0,
+        onboarded: isOnboardingDone(),
+    }));
+    const [demoActive, setDemoActive] = useState(() => isDemoMode());
     const [unlocked, setUnlocked] = useState(() => isVaultUnlocked());
     const handleUnlock = () => setUnlocked(true);
     const handleLock = async () => {
@@ -963,6 +1010,28 @@ const App: React.FC = () => {
             window.alert(error instanceof Error ? error.message : 'Não foi possível bloquear com segurança. Tente novamente.');
         }
     };
+    if (boot !== 'app') {
+        return boot === 'register'
+            ? <RegisterScreen
+                onDone={(profile: UserProfile) => {
+                    saveSecureJson(STORAGE_KEYS.profile, profile);
+                    markOnboardingDone();
+                    setBoot('app');
+                }}
+                onBack={() => setBoot('splash')}
+              />
+            : <SplashScreen
+                onStart={() => setBoot('register')}
+                onDemo={() => {
+                    setDemoActive(true);
+                    markOnboardingDone();
+                    setBoot('app');
+                }}
+              />;
+    }
+    if (demoActive) {
+        return <AppContent key="demo" demoActive onLock={handleLock} onExitDemo={() => { setDemoMode(false); setDemoActive(false); setBoot('splash'); }} />;
+    }
     return unlocked
         ? <AppContent onLock={handleLock} />
         : <SecurityGate onUnlock={handleUnlock} />;

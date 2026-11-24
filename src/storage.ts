@@ -18,6 +18,8 @@ export const STORAGE_KEYS = {
     guides: 'aiMedicationGuides',
     /** Cache de análises de adesão geradas por IA (insightsCache.ts). */
     adherenceInsights: 'aiAdherenceInsights',
+    /** Nome e idade de chamada do usuário (RegisterScreen). */
+    profile: 'userProfile',
 } as const;
 
 /** ID único; usa crypto.randomUUID quando disponível (contexto seguro). */
