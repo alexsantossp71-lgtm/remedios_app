@@ -26,7 +26,10 @@ ALLOWED_ORIGINS = "https://alexsantossp71-lgtm.github.io,https://remedios-app-fl
 # Lista curada de modelos NVIDIA para texto e visão. O app consulta /models e
 # tenta automaticamente o próximo modelo compatível quando um endpoint falha.
 # Evite '*' no proxy público para não permitir uso arbitrário da chave.
-ALLOWED_MODELS = "z-ai/glm-5.3-flash,stepfun-ai/step-5-preview,meta/muse-glimmer-30b,nvidia/nemotron-3.5-super-vl-120b-a12b,nvidia/nemotron-3.5-lightning-30b-a3b,meta/llama-3.2-90b-vision-instruct,meta/llama-3.2-11b-vision-instruct"
+ALLOWED_MODELS = "z-ai/glm-5.3-flash,stepfun-ai/step-5-preview,meta/muse-glimmer-30b,nvidia/nemotron-3.5-super-vl-120b-a12b,nvidia/nemotron-3.5-lightning-30b-a3b"
+# Removidos em 2026-11-24 (testados ao vivo): meta/llama-3.2-90b-vision-instruct e
+# meta/llama-3.2-11b-vision-instruct chegaram ao fim de vida (HTTP 410) e saíram
+# do catálogo da conta; o app os pula automaticamente via catálogo /models.
 
 # Chave pública VAPID (não é segredo; a privada fica em VAPID_PRIVATE_KEY).
 VAPID_PUBLIC_KEY = "BAjbR16MfNGcHnruGzW1fhYem5k4Dk1VvxT5jj7qZjui6C5DDFnfZY_sz-EtKEgTMeHlc0OvWGtTYJAVafzGSQs"

@@ -11,7 +11,7 @@ export interface AiSettings {
     pollinationsConsent: boolean;
 }
 
-export const DEFAULT_VISION_MODEL = 'meta/llama-3.2-90b-vision-instruct';
+export const DEFAULT_VISION_MODEL = 'meta/muse-glimmer-30b';
 export const DEFAULT_TEXT_MODEL = 'z-ai/glm-5.3-flash';
 export const DEFAULT_PROXY_URL = 'https://remedios-ai-proxy.alexsantossp71.workers.dev';
 
