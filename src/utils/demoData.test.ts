@@ -8,7 +8,7 @@ import { ReminderStatus } from '../types';
 describe('decideBootRoute', () => {
     const base = { hasProfile: false, hasData: false, onboarded: false };
 
-    it('primeiro uso vê a splash com Demo e Iniciar', () => {
+    it('primeiro uso vê a splash com Demo e Entrar', () => {
         expect(decideBootRoute(base)).toBe('splash');
     });
 

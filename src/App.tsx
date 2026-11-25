@@ -991,7 +991,7 @@ const audioRef = useRef<HTMLAudioElement>(null);
 };
 
 const App: React.FC = () => {
-    // Primeiro uso → splash (Demo/Iniciar); quem já usou vai direto para as
+    // Primeiro uso → splash (Demo/Entrar); quem já usou vai direto para as
     // doses do dia, sem splash e sem cadastro.
     const [boot, setBoot] = useState<BootRoute>(() => decideBootRoute({
         hasProfile: Boolean(loadSecureJson<UserProfile>(STORAGE_KEYS.profile, () => true)),

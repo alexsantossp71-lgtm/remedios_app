@@ -18,7 +18,7 @@ export interface BootOptions {
  * Decide a primeira tela:
  * - quem já usou o app (onboarded, perfil ou dados reais) vai direto para as
  *   doses do dia ('app'), sem splash nem cadastro;
- * - primeiro uso vê a landing com Demo/Iniciar ('splash'); o cadastro em si
+ * - primeiro uso vê a landing com Demo/Entrar ('splash'); o cadastro em si
  *   é uma etapa seguinte dentro do onboarding ('register').
  */
 export function decideBootRoute(options: BootOptions): BootRoute {

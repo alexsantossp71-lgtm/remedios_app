@@ -1,10 +1,12 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PillIcon, ShieldIcon, ClockIcon, CheckCircleIcon, SparklesIcon } from '../constants';
+import { bootProgress, bootStepLabel } from '../utils/bootProgress';
 
-// Splash/Landing de primeiro uso: carousel com 3 telas reais do app
-// (mini-mockups em CSS), depoimento curto, selos de confiança e os botões
-// Demo ("experimente em 30s") e Iniciar. Sem spinner: nada bloqueia aqui.
+// Splash/Landing de primeiro uso: abre com um carregamento que mostra a
+// porcentagem (0-100%) subindo, limitado por checagens reais de inicialização;
+// depois mostra o carousel com 3 telas do app (mini-mockups em CSS),
+// depoimento curto, selos de confiança e os botões Demo e Entrar.
 
 const OfflineBadgeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -84,17 +86,137 @@ interface Props {
     onDemo: () => void;
 }
 
+/** Uma checagem real por etapa de BOOT_STEPS, na mesma ordem. */
+const BOOT_CHECKS: Array<() => Promise<void>> = [
+    // 1. Armazenamento local responde (mesmo bloqueado, o app abre em memória).
+    async () => {
+        try {
+            if (typeof localStorage === 'undefined') return;
+            localStorage.setItem('__boot_probe__', '1');
+            localStorage.removeItem('__boot_probe__');
+        } catch { /* segue em memória */ }
+    },
+    // 2. Service worker (modo offline) já registrado ou registrável.
+    async () => {
+        if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+        await navigator.serviceWorker.getRegistration();
+    },
+    // 3. Fontes prontas: evita trocar de fonte depois do primeiro render.
+    async () => {
+        if (typeof document === 'undefined') return;
+        await document.fonts?.ready;
+    },
+];
+
+/** Tempo máximo (ms) esperando cada checagem antes de seguir adiante. */
+const BOOT_CHECK_TIMEOUT_MS = 1200;
+/** Rede de segurança: conclui tudo mesmo que alguma checagem trave. */
+const BOOT_FORCE_DONE_MS = 4000;
+
+const prefersReducedMotion = (): boolean =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Corre a checagem com limite de tempo e nunca rejeita. */
+const withTimeout = (check: () => Promise<void>, ms: number): Promise<void> =>
+    Promise.race([
+        check().catch(() => undefined),
+        new Promise<void>((resolve) => { window.setTimeout(resolve, ms); }),
+    ]);
+
 const SplashScreen: React.FC<Props> = ({ onStart, onDemo }) => {
     const [slide, setSlide] = useState(0);
     const [paused, setPaused] = useState(false);
 
+    // Carregamento com porcentagem: a animação avança suave com o tempo, mas
+    // só chega a 100% quando as checagens reais terminarem. Quem prefere menos
+    // movimento (prefers-reduced-motion) pula direto para a landing.
+    const [ready, setReady] = useState(() => prefersReducedMotion());
+    const [stepsDone, setStepsDone] = useState(0);
+    const [progress, setProgress] = useState(0);
+    const stepsDoneRef = useRef(0);
+    const startedAtRef = useRef(0);
+
     useEffect(() => {
-        if (paused) return undefined;
+        if (ready) return undefined;
+        startedAtRef.current = Date.now();
+        let cancelled = false;
+        const completeStep = (count: number) => {
+            if (cancelled || stepsDoneRef.current >= count) return;
+            stepsDoneRef.current = count;
+            setStepsDone(count);
+        };
+        const runChecks = async () => {
+            for (let index = 0; index < BOOT_CHECKS.length; index++) {
+                await withTimeout(BOOT_CHECKS[index], BOOT_CHECK_TIMEOUT_MS);
+                completeStep(index + 1);
+            }
+        };
+        void runChecks();
+        const force = window.setTimeout(() => completeStep(BOOT_CHECKS.length), BOOT_FORCE_DONE_MS);
+        return () => {
+            cancelled = true;
+            window.clearTimeout(force);
+        };
+    }, [ready]);
+
+    useEffect(() => {
+        if (ready) return undefined;
+        let raf = 0;
+        let cancelled = false;
+        const tick = () => {
+            if (cancelled) return;
+            const value = bootProgress(Date.now() - startedAtRef.current, stepsDoneRef.current);
+            setProgress(value);
+            if (value >= 100) {
+                setReady(true);
+                return;
+            }
+            raf = window.requestAnimationFrame(tick);
+        };
+        raf = window.requestAnimationFrame(tick);
+        return () => {
+            cancelled = true;
+            window.cancelAnimationFrame(raf);
+        };
+    }, [ready]);
+
+    useEffect(() => {
+        if (paused || !ready) return undefined;
         const timer = window.setInterval(() => setSlide((s) => (s + 1) % SLIDES.length), 4500);
         return () => window.clearInterval(timer);
-    }, [paused]);
+    }, [paused, ready]);
 
     const current = SLIDES[slide];
+
+    if (!ready) {
+        return (
+            <div className="flex min-h-dvh flex-col bg-gradient-to-b from-teal-800 via-teal-700 to-teal-600 px-4 text-white">
+                <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center text-center">
+                    <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white/15 shadow-inner">
+                        <PillIcon className="h-8 w-8 text-white" />
+                    </span>
+                    <h1 className="mt-4 text-2xl font-extrabold leading-tight">Remédios na Hora</h1>
+                    <p className="text-xs text-teal-100">Sua rotina de cuidado, organizada</p>
+
+                    <p className="mt-10 text-5xl font-extrabold tabular-nums" aria-hidden="true">{progress}%</p>
+                    <div
+                        role="progressbar"
+                        aria-label="Carregando o app"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progress}
+                        className="mt-4 h-2.5 w-full max-w-xs overflow-hidden rounded-full bg-white/20"
+                    >
+                        <div className="h-full rounded-full bg-white" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p aria-live="polite" className="mt-3 h-5 text-sm font-semibold text-teal-100">
+                        {bootStepLabel(stepsDone)}
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex min-h-dvh flex-col bg-gradient-to-b from-teal-800 via-teal-700 to-teal-600 px-4 pb-6 pt-10 text-white">
@@ -156,15 +278,17 @@ const SplashScreen: React.FC<Props> = ({ onStart, onDemo }) => {
                 <div className="mt-6 space-y-3">
                     <button
                         onClick={onDemo}
+                        aria-label="Experimentar a demonstração: 30 segundos, sem cadastro"
                         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-4 py-3.5 text-sm font-bold text-white shadow transition hover:bg-white/20"
                     >
-                        <SparklesIcon className="h-5 w-5" /> Experimentar demo (30s, sem instalar)
+                        <SparklesIcon className="h-5 w-5" /> Demo
                     </button>
                     <button
                         onClick={onStart}
+                        aria-label="Entrar e configurar o app"
                         className="w-full rounded-2xl bg-white px-4 py-3.5 text-sm font-extrabold text-teal-800 shadow-lg transition hover:bg-teal-50"
                     >
-                        Iniciar
+                        Entrar
                     </button>
                 </div>
             </div>
