@@ -6,6 +6,7 @@ import { FALLBACK_MEDICATIONS } from './data/medications';
 import { STORAGE_KEYS, generateId, isAppointmentArray, isDoctorArray, isExamArray, isHealthPlanArray, isLabResultArray, isReminderArray } from './storage';
 import { loadSecureJson, saveSecureJson, isVaultUnlocked, lockSecureVault, flushSecureWrites } from './services/secureStorage';
 import SecurityGate from './components/SecurityGate';
+import BootLoader from './components/BootLoader';
 import SplashScreen from './components/SplashScreen';
 import RegisterScreen, { type UserProfile } from './components/RegisterScreen';
 import { decideBootRoute, isOnboardingDone, markOnboardingDone, isDemoMode, setDemoMode, type BootRoute } from './utils/boot';
@@ -991,8 +992,9 @@ const audioRef = useRef<HTMLAudioElement>(null);
 };
 
 const App: React.FC = () => {
-    // Primeiro uso → splash (Demo/Entrar); quem já usou vai direto para as
-    // doses do dia, sem splash e sem cadastro.
+    // Toda abertura passa pelo carregamento com porcentagem (BootLoader).
+    // Depois: primeiro uso → splash (Demo/Entrar); quem já usou vai direto
+    // para as doses do dia, sem splash e sem cadastro.
     const [boot, setBoot] = useState<BootRoute>(() => decideBootRoute({
         hasProfile: Boolean(loadSecureJson<UserProfile>(STORAGE_KEYS.profile, () => true)),
         hasData: (loadSecureJson<Reminder[]>(STORAGE_KEYS.reminders, isReminderArray) ?? []).length > 0,
@@ -1001,6 +1003,7 @@ const App: React.FC = () => {
     const [demoActive, setDemoActive] = useState(() => isDemoMode());
     const [unlocked, setUnlocked] = useState(() => isVaultUnlocked());
     const handleUnlock = () => setUnlocked(true);
+    const [booting, setBooting] = useState(true);
     const handleLock = async () => {
         try {
             await flushSecureWrites();
@@ -1010,6 +1013,9 @@ const App: React.FC = () => {
             window.alert(error instanceof Error ? error.message : 'Não foi possível bloquear com segurança. Tente novamente.');
         }
     };
+    if (booting) {
+        return <BootLoader onDone={() => setBooting(false)} />;
+    }
     if (boot !== 'app') {
         return boot === 'register'
             ? <RegisterScreen
